@@ -312,7 +312,21 @@ export class KiroExecutor extends BaseExecutor {
    */
   async execute(args) {
     const result = await super.execute(args);
-    if (result?.response?.ok) this.attachIntegrityGate(result, args);
+    if (result?.response?.ok) {
+      if (args.stream) {
+        // A terminal integrity gate cannot release tokens incrementally: it has
+        // to see clean EOF before it knows whether a retry is safe. Streaming
+        // clients instead get frame-level validation as bytes arrive. The
+        // transformer still validates AWS EventStream bounds/CRCs, defers tool
+        // calls until their complete input is valid, and reports terminal
+        // failures as SSE errors; it simply cannot retract text already sent.
+        result.response = this.transformEventStreamToSSE(result.response, args.model);
+      } else {
+        // JSON clients already wait for the complete response, so retain the
+        // fail-closed terminal validation and bounded recovery path for them.
+        this.attachIntegrityGate(result, args);
+      }
+    }
     return result;
   }
 
