@@ -826,9 +826,21 @@ export class KiroExecutor extends BaseExecutor {
           emitDelta(controller, { content });
         }
       } else if (eventType === "reasoningContentEvent") {
-        const value = event.payload?.reasoningContentEvent || event.payload || {};
-        const content = typeof value === "string" ? value : value.text || value.content || "";
-        if (content) {
+        const payload = event.payload?.reasoningContentEvent ?? event.payload;
+        const values = Array.isArray(payload) ? payload : [payload];
+        for (const value of values) {
+          const candidates = typeof value === "string"
+            ? [value]
+            : [
+                value?.text,
+                value?.content,
+                typeof value?.delta === "string" ? value.delta : undefined,
+                value?.delta?.text,
+                value?.delta?.content,
+                value?.reasoning_content
+              ];
+          const content = candidates.find(candidate => typeof candidate === "string");
+          if (!content) continue;
           state.hasReasoning = true;
           state.totalContentLength += content.length;
           emitDelta(controller, { reasoning_content: content });
@@ -936,9 +948,14 @@ export class KiroExecutor extends BaseExecutor {
         state.buffer = joined;
       }
 
-      while (state.buffer.byteLength >= 12) {
-        const view = new DataView(state.buffer.buffer, state.buffer.byteOffset);
-        if (view.getUint32(8, false) !== crc32(state.buffer.subarray(0, 8))) {
+      let offset = 0;
+      while (state.buffer.byteLength - offset >= 12) {
+        const view = new DataView(
+          state.buffer.buffer,
+          state.buffer.byteOffset + offset,
+          state.buffer.byteLength - offset
+        );
+        if (view.getUint32(8, false) !== crc32(state.buffer.subarray(offset, offset + 8))) {
           fail(controller, "corrupt_eventstream_frame", "kiro_missing_terminal", "Kiro EventStream prelude CRC mismatch");
           return false;
         }
@@ -949,9 +966,9 @@ export class KiroExecutor extends BaseExecutor {
           fail(controller, "corrupt_eventstream_frame", "kiro_missing_terminal", "Kiro EventStream frame bounds are invalid");
           return false;
         }
-        if (state.buffer.byteLength < totalLength) break;
-        const frame = state.buffer.slice(0, totalLength);
-        state.buffer = state.buffer.slice(totalLength);
+        if (state.buffer.byteLength - offset < totalLength) break;
+        const frame = state.buffer.slice(offset, offset + totalLength);
+        offset += totalLength;
         let event;
         try {
           event = parseEventFrame(frame);
@@ -965,13 +982,15 @@ export class KiroExecutor extends BaseExecutor {
           if (!processEvent(event, controller)) return false;
         } catch (error) {
           const bufferExceeded = error.code === "KIRO_BUFFER_EXCEEDED";
-          if (!bufferExceeded) {
+          const eventType = event.headers[":event-type"] || "";
+          if (!bufferExceeded && eventType === "toolUseEvent") {
             // Keep whatever is already buffered: the rejected fragment belongs to
             // one tool, and clearing the map dropped the complete calls too.
             state.toolValidationError ||= error.message;
             console.error(`[Kiro] tool fragment rejected, keeping ${state.tools.size} buffered tool(s): ${error.message}`);
             continue;
           }
+          if (!bufferExceeded) throw error;
           fail(
             controller,
             "integrity_buffer_exceeded",
@@ -985,6 +1004,7 @@ export class KiroExecutor extends BaseExecutor {
           return false;
         }
       }
+      if (offset > 0) state.buffer = state.buffer.slice(offset);
       return true;
     };
     const finish = (controller) => {
@@ -1142,22 +1162,30 @@ export class KiroExecutor extends BaseExecutor {
 
     const reader = response.body.getReader();
     const stream = new ReadableStream({
-      start: async (controller) => {
+      pull: async (controller) => {
         try {
           while (!state.finished) {
             const { done, value } = await reader.read();
-            if (done) break;
+            if (done) {
+              finish(controller);
+              controller.close();
+              return;
+            }
             const chunksBefore = state.chunkIndex;
             const framesBefore = state.validatedFrames;
             if (!processBytes(value, controller)) {
               await reader.cancel("invalid Kiro EventStream").catch(() => {});
-              break;
+              controller.close();
+              return;
             }
-            if (state.validatedFrames > framesBefore && state.chunkIndex === chunksBefore) {
+            if (state.chunkIndex > chunksBefore) return;
+            if (state.validatedFrames > framesBefore) {
               controller.enqueue(encoder.encode(": kiro-upstream\n\n"));
+              return;
             }
+            // No complete frame yet: keep reading raw fragments to satisfy this
+            // pull, but stop as soon as one semantic delta or heartbeat exists.
           }
-          finish(controller);
           controller.close();
         } catch (error) {
           if (!state.finished) {

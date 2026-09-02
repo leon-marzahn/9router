@@ -69,6 +69,49 @@ async function readNextWithTimeout(reader) {
 }
 
 describe("KiroExecutor thinking tag stripping", () => {
+  it("preserves every native reasoning fragment across transport boundaries", async () => {
+    const executor = new KiroExecutor();
+    const expected = "Analyze naïve UTF-8 → word boundaries\n\n- item repeated repeated";
+    const frames = [
+      createMockFrame("reasoningContentEvent", { content: "Analyze naïve UTF-8 → " }),
+      createMockFrame("reasoningContentEvent", [
+        { text: "word " },
+        { content: "boundaries\n\n- item " },
+      ]),
+      createMockFrame("reasoningContentEvent", { delta: "repeated " }),
+      createMockFrame("reasoningContentEvent", { reasoning_content: "repeated" }),
+    ];
+    const combined = new Uint8Array(frames.reduce((total, frame) => total + frame.byteLength, 0));
+    let offset = 0;
+    for (const frame of frames) {
+      combined.set(frame, offset);
+      offset += frame.byteLength;
+    }
+    const cuts = [1, 7, 19, 43, 89, 144, combined.byteLength];
+    const readableStream = new ReadableStream({
+      start(controller) {
+        let start = 0;
+        for (const end of cuts) {
+          if (end > start) controller.enqueue(combined.slice(start, Math.min(end, combined.byteLength)));
+          start = end;
+          if (start >= combined.byteLength) break;
+        }
+        if (start < combined.byteLength) controller.enqueue(combined.slice(start));
+        controller.close();
+      }
+    });
+
+    const output = await readAllSSE(
+      executor.transformEventStreamToSSE({ body: readableStream }, "claude-test").body
+    );
+    const reasoning = output
+      .split("\n")
+      .filter(line => line.startsWith("data: ") && !line.includes("[DONE]"))
+      .map(line => JSON.parse(line.slice(6)).choices[0].delta.reasoning_content || "")
+      .join("");
+    expect(reasoning).toBe(expected);
+  });
+
   it("strips <thinking> tags from assistantResponseEvent", async () => {
     const executor = new KiroExecutor();
     
