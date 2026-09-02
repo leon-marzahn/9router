@@ -5,8 +5,7 @@
 import { register } from "../index.js";
 import { FORMATS } from "../formats.js";
 import { v4 as uuidv4 } from "uuid";
-import { applyKiroSessionReplay } from "../../utils/kiroSessionReplay.js";
-import { resolveContinuationId, resolveSessionIdentity } from "../../utils/sessionManager.js";
+import { resolveSessionId } from "../../utils/sessionManager.js";
 import {
   resolveKiroModelIntent,
   applyKiroThinkingOverride,
@@ -338,43 +337,38 @@ export function openaiToKiroRequest(model, body, stream, credentials) {
     ? (credentials?.providerSpecificData?.profileArn || "")
     : (credentials?.providerSpecificData?.profileArn || resolveDefaultProfileArn(authMethod));
 
+  let finalContent = currentMessage?.userInputMessage?.content || "";
+
   const timestamp = new Date().toISOString();
 
-  // Kiro CLI/KAS sends these as top-level systemPrompt. Keep a content fallback
-  // too because the CodeWhisperer surface does not always enforce top-level
-  // systemPrompt for direct calls.
-  const systemPromptParts = [];
+  // Build the system-prompt prefix that goes ABOVE the user message body.
+  // Order: thinking_mode tag first (so Kiro sees it before any user text),
+  // then context/timestamp marker, then optional agentic chunked-write prompt.
+  // ponytail: embed in content (v0.5.20 pattern) — Kiro rejects top-level
+  // `systemPrompt` field with REQUEST_BODY_INVALID. Revert to top-level when
+  // upstream schema accepts it (monitor decolua/9router#2716).
+  const prefixParts = [];
   if (thinkingBudget !== null && !usesNativeGptEffort) {
-    systemPromptParts.push(buildThinkingSystemPrefix(thinkingBudget));
+    prefixParts.push(buildThinkingSystemPrefix(thinkingBudget));
   }
+  prefixParts.push(`[Context: Current time is ${timestamp}]`);
   if (agentic) {
-    systemPromptParts.push(KIRO_AGENTIC_SYSTEM_PROMPT);
+    prefixParts.push(KIRO_AGENTIC_SYSTEM_PROMPT);
   }
-  const systemPrompt = systemPromptParts.filter(Boolean).join("\n\n");
-  const currentTimeContext = `[Context: Current time is ${timestamp}]`;
-  const contentPrefix = [systemPrompt, currentTimeContext].filter(Boolean).join("\n\n");
+  finalContent = `${prefixParts.join("\n\n")}\n\n${finalContent}`;
 
-  const sessionIdentity = resolveSessionIdentity({ headers: credentials?.rawHeaders, body, connectionId: credentials?.connectionId, scope: "kiro" });
-  const conversationId = sessionIdentity.sessionId;
-  const continuationId = resolveContinuationId({
-    sessionId: conversationId,
-    connectionId: credentials?.connectionId,
-    scope: "kiro",
-    ephemeral: sessionIdentity.ephemeral,
-  });
-  const replay = applyKiroSessionReplay({
-    conversationId,
-    connectionId: credentials?.connectionId,
-    modelId: upstreamModel,
-    systemPrompt,
-    contentPrefix,
-    currentContentPrefix: currentTimeContext,
-    history,
-    currentMessage,
-  });
+  // Keep the current conversation repair/validation, but apply it directly to
+  // the v0.5.20-style message shape instead of passing through session replay.
+  const prefixedCurrentMessage = {
+    userInputMessage: {
+      ...(currentMessage?.userInputMessage || {}),
+      content: finalContent,
+      modelId: upstreamModel,
+    },
+  };
   const canonical = canonicalizeKiroConversation({
-    history: replay.history,
-    currentMessage: replay.currentMessage,
+    history,
+    currentMessage: prefixedCurrentMessage,
     modelId: upstreamModel,
     toolSpecs,
     nameMap,
@@ -391,36 +385,32 @@ export function openaiToKiroRequest(model, body, stream, credentials) {
     console.error(`[Kiro] refusing invalid conversation (openai → kiro): ${(canonical.errors || []).join(", ") || "unknown"} | turns=${(canonical.history || []).length + 1}`);
     return null;
   }
-  const replayCurrent = canonical.currentMessage.userInputMessage;
+  const canonicalCurrent = canonical.currentMessage.userInputMessage;
 
   const payload = {
     conversationState: {
       chatTriggerType: "MANUAL",
-      conversationId,
-      agentContinuationId: continuationId,
-      agentTaskType: "vibe",
+      conversationId: resolveSessionId({ headers: credentials?.rawHeaders, body, connectionId: credentials?.connectionId, scope: "kiro" }),
       currentMessage: {
         userInputMessage: {
-          content: replayCurrent.content || "",
+          content: canonicalCurrent.content || "",
           modelId: upstreamModel,
           origin: "AI_EDITOR",
-          ...(replayCurrent.images?.length > 0 && {
-            images: replayCurrent.images
+          ...(canonicalCurrent.images?.length > 0 && {
+            images: canonicalCurrent.images
           }),
-          ...(replayCurrent.userInputMessageContext && {
-            userInputMessageContext: replayCurrent.userInputMessageContext
+          ...(canonicalCurrent.userInputMessageContext && {
+            userInputMessageContext: canonicalCurrent.userInputMessageContext
           })
         }
       },
       history: canonical.history
-    },
-    agentMode: "vibe",
+    }
   };
 
   if (profileArn) {
     payload.profileArn = profileArn;
   }
-  if (systemPrompt) payload.systemPrompt = systemPrompt;
   if (additionalModelRequestFields) {
     payload.additionalModelRequestFields = additionalModelRequestFields;
   }

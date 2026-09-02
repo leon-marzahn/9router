@@ -6,10 +6,10 @@
  * direct `claude:kiro` route in ../index.js uses; it is NOT reached through the
  * claude→openai→kiro pivot.
  *
- * After session replay it delegates to the shared Kiro conversation
- * canonicalizer. That layer enforces adjacent one-to-one tool use/results,
- * repairs partial parallel calls, and flattens compacted structured references
- * that can no longer be represented safely.
+ * It delegates to the shared Kiro conversation canonicalizer. That layer
+ * enforces adjacent one-to-one tool use/results, repairs partial parallel
+ * calls, and flattens compacted structured references that can no longer be
+ * represented safely.
  *
  * It also handles the 9router-synthetic `-agentic` / `-thinking` suffixes and
  * the `<thinking_mode>enabled</thinking_mode>` reasoning trigger, matching
@@ -17,8 +17,7 @@
  */
 import { register } from "../index.js";
 import { FORMATS } from "../formats.js";
-import { applyKiroSessionReplay } from "../../utils/kiroSessionReplay.js";
-import { resolveContinuationId, resolveSessionIdentity } from "../../utils/sessionManager.js";
+import { v4 as uuidv4 } from "uuid";
 import {
   resolveKiroModelIntent,
   applyKiroThinkingOverride,
@@ -50,7 +49,6 @@ function convertClaudeMessagesToKiro(messages, model) {
   let pendingToolResults = [];
   let pendingImages = [];
   let currentRole = null;
-
   const flushPending = () => {
     if (currentRole === ROLE.USER) {
       const content = pendingUserContent.join("\n\n").trim() || "continue";
@@ -242,92 +240,75 @@ export function claudeToKiroRequest(model, body, stream, credentials) {
     ? (credentials?.providerSpecificData?.profileArn || "")
     : (credentials?.providerSpecificData?.profileArn || resolveDefaultProfileArn(authMethod));
 
-  // Kiro CLI/KAS sends system prompt as top-level `systemPrompt`. Keep a
-  // content fallback too because the CodeWhisperer surface does not always
-  // enforce top-level systemPrompt for direct calls.
-  const timestamp = new Date().toISOString();
-  const systemPromptParts = [];
-  if (thinkingBudget !== null && !usesNativeGptEffort) {
-    systemPromptParts.push(buildThinkingSystemPrefix(thinkingBudget));
-  }
-  if (agentic) systemPromptParts.push(KIRO_AGENTIC_SYSTEM_PROMPT);
-  const systemInstruction = extractClaudeSystemText(body.system);
-  if (systemInstruction) systemPromptParts.push(systemInstruction);
-  const systemPrompt = systemPromptParts.filter(Boolean).join("\n\n");
-  const currentTimeContext = `[Context: Current time is ${timestamp}]`;
-  const contentPrefix = [systemPrompt, currentTimeContext].filter(Boolean).join("\n\n");
+  let finalContent = currentMessage?.userInputMessage?.content || "";
 
-  const sessionIdentity = resolveSessionIdentity({
-    headers: credentials?.rawHeaders,
-    body,
-    connectionId: credentials?.connectionId,
-    scope: "kiro",
-  });
-  const conversationId = sessionIdentity.sessionId;
-  const continuationId = resolveContinuationId({
-    sessionId: conversationId,
-    connectionId: credentials?.connectionId,
-    scope: "kiro",
-    ephemeral: sessionIdentity.ephemeral,
-  });
-  const replay = applyKiroSessionReplay({
-    conversationId,
-    connectionId: credentials?.connectionId,
-    modelId: upstreamModel,
-    systemPrompt,
-    contentPrefix,
-    currentContentPrefix: currentTimeContext,
-    history,
-    currentMessage,
-  });
+  // Embed the Claude system prompt in the message content (v0.5.20 pattern).
+  // Kiro rejects the top-level `systemPrompt` field for some synthetic model
+  // variants with REQUEST_BODY_INVALID.
+  const systemInstruction = extractClaudeSystemText(body.system) || undefined;
+  if (systemInstruction) {
+    finalContent = `<instructions>\n${systemInstruction}\n</instructions>\n\n${finalContent}`;
+  }
+
+  // Prefix order: thinking_mode tag, timestamp marker, then agentic prompt.
+  const timestamp = new Date().toISOString();
+  const prefixParts = [];
+  if (thinkingBudget !== null && !usesNativeGptEffort) {
+    prefixParts.push(buildThinkingSystemPrefix(thinkingBudget));
+  }
+  prefixParts.push(`[Context: Current time is ${timestamp}]`);
+  if (agentic) prefixParts.push(KIRO_AGENTIC_SYSTEM_PROMPT);
+  finalContent = `${prefixParts.join("\n\n")}\n\n${finalContent}`;
+
+  // Preserve the newer strict tool-history repair and validation on the
+  // rollback-compatible message shape.
+  const prefixedCurrentMessage = {
+    userInputMessage: {
+      ...(currentMessage?.userInputMessage || {}),
+      content: finalContent,
+      modelId: upstreamModel,
+    },
+  };
   const canonical = canonicalizeKiroConversation({
-    history: replay.history,
-    currentMessage: replay.currentMessage,
+    history,
+    currentMessage: prefixedCurrentMessage,
     modelId: upstreamModel,
     toolSpecs,
     nameMap,
   });
-  // canonicalizeKiroConversation() already ran its second-chance repair (flatten
-  // every structured tool turn to text, then re-validate). A body that is STILL
-  // invalid here cannot be made shippable, and Kiro answers it with
-  // 400 {"message":"Improperly formed request.","reason":"REQUEST_BODY_INVALID"}.
-  // Fail locally instead: chatCore turns a falsy return into a 400 without
-  // spending an upstream call or a per-account cooldown. The taxonomy
-  // (role:N | pair:N | id:N | spec:N | orphan:0 | current) names the offending
-  // turn so the shape can be diagnosed from the log alone.
   if (!canonical.valid) {
     console.error(`[Kiro] refusing invalid conversation (claude → kiro): ${(canonical.errors || []).join(", ") || "unknown"} | turns=${(canonical.history || []).length + 1}`);
     return null;
   }
-  const replayCurrent = canonical.currentMessage.userInputMessage;
+  const canonicalCurrent = canonical.currentMessage.userInputMessage;
   const userInputMessage = {
-    content: replayCurrent.content || "",
+    content: canonicalCurrent.content || "",
     modelId: upstreamModel,
     origin: "AI_EDITOR",
-    ...(replayCurrent.userInputMessageContext && {
-      userInputMessageContext: replayCurrent.userInputMessageContext,
+    ...(canonicalCurrent.userInputMessageContext && {
+      userInputMessageContext: canonicalCurrent.userInputMessageContext,
     }),
-    ...(replayCurrent.images && {
-      images: replayCurrent.images,
+    ...(canonicalCurrent.images && {
+      images: canonicalCurrent.images,
     }),
   };
+
+  if (systemInstruction) {
+    userInputMessage.systemInstruction = systemInstruction;
+  }
 
   const payload = {
     conversationState: {
       chatTriggerType: "MANUAL",
-      conversationId,
-      agentContinuationId: continuationId,
-      agentTaskType: "vibe",
+      conversationId: uuidv4(),
       currentMessage: {
         userInputMessage,
       },
       history: canonical.history,
     },
-    agentMode: "vibe",
   };
 
   if (profileArn) payload.profileArn = profileArn;
-  if (systemPrompt) payload.systemPrompt = systemPrompt;
   if (additionalModelRequestFields) {
     payload.additionalModelRequestFields = additionalModelRequestFields;
   }
