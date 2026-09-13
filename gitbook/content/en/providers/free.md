@@ -172,6 +172,21 @@ Model: kr/claude-sonnet-4.5
 | `kr/claude-sonnet-4.5` | Claude Sonnet 4.5 | Balanced quality/speed |
 | `kr/claude-haiku-4.5` | Claude Haiku 4.5 | Fast responses |
 
+### Disable real-world timestamps for roleplay
+
+9router normally adds the current time to Kiro prompts. Send this HTTP header on
+each request to disable that injection for both OpenAI Chat Completions and Claude
+Messages requests:
+
+```http
+x-9router-kiro-time: off
+```
+
+Omitting the header keeps timestamps enabled. System instructions and thinking
+settings still apply. Changing this header rebuilds the cached first turn from
+the conversation supplied by your client; send your full chat history when switching.
+Timestamps already present in client-supplied text are preserved.
+
 ### Pro Tips
 
 - **FREE Claude** - Same quality as paid tier

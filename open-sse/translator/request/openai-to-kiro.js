@@ -12,6 +12,7 @@ import {
   applyKiroThinkingOverride,
   resolveKiroThinkingBudget,
   buildThinkingSystemPrefix,
+  buildKiroTimeContext,
   KIRO_AGENTIC_SYSTEM_PROMPT,
   resolveDefaultProfileArn,
   buildKiroAdditionalModelRequestFieldsForModel,
@@ -338,8 +339,6 @@ export function openaiToKiroRequest(model, body, stream, credentials) {
     ? (credentials?.providerSpecificData?.profileArn || "")
     : (credentials?.providerSpecificData?.profileArn || resolveDefaultProfileArn(authMethod));
 
-  const timestamp = new Date().toISOString();
-
   // The system prompt travels inside the first user turn's content (contentPrefix):
   // the CodeWhisperer surface rejects a top-level `systemPrompt` with
   // 400 REQUEST_BODY_INVALID, so the value below is only a replay cache key.
@@ -351,7 +350,7 @@ export function openaiToKiroRequest(model, body, stream, credentials) {
     systemPromptParts.push(KIRO_AGENTIC_SYSTEM_PROMPT);
   }
   const systemPrompt = systemPromptParts.filter(Boolean).join("\n\n");
-  const currentTimeContext = `[Context: Current time is ${timestamp}]`;
+  const currentTimeContext = buildKiroTimeContext(credentials?.rawHeaders);
   const contentPrefix = [systemPrompt, currentTimeContext].filter(Boolean).join("\n\n");
 
   const sessionIdentity = resolveSessionIdentity({ headers: credentials?.rawHeaders, body, connectionId: credentials?.connectionId, scope: "kiro" });
@@ -369,6 +368,7 @@ export function openaiToKiroRequest(model, body, stream, credentials) {
     systemPrompt,
     contentPrefix,
     currentContentPrefix: currentTimeContext,
+    timeContextEnabled: !!currentTimeContext,
     history,
     currentMessage,
   });

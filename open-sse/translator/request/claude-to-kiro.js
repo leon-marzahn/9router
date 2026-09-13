@@ -24,6 +24,7 @@ import {
   applyKiroThinkingOverride,
   resolveKiroThinkingBudget,
   buildThinkingSystemPrefix,
+  buildKiroTimeContext,
   KIRO_AGENTIC_SYSTEM_PROMPT,
   resolveDefaultProfileArn,
   buildKiroAdditionalModelRequestFieldsForModel,
@@ -245,7 +246,6 @@ export function claudeToKiroRequest(model, body, stream, credentials) {
   // The system prompt travels inside the first user turn's content (contentPrefix):
   // the CodeWhisperer surface rejects a top-level `systemPrompt` with
   // 400 REQUEST_BODY_INVALID, so the value below is only a replay cache key.
-  const timestamp = new Date().toISOString();
   const systemPromptParts = [];
   if (thinkingBudget !== null && !usesNativeGptEffort) {
     systemPromptParts.push(buildThinkingSystemPrefix(thinkingBudget));
@@ -254,7 +254,7 @@ export function claudeToKiroRequest(model, body, stream, credentials) {
   const systemInstruction = extractClaudeSystemText(body.system);
   if (systemInstruction) systemPromptParts.push(systemInstruction);
   const systemPrompt = systemPromptParts.filter(Boolean).join("\n\n");
-  const currentTimeContext = `[Context: Current time is ${timestamp}]`;
+  const currentTimeContext = buildKiroTimeContext(credentials?.rawHeaders);
   const contentPrefix = [systemPrompt, currentTimeContext].filter(Boolean).join("\n\n");
 
   const sessionIdentity = resolveSessionIdentity({
@@ -277,6 +277,7 @@ export function claudeToKiroRequest(model, body, stream, credentials) {
     systemPrompt,
     contentPrefix,
     currentContentPrefix: currentTimeContext,
+    timeContextEnabled: !!currentTimeContext,
     history,
     currentMessage,
   });
