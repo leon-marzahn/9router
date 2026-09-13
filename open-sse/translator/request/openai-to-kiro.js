@@ -341,13 +341,10 @@ export function openaiToKiroRequest(model, body, stream, credentials) {
 
   const timestamp = new Date().toISOString();
 
-  // Build the system-prompt prefix that goes ABOVE the user message body.
-  // Order: thinking_mode tag first (so Kiro sees it before any user text),
-  // then context/timestamp marker, then optional agentic chunked-write prompt.
-  // ponytail: embed in content (v0.5.20 pattern) — Kiro rejects top-level
-  // `systemPrompt` field with REQUEST_BODY_INVALID. Revert to top-level when
-  // upstream schema accepts it (monitor decolua/9router#2716).
-  const prefixParts = [];
+  // The system prompt travels inside the first user turn's content (contentPrefix):
+  // the CodeWhisperer surface rejects a top-level `systemPrompt` with
+  // 400 REQUEST_BODY_INVALID, so the value below is only a replay cache key.
+  const systemPromptParts = [];
   if (thinkingBudget !== null && !usesNativeGptEffort) {
     prefixParts.push(buildThinkingSystemPrefix(thinkingBudget));
   }
@@ -373,6 +370,13 @@ export function openaiToKiroRequest(model, body, stream, credentials) {
     toolSpecs,
     nameMap,
   });
+  const canonical = canonicalizeKiroConversation({
+    history: replay.history,
+    currentMessage: replay.currentMessage,
+    modelId: upstreamModel,
+    toolSpecs,
+    nameMap,
+  });
   // canonicalizeKiroConversation() already ran its second-chance repair (flatten
   // every structured tool turn to text, then re-validate). A body that is STILL
   // invalid here cannot be made shippable, and Kiro answers it with
@@ -385,12 +389,12 @@ export function openaiToKiroRequest(model, body, stream, credentials) {
     console.error(`[Kiro] refusing invalid conversation (openai → kiro): ${(canonical.errors || []).join(", ") || "unknown"} | turns=${(canonical.history || []).length + 1}`);
     return null;
   }
-  const canonicalCurrent = canonical.currentMessage.userInputMessage;
+  const replayCurrent = canonical.currentMessage.userInputMessage;
 
   const payload = {
     conversationState: {
       chatTriggerType: "MANUAL",
-      conversationId: resolveSessionId({ headers: credentials?.rawHeaders, body, connectionId: credentials?.connectionId, scope: "kiro" }),
+      conversationId,
       currentMessage: {
         userInputMessage: {
           content: canonicalCurrent.content || "",
@@ -405,7 +409,7 @@ export function openaiToKiroRequest(model, body, stream, credentials) {
         }
       },
       history: canonical.history
-    }
+    },
   };
 
   if (profileArn) {

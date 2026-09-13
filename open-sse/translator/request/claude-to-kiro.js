@@ -6,10 +6,10 @@
  * direct `claude:kiro` route in ../index.js uses; it is NOT reached through the
  * claude→openai→kiro pivot.
  *
- * It delegates to the shared Kiro conversation canonicalizer. That layer
- * enforces adjacent one-to-one tool use/results, repairs partial parallel
- * calls, and flattens compacted structured references that can no longer be
- * represented safely.
+ * After session replay it delegates to the shared Kiro conversation
+ * canonicalizer. That layer enforces adjacent one-to-one tool use/results,
+ * repairs partial parallel calls, and flattens compacted structured references
+ * that can no longer be represented safely.
  *
  * It also handles the 9router-synthetic `-agentic` / `-thinking` suffixes and
  * the `<thinking_mode>enabled</thinking_mode>` reasoning trigger, matching
@@ -49,6 +49,7 @@ function convertClaudeMessagesToKiro(messages, model) {
   let pendingToolResults = [];
   let pendingImages = [];
   let currentRole = null;
+
   const flushPending = () => {
     if (currentRole === ROLE.USER) {
       const content = pendingUserContent.join("\n\n").trim() || "continue";
@@ -240,17 +241,9 @@ export function claudeToKiroRequest(model, body, stream, credentials) {
     ? (credentials?.providerSpecificData?.profileArn || "")
     : (credentials?.providerSpecificData?.profileArn || resolveDefaultProfileArn(authMethod));
 
-  let finalContent = currentMessage?.userInputMessage?.content || "";
-
-  // Embed the Claude system prompt in the message content (v0.5.20 pattern).
-  // Kiro rejects the top-level `systemPrompt` field for some synthetic model
-  // variants with REQUEST_BODY_INVALID.
-  const systemInstruction = extractClaudeSystemText(body.system) || undefined;
-  if (systemInstruction) {
-    finalContent = `<instructions>\n${systemInstruction}\n</instructions>\n\n${finalContent}`;
-  }
-
-  // Prefix order: thinking_mode tag, timestamp marker, then agentic prompt.
+  // The system prompt travels inside the first user turn's content (contentPrefix):
+  // the CodeWhisperer surface rejects a top-level `systemPrompt` with
+  // 400 REQUEST_BODY_INVALID, so the value below is only a replay cache key.
   const timestamp = new Date().toISOString();
   const prefixParts = [];
   if (thinkingBudget !== null && !usesNativeGptEffort) {
@@ -276,11 +269,26 @@ export function claudeToKiroRequest(model, body, stream, credentials) {
     toolSpecs,
     nameMap,
   });
+  const canonical = canonicalizeKiroConversation({
+    history: replay.history,
+    currentMessage: replay.currentMessage,
+    modelId: upstreamModel,
+    toolSpecs,
+    nameMap,
+  });
+  // canonicalizeKiroConversation() already ran its second-chance repair (flatten
+  // every structured tool turn to text, then re-validate). A body that is STILL
+  // invalid here cannot be made shippable, and Kiro answers it with
+  // 400 {"message":"Improperly formed request.","reason":"REQUEST_BODY_INVALID"}.
+  // Fail locally instead: chatCore turns a falsy return into a 400 without
+  // spending an upstream call or a per-account cooldown. The taxonomy
+  // (role:N | pair:N | id:N | spec:N | orphan:0 | current) names the offending
+  // turn so the shape can be diagnosed from the log alone.
   if (!canonical.valid) {
     console.error(`[Kiro] refusing invalid conversation (claude → kiro): ${(canonical.errors || []).join(", ") || "unknown"} | turns=${(canonical.history || []).length + 1}`);
     return null;
   }
-  const canonicalCurrent = canonical.currentMessage.userInputMessage;
+  const replayCurrent = canonical.currentMessage.userInputMessage;
   const userInputMessage = {
     content: canonicalCurrent.content || "",
     modelId: upstreamModel,
@@ -300,7 +308,7 @@ export function claudeToKiroRequest(model, body, stream, credentials) {
   const payload = {
     conversationState: {
       chatTriggerType: "MANUAL",
-      conversationId: uuidv4(),
+      conversationId,
       currentMessage: {
         userInputMessage,
       },
