@@ -136,6 +136,21 @@ afterEach(() => {
 });
 
 describe("Kiro terminal integrity recovery", () => {
+  it("releases validated content frames before clean EOF for streaming clients", async () => {
+    const upstream = controlledResponse();
+    fetchMock.mockResolvedValueOnce(upstream.value);
+
+    const result = await execute(new KiroExecutor(), { stream: true });
+    const reader = result.response.body.getReader();
+    upstream.enqueue(frame("assistantResponseEvent", { content: "streamed immediately" }));
+
+    const first = new TextDecoder().decode((await reader.read()).value);
+    expect(first).toContain("streamed immediately");
+
+    upstream.close();
+    await reader.cancel();
+  });
+
   it("keeps semantic output private behind a heartbeat until clean EOF", async () => {
     const upstream = controlledResponse([
       frame("assistantResponseEvent", { content: "private until validated" })

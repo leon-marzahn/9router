@@ -5,8 +5,7 @@
 import { register } from "../index.js";
 import { FORMATS } from "../formats.js";
 import { v4 as uuidv4 } from "uuid";
-import { applyKiroSessionReplay } from "../../utils/kiroSessionReplay.js";
-import { resolveContinuationId, resolveSessionIdentity } from "../../utils/sessionManager.js";
+import { resolveSessionId } from "../../utils/sessionManager.js";
 import {
   resolveKiroModelIntent,
   applyKiroThinkingOverride,
@@ -338,6 +337,8 @@ export function openaiToKiroRequest(model, body, stream, credentials) {
     ? (credentials?.providerSpecificData?.profileArn || "")
     : (credentials?.providerSpecificData?.profileArn || resolveDefaultProfileArn(authMethod));
 
+  let finalContent = currentMessage?.userInputMessage?.content || "";
+
   const timestamp = new Date().toISOString();
 
   // The system prompt travels inside the first user turn's content (contentPrefix):
@@ -345,32 +346,29 @@ export function openaiToKiroRequest(model, body, stream, credentials) {
   // 400 REQUEST_BODY_INVALID, so the value below is only a replay cache key.
   const systemPromptParts = [];
   if (thinkingBudget !== null && !usesNativeGptEffort) {
-    systemPromptParts.push(buildThinkingSystemPrefix(thinkingBudget));
+    prefixParts.push(buildThinkingSystemPrefix(thinkingBudget));
   }
+  prefixParts.push(`[Context: Current time is ${timestamp}]`);
   if (agentic) {
-    systemPromptParts.push(KIRO_AGENTIC_SYSTEM_PROMPT);
+    prefixParts.push(KIRO_AGENTIC_SYSTEM_PROMPT);
   }
-  const systemPrompt = systemPromptParts.filter(Boolean).join("\n\n");
-  const currentTimeContext = `[Context: Current time is ${timestamp}]`;
-  const contentPrefix = [systemPrompt, currentTimeContext].filter(Boolean).join("\n\n");
+  finalContent = `${prefixParts.join("\n\n")}\n\n${finalContent}`;
 
-  const sessionIdentity = resolveSessionIdentity({ headers: credentials?.rawHeaders, body, connectionId: credentials?.connectionId, scope: "kiro" });
-  const conversationId = sessionIdentity.sessionId;
-  const continuationId = resolveContinuationId({
-    sessionId: conversationId,
-    connectionId: credentials?.connectionId,
-    scope: "kiro",
-    ephemeral: sessionIdentity.ephemeral,
-  });
-  const replay = applyKiroSessionReplay({
-    conversationId,
-    connectionId: credentials?.connectionId,
-    modelId: upstreamModel,
-    systemPrompt,
-    contentPrefix,
-    currentContentPrefix: currentTimeContext,
+  // Keep the current conversation repair/validation, but apply it directly to
+  // the v0.5.20-style message shape instead of passing through session replay.
+  const prefixedCurrentMessage = {
+    userInputMessage: {
+      ...(currentMessage?.userInputMessage || {}),
+      content: finalContent,
+      modelId: upstreamModel,
+    },
+  };
+  const canonical = canonicalizeKiroConversation({
     history,
-    currentMessage,
+    currentMessage: prefixedCurrentMessage,
+    modelId: upstreamModel,
+    toolSpecs,
+    nameMap,
   });
   const canonical = canonicalizeKiroConversation({
     history: replay.history,
@@ -399,14 +397,14 @@ export function openaiToKiroRequest(model, body, stream, credentials) {
       conversationId,
       currentMessage: {
         userInputMessage: {
-          content: replayCurrent.content || "",
+          content: canonicalCurrent.content || "",
           modelId: upstreamModel,
           origin: "AI_EDITOR",
-          ...(replayCurrent.images?.length > 0 && {
-            images: replayCurrent.images
+          ...(canonicalCurrent.images?.length > 0 && {
+            images: canonicalCurrent.images
           }),
-          ...(replayCurrent.userInputMessageContext && {
-            userInputMessageContext: replayCurrent.userInputMessageContext
+          ...(canonicalCurrent.userInputMessageContext && {
+            userInputMessageContext: canonicalCurrent.userInputMessageContext
           })
         }
       },
