@@ -17,7 +17,8 @@
  */
 import { register } from "../index.js";
 import { FORMATS } from "../formats.js";
-import { v4 as uuidv4 } from "uuid";
+import { applyKiroSessionReplay } from "../../utils/kiroSessionReplay.js";
+import { resolveContinuationId, resolveSessionIdentity } from "../../utils/sessionManager.js";
 import {
   resolveKiroModelIntent,
   applyKiroThinkingOverride,
@@ -245,29 +246,39 @@ export function claudeToKiroRequest(model, body, stream, credentials) {
   // the CodeWhisperer surface rejects a top-level `systemPrompt` with
   // 400 REQUEST_BODY_INVALID, so the value below is only a replay cache key.
   const timestamp = new Date().toISOString();
-  const prefixParts = [];
+  const systemPromptParts = [];
   if (thinkingBudget !== null && !usesNativeGptEffort) {
-    prefixParts.push(buildThinkingSystemPrefix(thinkingBudget));
+    systemPromptParts.push(buildThinkingSystemPrefix(thinkingBudget));
   }
-  prefixParts.push(`[Context: Current time is ${timestamp}]`);
-  if (agentic) prefixParts.push(KIRO_AGENTIC_SYSTEM_PROMPT);
-  finalContent = `${prefixParts.join("\n\n")}\n\n${finalContent}`;
+  if (agentic) systemPromptParts.push(KIRO_AGENTIC_SYSTEM_PROMPT);
+  const systemInstruction = extractClaudeSystemText(body.system);
+  if (systemInstruction) systemPromptParts.push(systemInstruction);
+  const systemPrompt = systemPromptParts.filter(Boolean).join("\n\n");
+  const currentTimeContext = `[Context: Current time is ${timestamp}]`;
+  const contentPrefix = [systemPrompt, currentTimeContext].filter(Boolean).join("\n\n");
 
-  // Preserve the newer strict tool-history repair and validation on the
-  // rollback-compatible message shape.
-  const prefixedCurrentMessage = {
-    userInputMessage: {
-      ...(currentMessage?.userInputMessage || {}),
-      content: finalContent,
-      modelId: upstreamModel,
-    },
-  };
-  const canonical = canonicalizeKiroConversation({
-    history,
-    currentMessage: prefixedCurrentMessage,
+  const sessionIdentity = resolveSessionIdentity({
+    headers: credentials?.rawHeaders,
+    body,
+    connectionId: credentials?.connectionId,
+    scope: "kiro",
+  });
+  const conversationId = sessionIdentity.sessionId;
+  const continuationId = resolveContinuationId({
+    sessionId: conversationId,
+    connectionId: credentials?.connectionId,
+    scope: "kiro",
+    ephemeral: sessionIdentity.ephemeral,
+  });
+  const replay = applyKiroSessionReplay({
+    conversationId,
+    connectionId: credentials?.connectionId,
     modelId: upstreamModel,
-    toolSpecs,
-    nameMap,
+    systemPrompt,
+    contentPrefix,
+    currentContentPrefix: currentTimeContext,
+    history,
+    currentMessage,
   });
   const canonical = canonicalizeKiroConversation({
     history: replay.history,
@@ -290,20 +301,16 @@ export function claudeToKiroRequest(model, body, stream, credentials) {
   }
   const replayCurrent = canonical.currentMessage.userInputMessage;
   const userInputMessage = {
-    content: canonicalCurrent.content || "",
+    content: replayCurrent.content || "",
     modelId: upstreamModel,
     origin: "AI_EDITOR",
-    ...(canonicalCurrent.userInputMessageContext && {
-      userInputMessageContext: canonicalCurrent.userInputMessageContext,
+    ...(replayCurrent.userInputMessageContext && {
+      userInputMessageContext: replayCurrent.userInputMessageContext,
     }),
-    ...(canonicalCurrent.images && {
-      images: canonicalCurrent.images,
+    ...(replayCurrent.images && {
+      images: replayCurrent.images,
     }),
   };
-
-  if (systemInstruction) {
-    userInputMessage.systemInstruction = systemInstruction;
-  }
 
   const payload = {
     conversationState: {

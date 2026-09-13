@@ -116,7 +116,9 @@ async function execute(executor = new KiroExecutor(), overrides = {}) {
   return executor.execute({
     model: "kr/claude-opus-4.8",
     body: { conversationState: { currentMessage: { userInputMessage: { content: "base", modelId: "m" } } } },
-    stream: true,
+    // The fork buffers and retries non-streaming responses. Streaming cases
+    // opt in below so they still verify immediate delivery before EOF.
+    stream: false,
     credentials,
     ...overrides
   });

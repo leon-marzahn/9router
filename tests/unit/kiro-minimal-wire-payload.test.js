@@ -7,12 +7,20 @@ for (const [name, translate, body] of [
   ["Claude", claudeToKiroRequest, { messages: [{ role: "user", content: "hello" }] }],
 ]) {
   describe(`${name} Kiro minimal wire payload`, () => {
-    it("omits unsupported agent fields", () => {
-      const payload = translate("kiro/claude-sonnet-4.5", body, true, {});
+    it.each([
+      "kiro/claude-sonnet-4.5",
+      "kiro/claude-sonnet-4.5-thinking",
+      "kiro/claude-sonnet-4.5-thinking-agentic",
+    ])("omits unsupported wire fields for %s", (model) => {
+      const payload = translate(model, body, true, {});
+      expect(payload).not.toHaveProperty("systemPrompt");
       expect(payload).not.toHaveProperty("agentMode");
       expect(payload.conversationState).not.toHaveProperty("agentContinuationId");
       expect(payload.conversationState).not.toHaveProperty("agentTaskType");
       expect(payload.conversationState.chatTriggerType).toBe("MANUAL");
+      expect(payload.conversationState.conversationId).toEqual(expect.any(String));
+      expect(payload.conversationState.conversationId.length).toBeGreaterThan(0);
+      expect(payload.conversationState.currentMessage.userInputMessage).not.toHaveProperty("systemInstruction");
       expect(payload.conversationState.currentMessage.userInputMessage.origin).toBe("AI_EDITOR");
     });
   });
