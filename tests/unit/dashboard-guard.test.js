@@ -287,6 +287,24 @@ describe("dashboard guard local-only access", () => {
   });
 });
 
+describe("dashboard guard request detail access", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.getSettings.mockResolvedValue({ requireLogin: true });
+    mocks.verifyDashboardAuthToken.mockResolvedValue(false);
+  });
+
+  it("requires dashboard authentication to read request payloads when login is enabled", async () => {
+    const response = await proxy(request("/api/usage/request-details"));
+    expect(response.status).toBe(401);
+  });
+
+  it("allows an authenticated dashboard session to inspect request payloads", async () => {
+    mocks.verifyDashboardAuthToken.mockResolvedValue(true);
+    expect(await proxy(request("/api/usage/request-details"))).toBe(mocks.nextResponse);
+  });
+});
+
 describe("dashboard guard helpers", () => {
   it("extracts bearer API keys before x-api-key", () => {
     const apiRequest = request("/v1/chat/completions", {

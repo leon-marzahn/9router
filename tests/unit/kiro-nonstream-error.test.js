@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { saveRequestDetail } from "@/lib/usageDb.js";
 
 vi.mock("@/lib/usageDb.js", () => ({
   appendRequestLog: vi.fn(async () => {}),
@@ -13,6 +14,35 @@ const {
 } = await import("../../open-sse/handlers/chatCore/sseToJsonHandler.js");
 
 describe("Kiro non-streaming error propagation", () => {
+  it("captures the provider SSE response alongside the final client text", async () => {
+    saveRequestDetail.mockClear();
+    const raw = [
+      'data: {"choices":[{"delta":{"content":"The gates open."},"finish_reason":null}]}',
+      'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}',
+      "data: [DONE]",
+      ""
+    ].join("\n\n");
+    const result = await handleForcedSSEToJson({
+      providerResponse: new Response(raw, { headers: { "content-type": "text/event-stream" } }),
+      sourceFormat: FORMATS.OPENAI,
+      provider: "kiro",
+      model: "kr/claude-opus-4.8",
+      body: { messages: [{ role: "user", content: "I approach the gates." }] },
+      finalBody: { conversationState: { currentMessage: { userInputMessage: { content: "I approach the gates." } } } },
+      stream: false,
+      requestStartTime: Date.now(),
+      trackDone: vi.fn(),
+      appendLog: vi.fn()
+    });
+    expect(result.success).toBe(true);
+    expect(saveRequestDetail).toHaveBeenCalledWith(expect.objectContaining({
+      request: expect.objectContaining({ messages: [{ role: "user", content: "I approach the gates." }] }),
+      providerRequest: expect.objectContaining({ conversationState: expect.any(Object) }),
+      providerResponse: raw,
+      response: expect.objectContaining({ content: "The gates open." }),
+    }));
+  });
+
   it("prefers a terminal SSE error over earlier semantic chunks", () => {
     const raw = [
       'data: {"choices":[{"delta":{"content":"partial"},"finish_reason":null}]}',

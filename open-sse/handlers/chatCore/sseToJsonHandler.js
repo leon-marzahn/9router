@@ -219,6 +219,7 @@ export async function handleForcedSSEToJson({ providerResponse, sourceFormat, ta
         ...ctx,
         latency: { ttft: totalLatency, total: totalLatency },
         tokens: { prompt_tokens: inTokensForLog, completion_tokens: usage.output_tokens || 0 },
+        providerResponse: jsonResponse,
         response: { content: textContent, thinking: null, finish_reason: jsonResponse.status || "unknown" },
         status: "success"
       }, { endpoint: clientRawRequest?.endpoint || null })).catch(() => {});
@@ -312,6 +313,7 @@ export async function handleForcedSSEToJson({ providerResponse, sourceFormat, ta
       ...ctx,
       latency: { ttft: totalLatency, total: totalLatency },
       tokens: usage,
+      providerResponse: sseText,
       response: {
         content: parsed.choices?.[0]?.message?.content || null,
         thinking: parsed.choices?.[0]?.message?.reasoning_content || null,
