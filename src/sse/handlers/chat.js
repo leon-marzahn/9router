@@ -24,6 +24,8 @@ import * as log from "../utils/logger.js";
 import { updateProviderCredentials, checkAndRefreshToken } from "../services/tokenRefresh.js";
 import { getProjectIdForConnection } from "open-sse/services/projectId.js";
 import { stripModelContextMarker } from "open-sse/utils/modelMarkers.js";
+import { PIPELINE_HEADER } from "@/lib/request-pipelines/config.js";
+import { runRequestPipeline } from "@/lib/request-pipelines/run.js";
 
 /**
  * Handle chat completion request
@@ -83,6 +85,19 @@ export async function handleChat(request, clientRawRequest = null) {
   if (!modelStr) {
     log.warn("CHAT", "Missing model");
     return errorResponse(HTTP_STATUS.BAD_REQUEST, "Missing model");
+  }
+
+  try {
+    const processed = await runRequestPipeline(body, request.headers.get(PIPELINE_HEADER), settings.requestPipelines);
+    body = processed.body;
+  } catch (error) {
+    return errorResponse(HTTP_STATUS.BAD_REQUEST, error.message);
+  }
+  // This is a router control header; keep it out of forwarded provider headers.
+  if (clientRawRequest?.headers) {
+    clientRawRequest = { ...clientRawRequest, headers: Object.fromEntries(
+      Object.entries(clientRawRequest.headers).filter(([key]) => key.toLowerCase() !== PIPELINE_HEADER)
+    ) };
   }
 
   // Bypass naming/warmup requests before combo rotation to avoid wasting rotation slots
