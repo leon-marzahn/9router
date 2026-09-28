@@ -3,6 +3,7 @@ import { getSettings, updateSettings } from "@/lib/localDb";
 import { applyOutboundProxyEnv } from "@/lib/network/outboundProxy";
 import { resetComboRotation } from "open-sse/services/combo.js";
 import bcrypt from "bcryptjs";
+import { validatePipelines } from "@/lib/request-pipelines/config.js";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -38,6 +39,14 @@ export async function GET() {
 export async function PATCH(request) {
   try {
     const body = await request.json();
+
+    if (Object.prototype.hasOwnProperty.call(body, "requestPipelines")) {
+      try {
+        body.requestPipelines = validatePipelines(body.requestPipelines);
+      } catch (error) {
+        return NextResponse.json({ error: error.message }, { status: 400 });
+      }
+    }
 
     // Strip protected secrets before any internal handling sets them
     for (const key of PROTECTED_SETTING_KEYS) delete body[key];

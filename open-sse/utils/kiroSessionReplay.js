@@ -69,6 +69,7 @@ export function applyKiroSessionReplay({
   systemPrompt = "",
   contentPrefix = "",
   currentContentPrefix = "",
+  timeContextEnabled = true,
   history = [],
   currentMessage,
 } = {}) {
@@ -77,7 +78,10 @@ export function applyKiroSessionReplay({
   const baseHistory = clone(history) || [];
   const baseCurrent = clone(currentMessage) || { userInputMessage: { content: "" } };
 
-  if (existing && existing.modelId === modelId && existing.systemPrompt === systemPrompt) {
+  // Rebuild from the supplied conversation when time injection changes, so a
+  // cached first turn cannot reintroduce a timestamp after the client opts out.
+  if (existing && existing.modelId === modelId && existing.systemPrompt === systemPrompt &&
+      existing.timeContextEnabled === timeContextEnabled) {
     existing.lastUsed = Date.now();
     const firstUserIndex = findFirstUserIndex(baseHistory);
     const sessionStart = ensureUserMessageModelId(clone(existing.sessionStart), modelId);
@@ -121,6 +125,7 @@ export function applyKiroSessionReplay({
       sessionStart: clone(sessionStart),
       modelId,
       systemPrompt,
+      timeContextEnabled,
     });
   }
 
