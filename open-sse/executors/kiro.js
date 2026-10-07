@@ -379,7 +379,17 @@ export class KiroExecutor extends BaseExecutor {
         // transformer still validates AWS EventStream bounds/CRCs, defers tool
         // calls until their complete input is valid, and reports terminal
         // failures as SSE errors; it simply cannot retract text already sent.
-        result.response = this.transformEventStreamToSSE(result.response, args.model);
+        // An invalid tool_call with zero output is retried once upstream (plain
+        // re-send; the one-shot guard lives in the transformer).
+        result.response = this.transformEventStreamToSSE(result.response, args.model, {
+          retryUpstream: async () => {
+            const retry = await BaseExecutor.prototype.execute.call(this, {
+              ...args,
+              body: structuredClone(args.body || {})
+            });
+            return retry?.response;
+          }
+        });
       } else {
         // JSON clients already wait for the complete response, so retain the
         // fail-closed terminal validation and bounded recovery path for them.
@@ -654,7 +664,7 @@ export class KiroExecutor extends BaseExecutor {
     const capabilityModel = resolveKiroModel(model).upstream;
     const contextWindow = getCapabilitiesForModel("kiro", capabilityModel).contextWindow || 200000;
     const eventCounts = {};
-    const state = {
+    const makeState = () => ({
       buffer: new Uint8Array(0),
       chunkIndex: 0,
       toolCounter: 0,
@@ -678,8 +688,13 @@ export class KiroExecutor extends BaseExecutor {
       toolValidationError: null,
       validatedFrames: 0,
       bytesReceived: 0,
-      finished: false
-    };
+      finished: false,
+      retryRequested: false
+    });
+    const state = makeState();
+    let retried = false;
+    // One upstream retry, only while nothing was sent to the client.
+    const canRetry = () => !!options.retryUpstream && !retried && state.chunkIndex === 0;
 
     const diagnostics = (overrides = {}) => ({
       terminal_provenance: state.terminalProvenance || "clean_eventstream_eof",
@@ -763,6 +778,25 @@ export class KiroExecutor extends BaseExecutor {
         throw new Error(`Kiro tool input must be valid object JSON (${error.message})`);
       }
     };
+    // Shape-only description of a dropped tool call for gateway logs: key names,
+    // value types and byte sizes. Never values (they may hold user content).
+    const describeToolShape = (tool, input) => {
+      const shape = { inputKind: tool.inputKind || "none" };
+      if (tool.inputKind === "string") {
+        shape.chunks = tool.inputChunks?.length || 0;
+        shape.bytes = (tool.inputChunks || []).reduce((n, c) => n + encoder.encode(c).byteLength, 0);
+      }
+      if (input && typeof input === "object") {
+        shape.keys = Object.keys(input).map((key) => {
+          const value = input[key];
+          const type = value === null ? "null" : Array.isArray(value) ? "array" : typeof value;
+          let size = 0;
+          try { size = encoder.encode(JSON.stringify(value) ?? "").byteLength; } catch { /* unserialisable */ }
+          return `${key.slice(0, 64)}:${type}:${size}`;
+        });
+      }
+      return `shape=${JSON.stringify(shape)}`;
+    };
     const emitTools = (controller) => {
       for (const tool of state.tools.values()) {
         // Validate per tool, not per turn: one unusable fragment used to throw out
@@ -782,7 +816,7 @@ export class KiroExecutor extends BaseExecutor {
         } catch (error) {
           state.droppedTools = (state.droppedTools || 0) + 1;
           state.toolValidationError ||= error.message;
-          console.error(`[Kiro] dropping unusable tool call ${tool.id} (${tool.name}): ${error.message}`);
+          console.error(`[Kiro] dropping unusable tool call ${tool.id} (${tool.name}): ${error.message} ${describeToolShape(tool, input)}`);
           continue;
         }
         const index = state.toolCounter++;
@@ -1084,6 +1118,11 @@ export class KiroExecutor extends BaseExecutor {
       try {
         emitTools(controller);
       } catch (error) {
+        if (canRetry()) {
+          console.warn(`[KIRO] invalid tool_call with no output; retrying upstream once model=${model}`);
+          state.retryRequested = true;
+          return;
+        }
         fail(
           controller,
           "invalid_tool_call",
@@ -1100,6 +1139,11 @@ export class KiroExecutor extends BaseExecutor {
       // logged, not fatal.
       if (state.toolValidationError && !state.hasToolCalls &&
           !state.hasText && !state.hasReasoning && !state.hasCode) {
+        if (canRetry()) {
+          console.warn(`[KIRO] invalid tool_call with no output; retrying upstream once model=${model}`);
+          state.retryRequested = true;
+          return;
+        }
         fail(
           controller,
           "invalid_tool_call",
@@ -1194,7 +1238,7 @@ export class KiroExecutor extends BaseExecutor {
       ), { status: response.status, headers: { ...SSE_HEADERS } });
     }
 
-    const reader = response.body.getReader();
+    let reader = response.body.getReader();
     const stream = new ReadableStream({
       pull: async (controller) => {
         try {
@@ -1202,6 +1246,25 @@ export class KiroExecutor extends BaseExecutor {
             const { done, value } = await reader.read();
             if (done) {
               finish(controller);
+              if (state.retryRequested && !state.finished) {
+                const message = state.toolValidationError || "Kiro tool call was unusable";
+                retried = true;
+                let next = null;
+                try { next = await options.retryUpstream(); } catch { next = null; }
+                if (!next?.ok || !next.body) {
+                  await next?.body?.cancel?.().catch(() => {});
+                  fail(
+                    controller, "invalid_tool_call", "invalid_kiro_tool_call", message,
+                    { transport_state: "clean_eof", stop_disposition: "retryable_protocol_failure" }
+                  );
+                  controller.close();
+                  return;
+                }
+                const kept = { validatedFrames: state.validatedFrames, bytesReceived: state.bytesReceived };
+                Object.assign(state, makeState(), kept);
+                reader = next.body.getReader();
+                continue;
+              }
               controller.close();
               return;
             }
