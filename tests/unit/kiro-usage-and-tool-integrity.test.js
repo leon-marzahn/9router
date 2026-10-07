@@ -265,11 +265,12 @@ describe("B: truncation after output closes as length, not as a failure", () => 
     expect(body).not.toContain("kiro_terminal_incomplete");
   });
 
-  it("still fails a truncation that produced nothing", async () => {
+  it("keeps a truncation that produced nothing as an error so clients retry", async () => {
     const body = await run([
       frame("metadataEvent", { stopReason: "model_context_window_exceeded" })
     ]);
-    expect(body).toContain("kiro_terminal_incomplete");
+    expect(body).toContain('"finish_reason":"error"');
+    expect(body).not.toContain('"finish_reason":"length"');
   });
 });
 

@@ -52,6 +52,11 @@ export const SEARXNG_URL = envUrl("SEARXNG_URL", "http://localhost:8888/search")
 // slow reasoning models aren't aborted mid-stream. Env: STREAM_STALL_TIMEOUT_MS.
 export const STREAM_STALL_TIMEOUT_MS = envMs("STREAM_STALL_TIMEOUT_MS", 360 * 1000);
 
+// Idle interval after which an SSE comment keepalive is sent to the client for
+// providers that go quiet during long reasoning (Kiro). 0 disables.
+export const STREAM_KEEPALIVE_MS = envMs("STREAM_KEEPALIVE_MS", 15 * 1000);
+export const KEEPALIVE_PROVIDERS = new Set(["kiro"]);
+
 // Time-to-first-token timeout (prompt prefill). Env: STREAM_FIRST_CHUNK_TIMEOUT_MS.
 export const STREAM_FIRST_CHUNK_TIMEOUT_MS = envMs("STREAM_FIRST_CHUNK_TIMEOUT_MS", 200 * 1000);
 

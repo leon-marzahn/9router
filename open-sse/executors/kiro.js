@@ -196,13 +196,21 @@ function isShortFutureAction(value) {
     !COMPLETED_FINAL.test(text) && !RESULT_EVIDENCE.test(text);
 }
 
-function encodeSSEError(code, message, details) {
-  return encoder.encode(`data: ${JSON.stringify({ error: {
+// Error frame, then a finish_reason chunk, then [DONE]. Clients keyed on
+// choices[].finish_reason (e.g. Hermes) otherwise report an "empty stream".
+function encodeSSEError(code, message, details, finishReason = "error") {
+  const errorFrame = `data: ${JSON.stringify({ error: {
     message,
     type: "upstream_error",
     code,
     ...(details ? { details } : {})
-  } })}\n\ndata: [DONE]\n\n`);
+  } })}\n\n`;
+  const finishFrame = `data: ${JSON.stringify({
+    object: "chat.completion.chunk",
+    created: Math.floor(Date.now() / 1000),
+    choices: [{ index: 0, delta: {}, finish_reason: finishReason }]
+  })}\n\n`;
+  return encoder.encode(`${errorFrame}${finishFrame}data: [DONE]\n\n`);
 }
 
 function inspectSSEChunk(chunk, state) {
@@ -669,6 +677,7 @@ export class KiroExecutor extends BaseExecutor {
       inThinking: false,
       toolValidationError: null,
       validatedFrames: 0,
+      bytesReceived: 0,
       finished: false
     };
 
@@ -710,7 +719,12 @@ export class KiroExecutor extends BaseExecutor {
         ...extra
       });
       options.onTerminalState?.(detail);
-      controller.enqueue(encodeSSEError(code, message, detail));
+      // Gateway-side diagnostics only: no tokens, credentials or content.
+      console.warn(`[KIRO] fail code=${code} disposition=${detail.stop_disposition} stop_reason=${detail.stop_reason} provenance=${provenance} chunkIndex=${state.chunkIndex} model=${model} bytes=${state.bytesReceived}`);
+      // Zero-output truncation stays "error" so clients retry; "length" only after real output.
+      const finishReason = state.chunkIndex > 0 && (extra.stop_disposition === "length" ||
+        KIRO_TRUNCATION_STOP_REASONS.has(state.stopReason)) ? "length" : "error";
+      controller.enqueue(encodeSSEError(code, message, detail, finishReason));
     };
     const assertToolBufferBound = () => {
       if (state.bufferedToolBytes <= (options.maxToolBytes || KIRO_REPAIR_BUFFER_MAX_BYTES / 2)) return;
@@ -949,6 +963,7 @@ export class KiroExecutor extends BaseExecutor {
       return true;
     };
     const processBytes = (chunk, controller) => {
+      state.bytesReceived += chunk.byteLength;
       const combinedLength = state.buffer.byteLength + chunk.byteLength;
       if (combinedLength > (options.maxRawBytes || EVENTSTREAM_MAX_MESSAGE_BYTES)) {
         fail(
