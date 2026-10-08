@@ -2,6 +2,7 @@ const http = require("http");
 const path = require("path");
 const fs = require("fs");
 const crypto = require("crypto");
+const net = require("net");
 const { pathToFileURL } = require("url");
 
 const origCreate = http.createServer.bind(http);
@@ -12,6 +13,69 @@ const origCreate = http.createServer.bind(http);
 // so the request-detail header sanitizer redacts it too.
 const PEER_TOKEN = crypto.randomBytes(24).toString("hex");
 process.env.NINEROUTER_PEER_TOKEN = PEER_TOKEN;
+
+// Reverse proxies besides loopback whose forwarding headers are believed: comma-separated
+// IPs or CIDRs, e.g. TRUSTED_PROXIES="172.16.0.0/12,173.245.48.0/20,2400:cb00::/32".
+// List every hop that appends to X-Forwarded-For (a CDN in front of the proxy too): the client
+// is the first entry from the right that is not listed, so entries a client forged on the left
+// of the real one are never used. Unset means only loopback proxies are trusted.
+let trustedProxyCache = { raw: null, list: null };
+
+function trustedProxyList() {
+  const raw = process.env.TRUSTED_PROXIES || "";
+  if (raw === trustedProxyCache.raw) return trustedProxyCache.list;
+  const list = new net.BlockList();
+  let count = 0;
+  for (const item of raw.split(",").map((s) => s.trim()).filter(Boolean)) {
+    const [addr, bits] = item.split("/");
+    try {
+      const version = net.isIP(addr);
+      if (!version) throw new Error("not an IP");
+      const family = version === 6 ? "ipv6" : "ipv4";
+      if (bits === undefined) {
+        list.addAddress(addr, family);
+      } else {
+        if (!/^\d+$/.test(bits)) throw new Error("bad prefix");
+        list.addSubnet(addr, Number(bits), family);
+      }
+      count++;
+    } catch {
+      console.warn(`[custom-server] ignoring invalid TRUSTED_PROXIES entry: ${item}`);
+    }
+  }
+  trustedProxyCache = { raw, list: count ? list : null };
+  return trustedProxyCache.list;
+}
+
+function isTrustedProxy(ip) {
+  const list = trustedProxyList();
+  if (!list || typeof ip !== "string") return false;
+  const bare = ip.startsWith("::ffff:") && net.isIP(ip.slice(7)) === 4 ? ip.slice(7) : ip;
+  const version = net.isIP(bare);
+  return version !== 0 && list.check(bare, version === 6 ? "ipv6" : "ipv4");
+}
+
+function clientIpFromForwardedChain(xff) {
+  const hops = String(xff).split(",").map((s) => s.trim()).filter(Boolean);
+  for (let i = hops.length - 1; i >= 0; i--) {
+    if (isTrustedProxy(hops[i])) continue;
+    return net.isIP(hops[i]) ? hops[i] : "";
+  }
+  return "";
+}
+
+// Direct/public sockets stay keyed by the unspoofable peer address. Forwarding headers are
+// believed only from a loopback proxy or a peer listed in TRUSTED_PROXIES.
+function resolveClientIp(socketIp, xff, xRealIp) {
+  const isLoopbackProxy = socketIp === "127.0.0.1" || socketIp === "::1" || socketIp === "::ffff:127.0.0.1";
+  if (isLoopbackProxy) {
+    const proxyIp = xRealIp || (xff ? String(xff).split(",")[0].trim() : "");
+    return proxyIp || socketIp;
+  }
+  // X-Real-IP is ignored here: a client can pass its own value straight through the proxy.
+  if (xff && isTrustedProxy(socketIp)) return clientIpFromForwardedChain(xff) || socketIp;
+  return socketIp;
+}
 
 let backgroundRefreshStarted = false;
 
@@ -58,11 +122,7 @@ http.createServer = (...args) => {
     const xff = req.headers["x-forwarded-for"];
     const xRealIp = req.headers["x-real-ip"];
     const viaProxy = !!(xff || xRealIp);
-    const isLoopbackProxy = socketIp === "127.0.0.1" || socketIp === "::1" || socketIp === "::ffff:127.0.0.1";
-    // Trust forwarding headers only when the TCP peer is a local reverse proxy.
-    // Direct/public sockets remain keyed by the unspoofable peer address.
-    const proxyIp = xRealIp || (xff ? String(xff).split(",")[0].trim() : "");
-    const ip = isLoopbackProxy && proxyIp ? proxyIp : socketIp;
+    const ip = resolveClientIp(socketIp, xff, xRealIp);
     delete req.headers["x-9r-real-ip"];
     delete req.headers["x-forwarded-for"];
     delete req.headers["x-9r-via-proxy"];
@@ -124,6 +184,8 @@ http.createServer = (...args) => {
   };
   return server;
 };
+
+module.exports = { __test__: { resolveClientIp, isTrustedProxy } };
 
 if (require.main === module) {
   const standalone = path.join(__dirname, "server.js");
