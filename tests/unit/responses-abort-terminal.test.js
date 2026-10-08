@@ -78,7 +78,8 @@ describe("Responses abort terminal synthesis", () => {
 // APIError on any `data:` payload carrying an `error` key (checked before [DONE]);
 // Anthropic clients need `event: error`. Never a fabricated finish_reason.
 describe("buildStreamErrorBytes", () => {
-  const jsonOf = (sse) => JSON.parse(sse.match(/\{.*\}/s)[0]);
+  // First data frame only (OpenAI clients now also get a finish_reason chunk).
+  const jsonOf = (sse) => JSON.parse(sse.match(/^data: (\{.*\})$/m)[1]);
   const textOf = (bytes) => new TextDecoder().decode(bytes);
 
   // onAbortTerminal callbacks are enqueued verbatim, so a string here is a

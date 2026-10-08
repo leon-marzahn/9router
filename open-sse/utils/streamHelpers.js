@@ -141,7 +141,15 @@ export function buildStreamErrorBytes(statusCode, message, clientFormat) {
 
   const sse = clientFormat === FORMATS.CLAUDE
     ? formatSSE({ type: "error", error }, FORMATS.CLAUDE)
-    : formatSSE({ error }, clientFormat) + SSE_DONE;
+    : clientFormat === FORMATS.OPENAI
+      // finish_reason chunk so clients keyed on it don't see an "empty stream"
+      ? formatSSE({ error }, clientFormat) +
+        formatSSE({
+          object: "chat.completion.chunk",
+          created: Math.floor(Date.now() / 1000),
+          choices: [{ index: 0, delta: {}, finish_reason: "error" }]
+        }, clientFormat) + SSE_DONE
+      : formatSSE({ error }, clientFormat) + SSE_DONE;
 
   return sharedEncoder.encode(sse);
 }

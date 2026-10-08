@@ -151,7 +151,9 @@ async function run(frames) {
 // hard failure is surfaced from the first attempt instead of triggering a
 // second upstream fetch.
 async function runNoRepair(frames) {
-  fetchMock.mockResolvedValueOnce(response(frames));
+  // The streaming path retries an all-invalid tool turn once, so queue the
+  // same frames for the retry attempt too.
+  fetchMock.mockResolvedValueOnce(response(frames)).mockResolvedValueOnce(response(frames));
   const result = await execute(new KiroExecutor(), {
     credentials: { accessToken: "test-token", providerSpecificData: { kiroToolCallRepair: false } }
   });
@@ -248,7 +250,70 @@ describe("C: one unusable tool fragment does not take the whole turn with it", (
       frame("metadataEvent", { stopReason: "tool_use" })
     ]);
     expect(body).toContain("invalid_kiro_tool_call");
+    // The streaming path retries upstream exactly once before failing.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("F: invalid tool_call with zero output retries upstream once", () => {
+  const BAD = [
+    frame("toolUseEvent", { toolUseId: "bad", name: "tool_call", input: { arguments: {} } }),
+    frame("metadataEvent", { stopReason: "tool_use" })
+  ];
+  const GOOD = [
+    frame("toolUseEvent", {
+      toolUseId: "good",
+      name: "tool_call",
+      input: { name: "mcp_search", arguments: { q: "router" } }
+    }),
+    frame("metadataEvent", { stopReason: "tool_use" })
+  ];
+
+  it("succeeds when the second attempt is valid", async () => {
+    fetchMock.mockResolvedValueOnce(response(BAD)).mockResolvedValueOnce(response(GOOD));
+    const body = await (await execute()).response.text();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(body).toContain('\\"name\\":\\"mcp_search\\"');
+    expect(body).toContain('"finish_reason":"tool_calls"');
+    expect(body).not.toContain("invalid_kiro_tool_call");
+    expect(body.match(/\[DONE\]/g)).toHaveLength(1);
+  });
+
+  it("emits the error terminal when both attempts are invalid, with no third fetch", async () => {
+    fetchMock.mockResolvedValueOnce(response(BAD)).mockResolvedValueOnce(response(BAD));
+    const body = await (await execute()).response.text();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(body).toContain("invalid_kiro_tool_call");
+    expect(body).toContain('"finish_reason":"error"');
+    expect(body).toContain("[DONE]");
+  });
+
+  it("emits the error terminal when the retry request fails", async () => {
+    fetchMock.mockResolvedValueOnce(response(BAD)).mockResolvedValueOnce(response([], 500));
+    const body = await (await execute()).response.text();
+    expect(body).toContain("invalid_kiro_tool_call");
+    expect(body).toContain("[DONE]");
+  });
+
+  it("does not retry once output was already sent", async () => {
+    fetchMock.mockResolvedValueOnce(response([
+      frame("assistantResponseEvent", { content: "Here is what I found." }),
+      ...BAD
+    ]));
+    const body = await (await execute()).response.text();
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(body).toContain("Here is what I found.");
+  });
+
+  it("does not retry after a valid tool call was emitted", async () => {
+    fetchMock.mockResolvedValueOnce(response([
+      GOOD[0],
+      frame("toolUseEvent", { toolUseId: "bad", name: "tool_call", input: { arguments: {} } }),
+      GOOD[1]
+    ]));
+    const body = await (await execute()).response.text();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(body).toContain('"finish_reason":"tool_calls"');
   });
 });
 
@@ -265,11 +330,12 @@ describe("B: truncation after output closes as length, not as a failure", () => 
     expect(body).not.toContain("kiro_terminal_incomplete");
   });
 
-  it("still fails a truncation that produced nothing", async () => {
+  it("keeps a truncation that produced nothing as an error so clients retry", async () => {
     const body = await run([
       frame("metadataEvent", { stopReason: "model_context_window_exceeded" })
     ]);
-    expect(body).toContain("kiro_terminal_incomplete");
+    expect(body).toContain('"finish_reason":"error"');
+    expect(body).not.toContain('"finish_reason":"length"');
   });
 });
 
@@ -365,5 +431,39 @@ describe("E: the translator valid-guard is defence-in-depth", () => {
     expect(out.errors).toEqual([]);
     expect(out.currentMessage.userInputMessage.content).toBe("continue");
     expect(out.history[0].userInputMessage).toBeDefined();
+  });
+});
+
+describe("tool_call wrapper: parser keeps a name split across frames, drop log is shape-only", () => {
+  it("joins string input chunks so a nested name split mid-key is not lost", async () => {
+    const body = await run([
+      frame("toolUseEvent", { toolUseId: "split", name: "tool_call", input: '{"na' }),
+      frame("toolUseEvent", { toolUseId: "split", name: "tool_call", input: 'me":"mcp_search","argu' }),
+      frame("toolUseEvent", { toolUseId: "split", name: "tool_call", input: 'ments":{"q":"x"}}' }),
+      frame("metadataEvent", { stopReason: "tool_use" }),
+      ...METERED
+    ]);
+    expect(body).toContain('\\"name\\":\\"mcp_search\\"');
+    expect(body).toContain('"finish_reason":"tool_calls"');
+  });
+
+  it("logs key names, types and sizes of a dropped tool_call but never values", async () => {
+    const errors = [];
+    console.error.mockImplementation((...args) => errors.push(args.join(" ")));
+    await runNoRepair([
+      frame("toolUseEvent", {
+        toolUseId: "bad",
+        name: "tool_call",
+        input: { tool_name: "SECRET_TOOL_VALUE", arguments: { q: "SECRET_ARG_VALUE" } }
+      }),
+      frame("metadataEvent", { stopReason: "tool_use" })
+    ]);
+    const line = errors.find(l => l.includes("dropping unusable tool call bad"));
+    expect(line).toBeDefined();
+    expect(line).toContain('"inputKind":"object"');
+    expect(line).toContain("tool_name:string:");
+    expect(line).toContain("arguments:object:");
+    expect(line).not.toContain("SECRET_TOOL_VALUE");
+    expect(line).not.toContain("SECRET_ARG_VALUE");
   });
 });

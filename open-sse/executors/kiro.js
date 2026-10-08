@@ -196,13 +196,21 @@ function isShortFutureAction(value) {
     !COMPLETED_FINAL.test(text) && !RESULT_EVIDENCE.test(text);
 }
 
-function encodeSSEError(code, message, details) {
-  return encoder.encode(`data: ${JSON.stringify({ error: {
+// Error frame, then a finish_reason chunk, then [DONE]. Clients keyed on
+// choices[].finish_reason (e.g. Hermes) otherwise report an "empty stream".
+function encodeSSEError(code, message, details, finishReason = "error") {
+  const errorFrame = `data: ${JSON.stringify({ error: {
     message,
     type: "upstream_error",
     code,
     ...(details ? { details } : {})
-  } })}\n\ndata: [DONE]\n\n`);
+  } })}\n\n`;
+  const finishFrame = `data: ${JSON.stringify({
+    object: "chat.completion.chunk",
+    created: Math.floor(Date.now() / 1000),
+    choices: [{ index: 0, delta: {}, finish_reason: finishReason }]
+  })}\n\n`;
+  return encoder.encode(`${errorFrame}${finishFrame}data: [DONE]\n\n`);
 }
 
 function inspectSSEChunk(chunk, state) {
@@ -371,7 +379,17 @@ export class KiroExecutor extends BaseExecutor {
         // transformer still validates AWS EventStream bounds/CRCs, defers tool
         // calls until their complete input is valid, and reports terminal
         // failures as SSE errors; it simply cannot retract text already sent.
-        result.response = this.transformEventStreamToSSE(result.response, args.model);
+        // An invalid tool_call with zero output is retried once upstream (plain
+        // re-send; the one-shot guard lives in the transformer).
+        result.response = this.transformEventStreamToSSE(result.response, args.model, {
+          retryUpstream: async () => {
+            const retry = await BaseExecutor.prototype.execute.call(this, {
+              ...args,
+              body: structuredClone(args.body || {})
+            });
+            return retry?.response;
+          }
+        });
       } else {
         // JSON clients already wait for the complete response, so retain the
         // fail-closed terminal validation and bounded recovery path for them.
@@ -646,7 +664,7 @@ export class KiroExecutor extends BaseExecutor {
     const capabilityModel = resolveKiroModel(model).upstream;
     const contextWindow = getCapabilitiesForModel("kiro", capabilityModel).contextWindow || 200000;
     const eventCounts = {};
-    const state = {
+    const makeState = () => ({
       buffer: new Uint8Array(0),
       chunkIndex: 0,
       toolCounter: 0,
@@ -669,8 +687,14 @@ export class KiroExecutor extends BaseExecutor {
       inThinking: false,
       toolValidationError: null,
       validatedFrames: 0,
-      finished: false
-    };
+      bytesReceived: 0,
+      finished: false,
+      retryRequested: false
+    });
+    const state = makeState();
+    let retried = false;
+    // One upstream retry, only while nothing was sent to the client.
+    const canRetry = () => !!options.retryUpstream && !retried && state.chunkIndex === 0;
 
     const diagnostics = (overrides = {}) => ({
       terminal_provenance: state.terminalProvenance || "clean_eventstream_eof",
@@ -710,7 +734,12 @@ export class KiroExecutor extends BaseExecutor {
         ...extra
       });
       options.onTerminalState?.(detail);
-      controller.enqueue(encodeSSEError(code, message, detail));
+      // Gateway-side diagnostics only: no tokens, credentials or content.
+      console.warn(`[KIRO] fail code=${code} disposition=${detail.stop_disposition} stop_reason=${detail.stop_reason} provenance=${provenance} chunkIndex=${state.chunkIndex} model=${model} bytes=${state.bytesReceived}`);
+      // Zero-output truncation stays "error" so clients retry; "length" only after real output.
+      const finishReason = state.chunkIndex > 0 && (extra.stop_disposition === "length" ||
+        KIRO_TRUNCATION_STOP_REASONS.has(state.stopReason)) ? "length" : "error";
+      controller.enqueue(encodeSSEError(code, message, detail, finishReason));
     };
     const assertToolBufferBound = () => {
       if (state.bufferedToolBytes <= (options.maxToolBytes || KIRO_REPAIR_BUFFER_MAX_BYTES / 2)) return;
@@ -749,47 +778,119 @@ export class KiroExecutor extends BaseExecutor {
         throw new Error(`Kiro tool input must be valid object JSON (${error.message})`);
       }
     };
+    // Shape-only description of a dropped tool call for gateway logs: key names,
+    // value types and byte sizes. Never values (they may hold user content).
+    const describeToolShape = (tool, input) => {
+      const shape = { inputKind: tool.inputKind || "none" };
+      if (tool.inputKind === "string") {
+        shape.chunks = tool.inputChunks?.length || 0;
+        shape.bytes = (tool.inputChunks || []).reduce((n, c) => n + encoder.encode(c).byteLength, 0);
+      }
+      if (input && typeof input === "object") {
+        shape.keys = Object.keys(input).map((key) => {
+          const value = input[key];
+          const type = value === null ? "null" : Array.isArray(value) ? "array" : typeof value;
+          let size = 0;
+          try { size = encoder.encode(JSON.stringify(value) ?? "").byteLength; } catch { /* unserialisable */ }
+          return `${key.slice(0, 64)}:${type}:${size}`;
+        });
+      }
+      return `shape=${JSON.stringify(shape)}`;
+    };
+    const hasOwn = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
+    const validWrapperCall = (call) =>
+      !!call && typeof call === "object" && !Array.isArray(call) &&
+      typeof call.name === "string" && !!call.name.trim() &&
+      hasOwn(call, "arguments") &&
+      (typeof call.arguments === "string" ||
+        (!!call.arguments && typeof call.arguments === "object" && !Array.isArray(call.arguments)));
+    // Element-level shape for a dropped batch: index, key names, value types and
+    // byte sizes only. Never values (they may hold user content).
+    const describeBatchShape = (calls) => {
+      const elements = calls.slice(0, 16).map((call, i) => {
+        if (!call || typeof call !== "object" || Array.isArray(call)) {
+          return `${i}:${call === null ? "null" : Array.isArray(call) ? "array" : typeof call}`;
+        }
+        return `${i}:{${Object.keys(call).map((key) => {
+          const value = call[key];
+          const type = value === null ? "null" : Array.isArray(value) ? "array" : typeof value;
+          let size = 0;
+          try { size = encoder.encode(JSON.stringify(value) ?? "").byteLength; } catch { /* unserialisable */ }
+          return `${key.slice(0, 64)}:${type}:${size}`;
+        }).join(",")}}`;
+      });
+      return `batch=${JSON.stringify({ count: calls.length, elements })}`;
+    };
+    const emitOneTool = (controller, id, name, input) => {
+      const index = state.toolCounter++;
+      emitDelta(controller, {
+        tool_calls: [{
+          index,
+          id,
+          type: "function",
+          function: { name, arguments: "" }
+        }]
+      });
+      const serializedInput = JSON.stringify(input);
+      emitDelta(controller, {
+        tool_calls: [{ index, function: { arguments: serializedInput } }]
+      });
+      // Tool arguments are billed output like any other completion bytes. They
+      // were never added to totalContentLength, so the /4 estimator in finish()
+      // reported OUT 0 -- or the Math.max floor of 1 -- for every turn whose
+      // entire answer was a tool call.
+      state.totalContentLength += name.length + serializedInput.length;
+      state.hasToolCalls = true;
+    };
     const emitTools = (controller) => {
       for (const tool of state.tools.values()) {
         // Validate per tool, not per turn: one unusable fragment used to throw out
         // of emitTools and take every other complete tool call in the same turn
         // with it, which the client saw as a turn that answered nothing.
         let input;
+        let batch = null;
         try {
           input = parsedToolInput(tool);
           if (tool.name === "tool_call") {
-            if (typeof input.name !== "string" || !input.name.trim()) {
-              throw new Error("Invalid Kiro tool_call payload: missing nested MCP tool name");
-            }
-            if (!Object.prototype.hasOwnProperty.call(input, "arguments")) {
-              throw new Error("Invalid Kiro tool_call payload: missing nested MCP tool arguments");
+            // Batch form: {calls:[{name, arguments}, ...]}. Claude is instructed to
+            // batch, so this is normal. Each element is emitted as its own wrapper
+            // tool_call ({name, arguments}), exactly as if it had arrived alone, with
+            // the derived id `<wrapperId>_<n>` (n = 0-based position). All-or-nothing:
+            // any invalid element drops the whole payload, no partial emit.
+            // A payload carrying BOTH `calls` and `name` is ambiguous (which one
+            // did the model mean?), so it is invalid and dropped rather than guessed.
+            if (hasOwn(input, "calls")) {
+              if (hasOwn(input, "name")) {
+                throw new Error("Invalid Kiro tool_call payload: both name and calls present");
+              }
+              if (!Array.isArray(input.calls) || input.calls.length === 0) {
+                throw new Error("Invalid Kiro tool_call payload: calls must be a non-empty array");
+              }
+              if (!input.calls.every(validWrapperCall)) {
+                console.error(`[Kiro] invalid batched tool_call element ${tool.id}: ${describeBatchShape(input.calls)}`);
+                throw new Error("Invalid Kiro tool_call payload: invalid element in calls");
+              }
+              batch = input.calls;
+            } else {
+              if (typeof input.name !== "string" || !input.name.trim()) {
+                throw new Error("Invalid Kiro tool_call payload: missing nested MCP tool name");
+              }
+              if (!hasOwn(input, "arguments")) {
+                throw new Error("Invalid Kiro tool_call payload: missing nested MCP tool arguments");
+              }
             }
           }
         } catch (error) {
           state.droppedTools = (state.droppedTools || 0) + 1;
           state.toolValidationError ||= error.message;
-          console.error(`[Kiro] dropping unusable tool call ${tool.id} (${tool.name}): ${error.message}`);
+          console.error(`[Kiro] dropping unusable tool call ${tool.id} (${tool.name}): ${error.message} ${describeToolShape(tool, input)}`);
           continue;
         }
-        const index = state.toolCounter++;
-        emitDelta(controller, {
-          tool_calls: [{
-            index,
-            id: tool.id,
-            type: "function",
-            function: { name: tool.name, arguments: "" }
-          }]
-        });
-        const serializedInput = JSON.stringify(input);
-        emitDelta(controller, {
-          tool_calls: [{ index, function: { arguments: serializedInput } }]
-        });
-        // Tool arguments are billed output like any other completion bytes. They
-        // were never added to totalContentLength, so the /4 estimator in finish()
-        // reported OUT 0 -- or the Math.max floor of 1 -- for every turn whose
-        // entire answer was a tool call.
-        state.totalContentLength += tool.name.length + serializedInput.length;
-        state.hasToolCalls = true;
+        if (batch) {
+          batch.forEach((call, n) => emitOneTool(controller, `${tool.id}_${n}`, tool.name, call));
+        } else {
+          emitOneTool(controller, tool.id, tool.name, input);
+        }
       }
       state.tools.clear();
       state.bufferedToolBytes = 0;
@@ -949,6 +1050,7 @@ export class KiroExecutor extends BaseExecutor {
       return true;
     };
     const processBytes = (chunk, controller) => {
+      state.bytesReceived += chunk.byteLength;
       const combinedLength = state.buffer.byteLength + chunk.byteLength;
       if (combinedLength > (options.maxRawBytes || EVENTSTREAM_MAX_MESSAGE_BYTES)) {
         fail(
@@ -1069,6 +1171,11 @@ export class KiroExecutor extends BaseExecutor {
       try {
         emitTools(controller);
       } catch (error) {
+        if (canRetry()) {
+          console.warn(`[KIRO] invalid tool_call with no output; retrying upstream once model=${model}`);
+          state.retryRequested = true;
+          return;
+        }
         fail(
           controller,
           "invalid_tool_call",
@@ -1085,6 +1192,11 @@ export class KiroExecutor extends BaseExecutor {
       // logged, not fatal.
       if (state.toolValidationError && !state.hasToolCalls &&
           !state.hasText && !state.hasReasoning && !state.hasCode) {
+        if (canRetry()) {
+          console.warn(`[KIRO] invalid tool_call with no output; retrying upstream once model=${model}`);
+          state.retryRequested = true;
+          return;
+        }
         fail(
           controller,
           "invalid_tool_call",
@@ -1179,7 +1291,7 @@ export class KiroExecutor extends BaseExecutor {
       ), { status: response.status, headers: { ...SSE_HEADERS } });
     }
 
-    const reader = response.body.getReader();
+    let reader = response.body.getReader();
     const stream = new ReadableStream({
       pull: async (controller) => {
         try {
@@ -1187,6 +1299,25 @@ export class KiroExecutor extends BaseExecutor {
             const { done, value } = await reader.read();
             if (done) {
               finish(controller);
+              if (state.retryRequested && !state.finished) {
+                const message = state.toolValidationError || "Kiro tool call was unusable";
+                retried = true;
+                let next = null;
+                try { next = await options.retryUpstream(); } catch { next = null; }
+                if (!next?.ok || !next.body) {
+                  await next?.body?.cancel?.().catch(() => {});
+                  fail(
+                    controller, "invalid_tool_call", "invalid_kiro_tool_call", message,
+                    { transport_state: "clean_eof", stop_disposition: "retryable_protocol_failure" }
+                  );
+                  controller.close();
+                  return;
+                }
+                const kept = { validatedFrames: state.validatedFrames, bytesReceived: state.bytesReceived };
+                Object.assign(state, makeState(), kept);
+                reader = next.body.getReader();
+                continue;
+              }
               controller.close();
               return;
             }
