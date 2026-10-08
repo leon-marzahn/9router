@@ -92,6 +92,11 @@ describe.each([
     expect(currentContent(result)).not.toContain("2026-09-13");
   });
 
+  it.each(["false", "False", "0"])("turns time off for header value %j", (value) => {
+    expect(currentContent(request([firstTurn], { "x-9router-kiro-time": value })))
+      .not.toContain("[Context: Current time is");
+  });
+
   it.each(["on", "", "unknown"])("keeps time enabled for header value %j", (value) => {
     expect(currentContent(request([firstTurn], { "x-9router-kiro-time": value })))
       .toContain("[Context: Current time is");

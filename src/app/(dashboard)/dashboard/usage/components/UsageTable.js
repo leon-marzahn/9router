@@ -7,6 +7,8 @@ import Badge from "@/shared/components/Badge";
 
 const fmt = (n) => new Intl.NumberFormat().format(n || 0);
 const fmtCost = (n) => `$${(n || 0).toFixed(2)}`;
+const fmtCredits = (n) => new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(n || 0);
+const fmtCreditCost = (n) => `$${(n || 0).toFixed(4)}`;
 
 function fmtTime(iso) {
   if (!iso) return "Never";
@@ -32,6 +34,18 @@ SortIcon.propTypes = {
  * Render 3 token or cost cells based on viewMode
  */
 function ValueCells({ item, viewMode, isSummary = false }) {
+  if (viewMode === "credits") {
+    return (
+      <>
+        <td className="px-6 py-3 text-right font-medium">
+          {item.credits ? fmtCredits(item.credits) : "—"}
+        </td>
+        <td className="px-6 py-3 text-right font-medium text-warning">
+          {item.creditCost ? fmtCreditCost(item.creditCost) : "—"}
+        </td>
+      </>
+    );
+  }
   if (viewMode === "tokens") {
     return (
       <>
@@ -136,6 +150,12 @@ export default function UsageTable({
   }, []);
 
   const valueColumns = useMemo(() => {
+    if (viewMode === "credits") {
+      return [
+        { field: "credits", label: "Credits" },
+        { field: "creditCost", label: "Credit Cost" },
+      ];
+    }
     if (viewMode === "tokens") {
       return [
         { field: "promptTokens", label: "Input Tokens" },
@@ -252,4 +272,4 @@ UsageTable.propTypes = {
 };
 
 // Re-export utilities for use in UsageStats orchestrator
-export { fmt, fmtCost, fmtTime };
+export { fmt, fmtCost, fmtCredits, fmtTime };

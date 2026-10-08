@@ -188,7 +188,7 @@ describe("Kiro terminal integrity recovery", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(body).toContain("Complete answer.");
     expect(body).toContain('"finish_reason":"stop"');
-    expect(body).toContain('"kiro_credits":2');
+    expect(body).toContain('"credits":2');
   });
 
   it("parses frames split across chunks and multiple frames in one chunk", async () => {

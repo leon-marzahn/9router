@@ -9,6 +9,7 @@ import { v4 as uuidv4 } from "uuid";
 import { refreshKiroToken } from "../services/tokenRefresh.js";
 import { SSE_DONE, SSE_HEADERS } from "../utils/sseConstants.js";
 import { getCapabilitiesForModel } from "../providers/capabilities.js";
+import { buildKiroCacheContext, estimateKiroCachedTokens } from "../utils/kiroCacheEstimate.js";
 import { STREAM_FIRST_CHUNK_TIMEOUT_MS } from "../config/runtimeConfig.js";
 import { AWS_EVENTSTREAM } from "../config/awsConstants.js";
 import { crc32, parseEventFrame } from "../utils/awsEventStream.js";
@@ -370,6 +371,7 @@ export class KiroExecutor extends BaseExecutor {
         // An invalid tool_call with zero output is retried once upstream (plain
         // re-send; the one-shot guard lives in the transformer).
         result.response = this.transformEventStreamToSSE(result.response, args.model, {
+          cacheContext: buildKiroCacheContext(args.body),
           retryUpstream: async () => {
             const retry = await BaseExecutor.prototype.execute.call(this, {
               ...args,
@@ -419,7 +421,8 @@ export class KiroExecutor extends BaseExecutor {
             maxBytes,
             ttftTimeoutMs,
             stallTimeoutMs,
-            repairEnabled
+            repairEnabled,
+            cacheContext: buildKiroCacheContext(args.body)
           });
           if (abortController.signal.aborted) throw makeAbortError(abortController.signal.reason);
           controller.enqueue(bytes);
@@ -564,6 +567,8 @@ export class KiroExecutor extends BaseExecutor {
     let diagnostics;
     const transformed = this.transformEventStreamToSSE(rawResponse, model, {
       maxToolBytes: Math.max(1, Math.floor(options.maxBytes / 2)),
+      // Only the first attempt counts: a repair retry re-sends the same request.
+      cacheContext: attempt === "initial" ? options.cacheContext : undefined,
       onTerminalState: (value) => {
         diagnostics = value;
       }
@@ -1014,8 +1019,8 @@ export class KiroExecutor extends BaseExecutor {
         if (Number.isFinite(credits)) {
           state.usage = {
             ...(state.usage || {}),
-            kiro_credits: credits,
-            kiro_credit_unit: typeof metering.unit === "string" ? metering.unit : "credit"
+            credits: credits,
+            credit_unit: typeof metering.unit === "string" ? metering.unit : "credit"
           };
         }
       } else if (eventType === "metricsEvent") {
@@ -1243,6 +1248,16 @@ export class KiroExecutor extends BaseExecutor {
           completion_tokens: completion,
           total_tokens: prompt + completion
         };
+      }
+      // Kiro reports no cache counts, so derive them from the conversation id.
+      if (state.usage?.prompt_tokens > 0 && !state.usage.cache_read_input_tokens) {
+        const cached = estimateKiroCachedTokens(options.cacheContext, state.usage.prompt_tokens);
+        if (cached > 0) {
+          state.usage.prompt_tokens_details = {
+            ...(state.usage.prompt_tokens_details || {}),
+            cached_tokens: cached
+          };
+        }
       }
       const finishReason = truncatedAfterOutput
         ? "length"

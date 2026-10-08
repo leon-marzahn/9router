@@ -31,7 +31,7 @@ import { getCapabilitiesForModel } from "../providers/capabilities.js";
 import { stripUnsupportedModalities } from "../translator/concerns/modality.js";
 import { prefetchRemoteImages } from "../translator/concerns/prefetch.js";
 import { defaultClaudeToolType, shouldDefaultClaudeToolType } from "../translator/concerns/toolCall.js";
-import { resolveSessionId } from "../utils/sessionManager.js";
+import { resolveSessionId, clientIpFromHeaders } from "../utils/sessionManager.js";
 
 /**
  * Core chat handler - shared between SSE and Worker
@@ -257,6 +257,8 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     if (toolN) parts.push(`${toolN} TOOL`);
     if (think) parts.push(`THINK:${think}`);
     parts.push(`ACC:${acc}`);
+    const clientIp = clientIpFromHeaders(clientRawRequest?.headers);
+    if (clientIp) parts.push(`IP:${clientIp}`);
     log.line(reqTag, "▶", parts.join(" · "));
   }
 

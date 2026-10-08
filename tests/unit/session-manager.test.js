@@ -1,5 +1,5 @@
 // A2: locks resolveSessionId priority/stickiness (codex/kiro/antigravity centralization).
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, beforeAll, afterAll } from "vitest";
 import { resolveContinuationId, resolveSessionId, resolveSessionIdentity, deriveSessionId, clearSessionStore } from "../../open-sse/utils/sessionManager.js";
 
 // Assistant text must reach ASSISTANT_MIN_LEN (80) to use assistant anchor; else first user message.
@@ -174,11 +174,47 @@ describe("resolveSessionId", () => {
     expect(explicit).toEqual({ sessionId: "client-sess-123", ephemeral: false });
   });
 
-  it("does not switch Kiro headerless requests to assistant-text session ids mid-conversation", () => {
-    const withAssistant = { messages: [{ role: "user", content: "same user" }, { role: "assistant", content: "y".repeat(80) }] };
-    const a = resolveSessionId({ body: withAssistant, connectionId: "conn1", scope: "kiro" });
-    const b = resolveSessionId({ body: withAssistant, connectionId: "conn1", scope: "kiro" });
-    expect(a).not.toBe(b);
+  describe("headerless Kiro derived session ids (turn 2 onward)", () => {
+    const turn1 = { model: "m", messages: [{ role: "system", content: "S" }, { role: "user", content: "hi" }] };
+    const turn2 = { model: "m", messages: [...turn1.messages, { role: "assistant", content: "yo" }, { role: "user", content: "more" }] };
+    const turn3 = { model: "m", messages: [...turn2.messages, { role: "assistant", content: "ok" }, { role: "user", content: "again" }] };
+    const id = (body, headers = { authorization: "Bearer k1", "x-9r-real-ip": "1.1.1.1", "x-9r-peer-token": "tok" }, connectionId = "c") =>
+      resolveSessionIdentity({ body, connectionId, scope: "kiro", headers });
+
+    beforeAll(() => { process.env.NINEROUTER_PEER_TOKEN = "tok"; });
+    afterAll(() => { delete process.env.NINEROUTER_PEER_TOKEN; });
+
+    it("ignores a client-supplied ip header without the peer token", () => {
+      const spoof = { authorization: "Bearer k1", "x-9r-real-ip": "9.9.9.9" };
+      const plain = { authorization: "Bearer k1" };
+      expect(id(turn2, spoof).sessionId).toBe(id(turn2, plain).sessionId);
+    });
+
+    it("keeps turn 1 ephemeral", () => {
+      expect(id(turn1).ephemeral).toBe(true);
+    });
+
+    it("derives a stable, non-ephemeral id that does not change between turns 2 and 3", () => {
+      const a = id(turn2);
+      expect(a.ephemeral).toBe(false);
+      expect(a.sessionId).toBe(id(turn3).sessionId);
+    });
+
+    it("separates callers by api key, ip, connection, model, system prompt and first user message", () => {
+      const base = id(turn2).sessionId;
+      expect(id(turn2, { authorization: "Bearer k2", "x-9r-real-ip": "1.1.1.1", "x-9r-peer-token": "tok" }).sessionId).not.toBe(base);
+      expect(id(turn2, { authorization: "Bearer k1", "x-9r-real-ip": "2.2.2.2", "x-9r-peer-token": "tok" }).sessionId).not.toBe(base);
+      expect(id(turn2, undefined, "c2").sessionId).not.toBe(base);
+      expect(id({ ...turn2, model: "m2" }).sessionId).not.toBe(base);
+      const otherSystem = { ...turn2, messages: [{ role: "system", content: "T" }, ...turn2.messages.slice(1)] };
+      expect(id(otherSystem).sessionId).not.toBe(base);
+      const otherFirst = { ...turn2, messages: [turn2.messages[0], { role: "user", content: "different" }, ...turn2.messages.slice(2)] };
+      expect(id(otherFirst).sessionId).not.toBe(base);
+    });
+
+    it("does not put the raw api key in the id", () => {
+      expect(id(turn2).sessionId).not.toContain("k1");
+    });
   });
 });
 
