@@ -498,3 +498,21 @@ export function calculateCostFromTokens(tokens, pricing) {
 
   return cost;
 }
+
+/**
+ * Providers that bill in credits instead of tokens, with their USD price per credit.
+ * Kiro: 5,000 credits = $100 and 10,000 credits = $200, i.e. $0.02 per credit.
+ */
+export const USD_PER_CREDIT = { kiro: 0.02 };
+
+/**
+ * Convert provider-reported credits to dollars.
+ * @param {string} provider provider id (e.g. "kiro")
+ * @param {number} credits
+ * @returns {number} cost in dollars (0 when the provider has no credit price or input is invalid)
+ */
+export function creditsToUsd(provider, credits) {
+  const rate = USD_PER_CREDIT[provider];
+  const n = Number(credits);
+  return rate && Number.isFinite(n) && n > 0 ? n * rate : 0;
+}

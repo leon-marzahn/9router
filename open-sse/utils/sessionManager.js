@@ -197,6 +197,38 @@ function assistantTextSessionId(scope, body) {
     return sessionId;
 }
 
+// Client IP stamped by custom-server.js from the TCP socket (or a local reverse proxy's
+// x-real-ip / x-forwarded-for). Only trusted when the per-process peer token matches;
+// otherwise the header is client-supplied and ignored.
+export function clientIpFromHeaders(headers) {
+    const token = process.env.NINEROUTER_PEER_TOKEN;
+    if (!token || headerValue(headers, "x-9r-peer-token") !== token) return "";
+    return headerValue(headers, "x-9r-real-ip") || "";
+}
+
+function contentText(content) {
+    if (typeof content === "string") return content;
+    if (!Array.isArray(content)) return "";
+    return content.map((c) => (typeof c === "string" ? c : c?.text || "")).join("");
+}
+
+// Stable id from system prompt + first user message; identical on every turn of a conversation.
+function kiroConversationStartId(connectionId, body, headers) {
+    const items = requestMessages(body);
+    // Turn 1 has nothing to replay, so keep it a fresh ephemeral session; derive from turn 2 on.
+    if (!items.some((m) => m?.role === "assistant")) return null;
+    const first = items.find((m) => m?.role === "user");
+    const firstText = first ? contentText(first.content) : "";
+    if (!firstText) return null;
+    const systemText = contentText(body?.system) ||
+        items.filter((m) => m?.role === "system" || m?.role === "developer").map((m) => contentText(m.content)).join("\n");
+    // Hash of the caller's API key keeps identical requests from different consumers apart.
+    // Only the digest enters the id; the raw key is never stored or logged.
+    const caller = headerValue(headers, "authorization") || headerValue(headers, "x-api-key") || "";
+    const ip = clientIpFromHeaders(headers);
+    return `kiro-${sha16(`${caller}\n${ip}\n${connectionId || ""}\n${body?.model || ""}\n${systemText}\n${firstText}`)}`;
+}
+
 /**
  * Resolve a conversation-stable session id (generalizes Codex resolveCacheSessionId).
  * Priority: client session → accumulated-assistant-text hash → workspaceId → per-connection.
@@ -216,7 +248,14 @@ export function resolveSessionIdentity({ headers, body, connectionId, workspaceI
     if (fromAssistant) return { sessionId: fromAssistant, ephemeral: false };
     const ws = normalizeSessionId(workspaceId);
     if (ws) return { sessionId: ws, ephemeral: false };
-    if (scope === "kiro") return { sessionId: generateBinaryStyleId(), ephemeral: true };
+    if (scope === "kiro") {
+        // Clients that send no session id (e.g. Hermes) would otherwise get a random
+        // one-shot id, so replay never matches and Kiro's prompt cache is never hit.
+        // Derive a stable id from the conversation start (system + first user turn).
+        const derived = kiroConversationStartId(connectionId, body, headers);
+        if (derived) return { sessionId: derived, ephemeral: false };
+        return { sessionId: generateBinaryStyleId(), ephemeral: true };
+    }
     return { sessionId: deriveSessionId(connectionId), ephemeral: false };
 }
 

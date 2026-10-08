@@ -47,10 +47,13 @@ export function resolveDefaultProfileArn(authMethod) {
 
 export const KIRO_THINKING_BUDGET_DEFAULT = 16000;
 
+// "false" and "0" are accepted too: YAML-driven clients turn an unquoted `off` into a boolean.
+const KIRO_TIME_OFF_VALUES = new Set(["off", "false", "0"]);
+
 /** Per-request opt-out of real-world time context, e.g. for roleplay. */
 export function buildKiroTimeContext(headers) {
   const value = pickHeader(headers, KIRO_TIME_HEADER);
-  if (typeof value === "string" && value.trim().toLowerCase() === "off") return "";
+  if (typeof value === "string" && KIRO_TIME_OFF_VALUES.has(value.trim().toLowerCase())) return "";
   return `[Context: Current time is ${new Date().toISOString()}]`;
 }
 

@@ -95,6 +95,7 @@ async function flushToDatabase() {
       const items = writeBuffer.splice(0, writeBuffer.length);
       const db = await getAdapter();
       const config = await getObservabilityConfig();
+      const { creditsToUsd } = await import("open-sse/providers/pricing.js");
 
       db.transaction(() => {
         for (const item of items) {
@@ -111,6 +112,8 @@ async function flushToDatabase() {
             status: item.status || null,
             latency: item.latency || {},
             tokens: item.tokens || {},
+            // Dollar cost derived from provider-reported credits (only set for credit-billed providers).
+            cost: creditsToUsd(item.provider, item.tokens?.credits) || undefined,
             request: truncateField(item.request, config.maxJsonSize),
             providerRequest: truncateField(item.providerRequest, config.maxJsonSize),
             providerResponse: truncateField(item.providerResponse, config.maxJsonSize),

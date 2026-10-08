@@ -133,7 +133,7 @@ function groupDataByKey(data, keyField) {
     if (!groups[gk]) {
       groups[gk] = {
         groupKey: gk,
-        summary: { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, totalTokens: 0, cost: 0, inputCost: 0, cachedCost: 0, outputCost: 0, lastUsed: null, pending: 0 },
+        summary: { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, totalTokens: 0, cost: 0, credits: 0, creditCost: 0, inputCost: 0, cachedCost: 0, outputCost: 0, lastUsed: null, pending: 0 },
         items: [],
       };
     }
@@ -144,6 +144,8 @@ function groupDataByKey(data, keyField) {
     s.cachedTokens += item.cachedTokens || 0;
     s.totalTokens += item.totalTokens || 0;
     s.cost += item.cost || 0;
+    s.credits += item.credits || 0;
+    s.creditCost += item.creditCost || 0;
     s.inputCost += item.inputCost || 0;
     s.cachedCost += item.cachedCost || 0;
     s.outputCost += item.outputCost || 0;
@@ -508,7 +510,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
               <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
           </select>
-          <div className="grid grid-cols-2 items-center gap-1 rounded-lg border border-border bg-bg-subtle p-1 sm:flex">
+          <div className="grid grid-cols-3 items-center gap-1 rounded-lg border border-border bg-bg-subtle p-1 sm:flex">
             <button
               onClick={() => setViewMode("costs")}
               className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${viewMode === "costs" ? "bg-primary text-white shadow-sm" : "text-text-muted hover:text-text hover:bg-bg-hover"}`}
@@ -520,6 +522,12 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
               className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${viewMode === "tokens" ? "bg-primary text-white shadow-sm" : "text-text-muted hover:text-text hover:bg-bg-hover"}`}
             >
               Tokens
+            </button>
+            <button
+              onClick={() => setViewMode("credits")}
+              className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${viewMode === "credits" ? "bg-primary text-white shadow-sm" : "text-text-muted hover:text-text hover:bg-bg-hover"}`}
+            >
+              Credits
             </button>
           </div>
         </div>

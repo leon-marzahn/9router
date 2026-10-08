@@ -20,18 +20,97 @@ const fmtTokens = (n) => {
 };
 
 const fmtCost = (n) => `$${(n || 0).toFixed(4)}`;
+const fmtCredits = (n) => (n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 });
 const fmtRequests = (n) => String(n || 0);
 
 const VIEW_MODES = [
   { value: "tokens", label: "Tokens" },
   { value: "requests", label: "Requests" },
   { value: "cost", label: "Cost" },
+  { value: "credits", label: "Credits" },
 ];
 
 const VIEW_CONFIG = {
   tokens:   { dataKey: "tokens",   color: "#6366f1", gradId: "gradTokens",   formatter: fmtTokens,   label: "Tokens" },
   requests: { dataKey: "requests", color: "#14b8a6", gradId: "gradRequests", formatter: fmtRequests, label: "Requests" },
   cost:     { dataKey: "cost",     color: "#f59e0b", gradId: "gradCost",     formatter: fmtCost,     label: "Cost" },
+  credits:  { dataKey: "credits",  color: "#8b5cf6", gradId: "gradCredits",  formatter: fmtCredits,  label: "Credits" },
+};
+
+// Credits view shows two stacked charts: credits on top, their dollar cost below.
+const CREDIT_PANELS = [
+  { dataKey: "credits",    color: "#8b5cf6", gradId: "gradCredits",    formatter: fmtCredits, label: "Credits",     height: 150 },
+  { dataKey: "creditCost", color: "#f59e0b", gradId: "gradCreditCost", formatter: fmtCost,    label: "Credit cost", height: 110 },
+];
+
+const TOOLTIP_STYLE = {
+  backgroundColor: "var(--color-bg)",
+  border: "1px solid var(--color-border)",
+  borderRadius: "8px",
+  fontSize: "12px",
+};
+
+function ChartGradient({ id, color }) {
+  return (
+    <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
+      <stop offset="5%" stopColor={color} stopOpacity={0.25} />
+      <stop offset="95%" stopColor={color} stopOpacity={0} />
+    </linearGradient>
+  );
+}
+
+ChartGradient.propTypes = {
+  id: PropTypes.string.isRequired,
+  color: PropTypes.string.isRequired,
+};
+
+function CreditsPanels({ data }) {
+  return (
+    <div className="flex flex-col gap-1">
+      {CREDIT_PANELS.map((panel, i) => (
+        <div key={panel.dataKey}>
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">{panel.label}</span>
+          <ResponsiveContainer width="100%" height={panel.height}>
+            <AreaChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+              <defs>
+                <ChartGradient id={panel.gradId} color={panel.color} />
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.1} />
+              <XAxis
+                dataKey="label"
+                hide={i === 0}
+                tick={{ fontSize: 10, fill: "currentColor", fillOpacity: 0.5 }}
+                tickLine={false}
+                axisLine={false}
+                interval="preserveStartEnd"
+              />
+              <YAxis
+                tick={{ fontSize: 10, fill: "currentColor", fillOpacity: 0.5 }}
+                tickLine={false}
+                axisLine={false}
+                tickFormatter={panel.formatter}
+                width={50}
+              />
+              <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(value) => [panel.formatter(value), panel.label]} />
+              <Area
+                type="monotone"
+                dataKey={panel.dataKey}
+                stroke={panel.color}
+                strokeWidth={2}
+                fill={`url(#${panel.gradId})`}
+                dot={false}
+                activeDot={{ r: 4 }}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+CreditsPanels.propTypes = {
+  data: PropTypes.array.isRequired,
 };
 
 export default function UsageChart({ period = "7d" }) {
@@ -82,6 +161,8 @@ export default function UsageChart({ period = "7d" }) {
         <div className="h-48 flex items-center justify-center text-text-muted text-sm">Loading...</div>
       ) : !hasData ? (
         <div className="h-48 flex items-center justify-center text-text-muted text-sm">No data for this period</div>
+      ) : viewMode === "credits" ? (
+        <CreditsPanels data={data} />
       ) : (
         <ResponsiveContainer width="100%" height={220}>
           <AreaChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
