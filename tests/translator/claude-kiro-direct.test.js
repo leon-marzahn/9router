@@ -24,7 +24,13 @@ describe("Claude → Kiro (direct route)", () => {
       connectionId: "kiro-account-1",
     };
     const first = C2K({ messages: [{ role: "user", content: "first" }] }, credentials);
-    const second = C2K({ messages: [{ role: "user", content: "second" }] }, credentials);
+    const second = C2K({
+      messages: [
+        { role: "user", content: "first" },
+        { role: "assistant", content: "ok" },
+        { role: "user", content: "second" },
+      ],
+    }, credentials);
 
     expect(first.conversationState.conversationId).toBe("hermes-session-123-claude-replay");
     expect(second.conversationState.conversationId).toBe("hermes-session-123-claude-replay");
@@ -200,7 +206,11 @@ describe("Claude → Kiro (direct route)", () => {
     }, credentials);
     const second = C2K({
       system: "stable instruction",
-      messages: [{ role: "user", content: "second" }],
+      messages: [
+        { role: "user", content: "first" },
+        { role: "assistant", content: "ok" },
+        { role: "user", content: "second" },
+      ],
     }, credentials);
 
     expect(first).not.toHaveProperty("systemPrompt");

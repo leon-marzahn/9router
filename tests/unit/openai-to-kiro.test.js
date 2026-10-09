@@ -601,7 +601,13 @@ describe("openaiToKiroRequest", () => {
       );
       const second = openaiToKiroRequest(
         "claude-sonnet-4.6",
-        { messages: [{ role: "user", content: "second turn" }] },
+        {
+          messages: [
+            { role: "user", content: "first turn" },
+            { role: "assistant", content: "ok" },
+            { role: "user", content: "second turn" },
+          ],
+        },
         true,
         credentials
       );
