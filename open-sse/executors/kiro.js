@@ -371,7 +371,7 @@ export class KiroExecutor extends BaseExecutor {
         // An invalid tool_call with zero output is retried once upstream (plain
         // re-send; the one-shot guard lives in the transformer).
         result.response = this.transformEventStreamToSSE(result.response, args.model, {
-          cacheContext: buildKiroCacheContext(args.body),
+          cacheContext: buildKiroCacheContext(args.body, args.credentials?.connectionId),
           retryUpstream: async () => {
             const retry = await BaseExecutor.prototype.execute.call(this, {
               ...args,
@@ -422,7 +422,7 @@ export class KiroExecutor extends BaseExecutor {
             ttftTimeoutMs,
             stallTimeoutMs,
             repairEnabled,
-            cacheContext: buildKiroCacheContext(args.body)
+            cacheContext: buildKiroCacheContext(args.body, args.credentials?.connectionId)
           });
           if (abortController.signal.aborted) throw makeAbortError(abortController.signal.reason);
           controller.enqueue(bytes);
@@ -1249,7 +1249,7 @@ export class KiroExecutor extends BaseExecutor {
           total_tokens: prompt + completion
         };
       }
-      // Kiro reports no cache counts, so derive them from the conversation id.
+      // Kiro reports no cache counts, so derive them from the conversation content.
       if (state.usage?.prompt_tokens > 0 && !state.usage.cache_read_input_tokens) {
         const cached = estimateKiroCachedTokens(options.cacheContext, state.usage.prompt_tokens);
         if (cached > 0) {
