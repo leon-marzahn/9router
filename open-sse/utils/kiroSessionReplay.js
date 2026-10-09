@@ -80,8 +80,11 @@ export function applyKiroSessionReplay({
 
   // Rebuild from the supplied conversation when time injection changes, so a
   // cached first turn cannot reintroduce a timestamp after the client opts out.
-  if (existing && existing.modelId === modelId && existing.systemPrompt === systemPrompt &&
-      existing.timeContextEnabled === timeContextEnabled) {
+  // A request without history is a first turn: the current message already is the session
+  // start. Replaying the stored start on top of it (retry, regenerate, reused id) would send
+  // that message twice, so it falls through and becomes the new stored start instead.
+  if (existing && baseHistory.length > 0 && existing.modelId === modelId &&
+      existing.systemPrompt === systemPrompt && existing.timeContextEnabled === timeContextEnabled) {
     existing.lastUsed = Date.now();
     const firstUserIndex = findFirstUserIndex(baseHistory);
     const sessionStart = ensureUserMessageModelId(clone(existing.sessionStart), modelId);
@@ -89,9 +92,6 @@ export function applyKiroSessionReplay({
       baseHistory[firstUserIndex] = sessionStart;
     } else {
       baseHistory.unshift(sessionStart);
-      if (baseHistory.length === 1) {
-        baseHistory.push({ assistantResponseMessage: { content: "..." } });
-      }
     }
     return {
       history: ensureHistoryModelIds(baseHistory, modelId),
