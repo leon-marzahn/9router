@@ -222,11 +222,10 @@ function kiroConversationStartId(connectionId, body, headers) {
     if (!firstText) return null;
     const systemText = contentText(body?.system) ||
         items.filter((m) => m?.role === "system" || m?.role === "developer").map((m) => contentText(m.content)).join("\n");
-    // Hash of the caller's API key keeps identical requests from different consumers apart.
-    // Only the digest enters the id; the raw key is never stored or logged.
-    const caller = headerValue(headers, "authorization") || headerValue(headers, "x-api-key") || "";
-    const ip = clientIpFromHeaders(headers);
-    return `kiro-${sha16(`${caller}\n${ip}\n${connectionId || ""}\n${body?.model || ""}\n${systemText}\n${firstText}`)}`;
+    // Only what Kiro itself caches on: connection (replay scope), model, system prompt and first
+    // message. Caller key and IP are left out on purpose: Kiro never sees them, identical content
+    // replays identically, and an IP change mid-conversation would otherwise lose replay and cache.
+    return `kiro-${sha16(`${connectionId || ""}\n${body?.model || ""}\n${systemText}\n${firstText}`)}`;
 }
 
 /**

@@ -200,10 +200,15 @@ describe("resolveSessionId", () => {
       expect(a.sessionId).toBe(id(turn3).sessionId);
     });
 
-    it("separates callers by api key, ip, connection, model, system prompt and first user message", () => {
+    it("does not depend on api key or ip, which Kiro never sees", () => {
       const base = id(turn2).sessionId;
-      expect(id(turn2, { authorization: "Bearer k2", "x-9r-real-ip": "1.1.1.1", "x-9r-peer-token": "tok" }).sessionId).not.toBe(base);
-      expect(id(turn2, { authorization: "Bearer k1", "x-9r-real-ip": "2.2.2.2", "x-9r-peer-token": "tok" }).sessionId).not.toBe(base);
+      expect(id(turn2, { authorization: "Bearer k2", "x-9r-real-ip": "1.1.1.1", "x-9r-peer-token": "tok" }).sessionId).toBe(base);
+      expect(id(turn2, { authorization: "Bearer k1", "x-9r-real-ip": "2.2.2.2", "x-9r-peer-token": "tok" }).sessionId).toBe(base);
+      expect(id(turn2, {}).sessionId).toBe(base);
+    });
+
+    it("separates connection, model, system prompt and first user message", () => {
+      const base = id(turn2).sessionId;
       expect(id(turn2, undefined, "c2").sessionId).not.toBe(base);
       expect(id({ ...turn2, model: "m2" }).sessionId).not.toBe(base);
       const otherSystem = { ...turn2, messages: [{ role: "system", content: "T" }, ...turn2.messages.slice(1)] };
