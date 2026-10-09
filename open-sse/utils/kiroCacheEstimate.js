@@ -6,7 +6,8 @@
 //   - time context on: that message went out with a timestamp and comes back
 //     without one, so the cache stops at the assistant message before it.
 //     Exception: the very first message, which session replay keeps frozen.
-// cached = previous prompt (minus that last user message when time was on).
+// cached = previous prompt (minus that last user message when time was on),
+// capped at this prompt minus its own newest user message (max - new).
 // Prompt sizes are themselves approximations (context percentage), so this is
 // an estimate. State is in memory and a restart simply forgets it (cached = 0).
 
@@ -57,7 +58,8 @@ export function estimateKiroCachedTokens(context, promptTokens) {
 
   if (!before) return 0;
   const cached = before.prompt - before.timeStrippedTokens;
-  return Math.max(0, Math.min(cached, promptTokens));
+  // The newest user message is never cached, so a request can never be a full hit.
+  return Math.max(0, Math.min(cached, promptTokens - context.lastUserTokens));
 }
 
 /** Test helper. */

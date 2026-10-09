@@ -67,12 +67,18 @@ describe("estimateKiroCachedTokens", () => {
     const first = buildKiroCacheContext(body("c1", `${TIME}\n\n${"x".repeat(4000)}`, undefined, []));
     expect(first.isFirstTurn).toBe(true);
     estimateKiroCachedTokens(first, 7353);
-    expect(estimateKiroCachedTokens(ctx("c1", { time: true }), 7393)).toBe(7353);
+    expect(estimateKiroCachedTokens(ctx("c1", { time: true }), 7500)).toBe(7353);
   });
 
-  it("never exceeds the current prompt", () => {
+  it("never reports a full hit: the newest user message is always uncached", () => {
     estimateKiroCachedTokens(ctx("c1"), 20000);
-    expect(estimateKiroCachedTokens(ctx("c1"), 15000)).toBe(15000);
+    // 400 chars of new user message = 100 tokens
+    expect(estimateKiroCachedTokens(ctx("c1"), 15000)).toBe(14900);
+  });
+
+  it("caps a prompt that shrank below the previous one", () => {
+    estimateKiroCachedTokens(ctx("c1"), 144619);
+    expect(estimateKiroCachedTokens(ctx("c1"), 144108)).toBe(144008);
   });
 
   it("keeps conversations separate", () => {
