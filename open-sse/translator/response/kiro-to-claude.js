@@ -68,6 +68,21 @@ export function kiroToClaudeResponse(chunk, state) {
     }
   }
 
+  // Executor error frame (refusal, truncation, protocol failure): surface it as a Claude
+  // `error` event, and drop the finish chunk that follows (it would read as a clean end_turn).
+  if (state.errored) return null;
+  if (data?.error) {
+    state.errored = true;
+    const results = [];
+    stopThinkingBlock(state, results);
+    stopTextBlock(state, results);
+    results.push({
+      type: "error",
+      error: { type: "api_error", message: data.error.message || "Upstream error" },
+    });
+    return results;
+  }
+
   if (!data || !data.choices?.[0]) return null;
 
   const results = [];

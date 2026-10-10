@@ -73,6 +73,21 @@ describe("signature retry", () => {
   });
 });
 
+describe("upstream error after partial output on the Claude path", () => {
+  it("emits an error event instead of a clean end_turn", () => {
+    const state = initState(FORMATS.CLAUDE);
+    const base = { id: "chatcmpl-x1234567", model: "kiro" };
+    const out = [
+      { ...base, choices: [{ index: 0, delta: { role: "assistant", reasoning_content: "hmm" }, finish_reason: null }] },
+      { error: { message: "Kiro ended with non-success stop reason: content_filtered", code: "kiro_terminal_refusal" } },
+      { ...base, choices: [{ index: 0, delta: {}, finish_reason: "error" }] },
+    ].flatMap((c) => translateResponse(FORMATS.KIRO, FORMATS.CLAUDE, c, state) || []);
+    const err = out.find((e) => e.type === "error");
+    expect(err.error.message).toContain("content_filtered");
+    expect(out.some((e) => e.type === "message_delta" || e.type === "message_stop")).toBe(false);
+  });
+});
+
 describe("credits on the Claude path", () => {
   it("survives kiro-to-claude into the message_delta usage", () => {
     const state = initState(FORMATS.CLAUDE);
