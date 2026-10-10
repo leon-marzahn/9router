@@ -359,7 +359,24 @@ export class KiroExecutor extends BaseExecutor {
    * classify the status, and trigger account fallback/cooldown.
    */
   async execute(args) {
-    const result = await super.execute(args);
+    let result = await super.execute(args);
+    // A replayed reasoning signature Kiro no longer accepts (edited/compacted
+    // history, other account) fails the whole turn; drop reasoning and resend once.
+    const history = args.body?.conversationState?.history;
+    if (result?.response?.status === 400 && history?.some(h => h.assistantResponseMessage?.reasoningContent)) {
+      // Not every fetch path returns a cloneable Response, so read once and rebuild.
+      const { status, statusText, headers } = result.response;
+      const text = await result.response.text().catch(() => "");
+      if (!text.includes("THINKING_SIGNATURE_INVALID")) {
+        result.response = new Response(text, { status, statusText, headers });
+      } else {
+        console.warn(`[KIRO] invalid reasoning signature; retrying without reasoning history model=${args.model}`);
+        const body = structuredClone(args.body);
+        body.conversationState.history.forEach(h => { delete h.assistantResponseMessage?.reasoningContent; });
+        args = { ...args, body };
+        result = await super.execute(args);
+      }
+    }
     if (result?.response?.ok) {
       if (args.stream) {
         // A terminal integrity gate cannot release tokens incrementally: it has
@@ -954,10 +971,16 @@ export class KiroExecutor extends BaseExecutor {
                 value?.reasoning_content
               ];
           const content = candidates.find(candidate => typeof candidate === "string");
-          if (!content) continue;
-          state.hasReasoning = true;
-          state.totalContentLength += content.length;
-          emitDelta(controller, { reasoning_content: content });
+          if (content) {
+            state.hasReasoning = true;
+            state.totalContentLength += content.length;
+            emitDelta(controller, { reasoning_content: content });
+          }
+          // Kiro validates this signature when the block comes back in history;
+          // emit it after the text so it closes the thinking block (Claude order).
+          if (typeof value?.signature === "string" && value.signature) {
+            emitDelta(controller, { reasoning_signature: value.signature });
+          }
         }
       } else if (eventType === "codeEvent" && typeof event.payload?.content === "string") {
         state.hasCode = true;
@@ -1237,7 +1260,8 @@ export class KiroExecutor extends BaseExecutor {
         return;
       }
 
-      if (state.hasMetering && state.hasContextUsage && !state.usage?.total_tokens) {
+      // Prompt tokens come from the context-usage percentage alone; metering only adds credits.
+      if (state.hasContextUsage && state.contextUsagePercentage > 0 && !state.usage?.total_tokens) {
         const completion = state.totalContentLength
           ? Math.max(1, Math.floor(state.totalContentLength / 4))
           : 0;

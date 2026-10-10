@@ -31,8 +31,12 @@ function openAICompletionToClaudeMessage(responseBody) {
   const content = [];
 
   const reasoning = message.reasoning_content || message.provider_specific_fields?.reasoning_content || "";
-  if (reasoning) {
-    content.push({ type: "thinking", thinking: reasoning });
+  if (reasoning || message.reasoning_signature) {
+    content.push({
+      type: "thinking",
+      thinking: reasoning,
+      ...(message.reasoning_signature ? { signature: message.reasoning_signature } : {}),
+    });
   }
   if (typeof message.content === "string" && message.content.length > 0) {
     content.push({ type: "text", text: message.content });
@@ -146,6 +150,8 @@ function openAICompletionToResponses(responseBody, customToolNames = null) {
  */
 export function translateNonStreamingResponse(responseBody, targetFormat, sourceFormat, customToolNames = null) {
   if (targetFormat === sourceFormat) return responseBody;
+  // Kiro executors emit OpenAI-shaped SSE, so its non-stream body is a chat.completion too.
+  if (targetFormat === FORMATS.KIRO) targetFormat = FORMATS.OPENAI;
   // Provider responded in OpenAI Chat Completions shape but the client speaks
   // Responses API — convert so tool_calls/text surface as Responses `output`.
   if (targetFormat === FORMATS.OPENAI && sourceFormat === FORMATS.OPENAI_RESPONSES) {

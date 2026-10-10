@@ -83,6 +83,8 @@ export function kiroToClaudeResponse(chunk, state) {
         ? data.usage.completion_tokens
         : 0;
     state.usage = { input_tokens: promptTokens, output_tokens: outputTokens };
+    // Kiro bills in credits (meteringEvent); keep them so the usage page can price the turn.
+    if (typeof data.usage.credits === "number") state.usage.credits = data.usage.credits;
     // Claude clients read cache_read/cache_creation to price a turn and to size
     // their prompt cache. Both spellings are accepted because the Kiro executor
     // emits the Chat shape and passthrough responses use the nested details form.
@@ -119,7 +121,7 @@ export function kiroToClaudeResponse(chunk, state) {
 
   // Reasoning / thinking content (Kiro reasoningContentEvent → reasoning_content).
   const reasoningContent = delta.reasoning_content || delta.reasoning;
-  if (reasoningContent) {
+  if (reasoningContent || delta.reasoning_signature) {
     stopTextBlock(state, results);
     if (!state.thinkingBlockStarted) {
       state.thinkingBlockIndex = state.nextBlockIndex++;
@@ -130,11 +132,21 @@ export function kiroToClaudeResponse(chunk, state) {
         content_block: { type: "thinking", thinking: "" },
       });
     }
-    results.push({
-      type: "content_block_delta",
-      index: state.thinkingBlockIndex,
-      delta: { type: "thinking_delta", thinking: reasoningContent },
-    });
+    if (reasoningContent) {
+      results.push({
+        type: "content_block_delta",
+        index: state.thinkingBlockIndex,
+        delta: { type: "thinking_delta", thinking: reasoningContent },
+      });
+    }
+    // Kiro sends the signature as its own frame; clients echo it back with the block.
+    if (delta.reasoning_signature) {
+      results.push({
+        type: "content_block_delta",
+        index: state.thinkingBlockIndex,
+        delta: { type: "signature_delta", signature: delta.reasoning_signature },
+      });
+    }
   }
 
   // Regular text content.

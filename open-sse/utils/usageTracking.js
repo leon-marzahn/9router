@@ -92,6 +92,7 @@ export function filterUsageForFormat(usage, targetFormat) {
       'prompt_tokens', 'completion_tokens', 'total_tokens',
       'cached_tokens', 'reasoning_tokens',
       'prompt_tokens_details', 'completion_tokens_details',
+      'credits', 'credit_unit', // Kiro spend (meteringEvent); lets non-streaming responses report it too
       'estimated'
     ]
   };
@@ -262,7 +263,8 @@ export function extractUsage(chunk) {
       prompt_tokens: chunk.usage.input_tokens || 0,
       completion_tokens: chunk.usage.output_tokens || 0,
       cache_read_input_tokens: chunk.usage.cache_read_input_tokens,
-      cache_creation_input_tokens: chunk.usage.cache_creation_input_tokens
+      cache_creation_input_tokens: chunk.usage.cache_creation_input_tokens,
+      credits: chunk.usage.credits
     });
   }
 

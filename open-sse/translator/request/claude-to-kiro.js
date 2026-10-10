@@ -15,6 +15,7 @@
  * the `<thinking_mode>enabled</thinking_mode>` reasoning trigger, matching
  * buildKiroPayload.
  */
+import * as thinkingDefaults from "../../config/defaultThinkingSignature.js";
 import { register } from "../index.js";
 import { FORMATS } from "../formats.js";
 import { applyKiroSessionReplay } from "../../utils/kiroSessionReplay.js";
@@ -38,6 +39,9 @@ import {
   kiroEmptyUserContent,
 } from "../concerns/kiroConversation.js";
 
+// Placeholder signatures other providers inject; Kiro would 400 on them, so never replay them.
+const PLACEHOLDER_SIGNATURES = new Set(Object.values(thinkingDefaults).filter(v => typeof v === "string" && v.length > 20));
+
 /**
  * Convert Claude messages to Kiro history + currentMessage.
  * Kiro requires alternating user/assistant turns; consecutive same-role
@@ -49,6 +53,7 @@ function convertClaudeMessagesToKiro(messages, model) {
 
   let pendingUserContent = [];
   let pendingAssistantContent = [];
+  let pendingReasoning = null;
   let pendingToolResults = [];
   let pendingImages = [];
   let currentRole = null;
@@ -74,8 +79,11 @@ function convertClaudeMessagesToKiro(messages, model) {
       pendingImages = [];
     } else if (currentRole === ROLE.ASSISTANT) {
       const content = pendingAssistantContent.join("\n\n").trim() || "...";
-      history.push({ assistantResponseMessage: { content } });
+      history.push({
+        assistantResponseMessage: { content, ...(pendingReasoning ? { reasoningContent: pendingReasoning } : {}) },
+      });
       pendingAssistantContent = [];
+      pendingReasoning = null;
     }
   };
 
@@ -133,7 +141,11 @@ function convertClaudeMessagesToKiro(messages, model) {
         textContent = msg.content;
       } else if (Array.isArray(msg.content)) {
         for (const block of msg.content) {
-          if (block.type === CLAUDE_BLOCK.TEXT) {
+          if (block.type === CLAUDE_BLOCK.THINKING && block.signature && !PLACEHOLDER_SIGNATURES.has(block.signature)) {
+            pendingReasoning = { reasoningText: { text: block.thinking || "", signature: block.signature } };
+          } else if (block.type === CLAUDE_BLOCK.REDACTED_THINKING && block.data) {
+            pendingReasoning = { redactedContent: block.data };
+          } else if (block.type === CLAUDE_BLOCK.TEXT) {
             textContent += block.text;
           } else if (block.type === CLAUDE_BLOCK.TOOL_USE) {
             toolUses.push({
