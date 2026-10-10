@@ -87,7 +87,16 @@ export function buildRequestDetail(base, overrides = {}) {
     connectionId: base.connectionId || undefined,
     timestamp: new Date().toISOString(),
     latency: base.latency || { ttft: 0, total: 0 },
-    tokens: base.tokens || { prompt_tokens: 0, completion_tokens: 0 },
+    // Claude-shaped usage (input_tokens/output_tokens) must still fill the fields the dashboard reads.
+    tokens: base.tokens
+      ? {
+          ...base.tokens,
+          // Claude input_tokens excludes cache; add it back so IN is the full prompt.
+          prompt_tokens: base.tokens.prompt_tokens
+            ?? (base.tokens.input_tokens || 0) + (base.tokens.cache_read_input_tokens || 0) + (base.tokens.cache_creation_input_tokens || 0),
+          completion_tokens: base.tokens.completion_tokens ?? base.tokens.output_tokens ?? 0
+        }
+      : { prompt_tokens: 0, completion_tokens: 0 },
     request: base.request,
     providerRequest: base.providerRequest || null,
     providerResponse: base.providerResponse || null,

@@ -85,6 +85,17 @@ describe("credits on the Claude path", () => {
     expect(extractUsage(delta).credits).toBe(0.25);
     expect(extractUsage(delta).completion_tokens).toBe(7);
   });
+
+  it("reports input_tokens without cache so clients don't double-count it", () => {
+    const state = initState(FORMATS.CLAUDE);
+    const usage = { prompt_tokens: 65000, completion_tokens: 7, total_tokens: 65007, prompt_tokens_details: { cached_tokens: 60000 } };
+    const out = [
+      { id: "chatcmpl-x1234567", model: "kiro", choices: [{ index: 0, delta: { role: "assistant", content: "hi" }, finish_reason: null }] },
+      { id: "chatcmpl-x1234567", model: "kiro", choices: [{ index: 0, delta: {}, finish_reason: "stop" }], usage },
+    ].flatMap((c) => translateResponse(FORMATS.KIRO, FORMATS.CLAUDE, c, state) || []);
+    const u = out.find((e) => e.type === "message_delta").usage;
+    expect(u.input_tokens + u.cache_read_input_tokens + (u.cache_creation_input_tokens || 0)).toBe(65000);
+  });
 });
 
 describe("usage on a reasoning + tool-call turn (OpenAI route)", () => {
