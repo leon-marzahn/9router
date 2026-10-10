@@ -94,6 +94,9 @@ export function kiroToClaudeResponse(chunk, state) {
       ?? data.usage.prompt_tokens_details?.cache_creation_tokens;
     if (typeof cacheRead === "number") state.usage.cache_read_input_tokens = cacheRead;
     if (typeof cacheCreation === "number") state.usage.cache_creation_input_tokens = cacheCreation;
+    // Claude contract: input_tokens EXCLUDES cache. Clients sum input + cache_read + cache_creation,
+    // so leaving the full prompt here double-counts the cache (65k read as ~125k, premature compaction).
+    state.usage.input_tokens = Math.max(0, promptTokens - (cacheRead || 0) - (cacheCreation || 0));
   }
 
   // First chunk → emit message_start.
