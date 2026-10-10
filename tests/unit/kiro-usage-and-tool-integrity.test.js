@@ -360,7 +360,8 @@ describe("D: cache tokens survive the kiro -> claude translation", () => {
       cache_read_input_tokens: 98000,
       cache_creation_input_tokens: 1912
     })).toEqual({
-      input_tokens: 103000,
+      // Claude contract: input_tokens excludes cache read + creation.
+      input_tokens: 3088,
       output_tokens: 640,
       cache_read_input_tokens: 98000,
       cache_creation_input_tokens: 1912
@@ -373,7 +374,7 @@ describe("D: cache tokens survive the kiro -> claude translation", () => {
       completion_tokens: 20,
       prompt_tokens_details: { cached_tokens: 480, cache_creation_tokens: 20 }
     })).toEqual({
-      input_tokens: 500,
+      input_tokens: 0,
       output_tokens: 20,
       cache_read_input_tokens: 480,
       cache_creation_input_tokens: 20
@@ -391,7 +392,7 @@ describe("D: cache tokens survive the kiro -> claude translation", () => {
       usage: { prompt_tokens: 90, completion_tokens: 4, cache_read_input_tokens: 80 }
     });
     expect(message.usage).toMatchObject({
-      input_tokens: 90,
+      input_tokens: 10,
       output_tokens: 4,
       cache_read_input_tokens: 80
     });

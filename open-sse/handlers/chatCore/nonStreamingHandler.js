@@ -61,10 +61,24 @@ function openAICompletionToClaudeMessage(responseBody) {
     content,
     stop_reason: fromOpenAIFinish(choice.finish_reason, FORMATS.CLAUDE),
     stop_sequence: null,
-    usage: {
-      input_tokens: usage.prompt_tokens || usage.input_tokens || 0,
-      output_tokens: usage.completion_tokens || usage.output_tokens || 0,
-    },
+    usage: claudeUsageFromOpenAI(usage),
+  };
+}
+
+// Claude contract: input_tokens EXCLUDES cache read/creation (clients sum all three).
+// OpenAI prompt_tokens includes cache, so subtract it; an already Claude-shaped
+// input_tokens is passed through as is.
+function claudeUsageFromOpenAI(usage) {
+  const cacheRead = usage.cache_read_input_tokens ?? usage.prompt_tokens_details?.cached_tokens;
+  const cacheCreation = usage.cache_creation_input_tokens ?? usage.prompt_tokens_details?.cache_creation_tokens;
+  const inputTokens = usage.prompt_tokens != null
+    ? Math.max(0, usage.prompt_tokens - (cacheRead || 0) - (cacheCreation || 0))
+    : usage.input_tokens || 0;
+  return {
+    input_tokens: inputTokens,
+    output_tokens: usage.completion_tokens || usage.output_tokens || 0,
+    ...(typeof cacheRead === "number" ? { cache_read_input_tokens: cacheRead } : {}),
+    ...(typeof cacheCreation === "number" ? { cache_creation_input_tokens: cacheCreation } : {}),
   };
 }
 

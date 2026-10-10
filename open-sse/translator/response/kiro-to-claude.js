@@ -291,6 +291,8 @@ export function kiroToClaudeNonStreaming(data) {
   }
 
   const usage = data?.usage || {};
+  const cacheRead = usage.cache_read_input_tokens ?? usage.prompt_tokens_details?.cached_tokens;
+  const cacheCreation = usage.cache_creation_input_tokens ?? usage.prompt_tokens_details?.cache_creation_tokens;
   return {
     id: `msg_${Date.now()}`,
     type: "message",
@@ -299,15 +301,11 @@ export function kiroToClaudeNonStreaming(data) {
     model: data?.model || "kiro",
     stop_reason: convertFinishReason(choice?.finish_reason || "stop"),
     usage: {
-      input_tokens: usage.prompt_tokens || 0,
+      // Same Claude contract as the streaming path: input_tokens excludes cache.
+      input_tokens: Math.max(0, (usage.prompt_tokens || 0) - (cacheRead || 0) - (cacheCreation || 0)),
       output_tokens: usage.completion_tokens || 0,
-      // Same cache preservation as the streaming path above.
-      ...(typeof (usage.cache_read_input_tokens ?? usage.prompt_tokens_details?.cached_tokens) === "number"
-        ? { cache_read_input_tokens: usage.cache_read_input_tokens ?? usage.prompt_tokens_details.cached_tokens }
-        : {}),
-      ...(typeof (usage.cache_creation_input_tokens ?? usage.prompt_tokens_details?.cache_creation_tokens) === "number"
-        ? { cache_creation_input_tokens: usage.cache_creation_input_tokens ?? usage.prompt_tokens_details.cache_creation_tokens }
-        : {}),
+      ...(typeof cacheRead === "number" ? { cache_read_input_tokens: cacheRead } : {}),
+      ...(typeof cacheCreation === "number" ? { cache_creation_input_tokens: cacheCreation } : {}),
     },
   };
 }

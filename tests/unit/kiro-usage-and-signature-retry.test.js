@@ -164,6 +164,36 @@ describe("non-streaming client usage", () => {
     const usage = filterUsageForFormat({ prompt_tokens: 10, completion_tokens: 2, total_tokens: 12, credits: 0.07, credit_unit: "credit" }, FORMATS.OPENAI);
     expect(usage).toMatchObject({ prompt_tokens: 10, credits: 0.07, credit_unit: "credit" });
   });
+
+  const completion = (usage) => ({
+    id: "c1", model: "m", usage,
+    choices: [{ index: 0, message: { role: "assistant", content: "hi" }, finish_reason: "stop" }],
+  });
+
+  it("reports cache on a Claude message with input_tokens excluding it", () => {
+    const out = translateNonStreamingResponse(completion({
+      prompt_tokens: 103000, completion_tokens: 640,
+      prompt_tokens_details: { cached_tokens: 98000, cache_creation_tokens: 1912 },
+    }), FORMATS.KIRO, FORMATS.CLAUDE);
+    expect(out.usage).toEqual({
+      input_tokens: 3088, output_tokens: 640,
+      cache_read_input_tokens: 98000, cache_creation_input_tokens: 1912,
+    });
+  });
+
+  it("omits the cache keys when the upstream reported none", () => {
+    const out = translateNonStreamingResponse(completion({ prompt_tokens: 500, completion_tokens: 20 }), FORMATS.OPENAI, FORMATS.CLAUDE);
+    expect(out.usage).toEqual({ input_tokens: 500, output_tokens: 20 });
+  });
+
+  it("keeps cache through the client-facing Claude usage filter", () => {
+    const out = translateNonStreamingResponse(completion({
+      prompt_tokens: 90, completion_tokens: 4, cache_read_input_tokens: 80,
+    }), FORMATS.KIRO, FORMATS.CLAUDE);
+    expect(filterUsageForFormat(out.usage, FORMATS.CLAUDE)).toMatchObject({
+      input_tokens: 10, output_tokens: 4, cache_read_input_tokens: 80,
+    });
+  });
 });
 
 describe("non-streaming reasoning signature", () => {

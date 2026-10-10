@@ -778,7 +778,13 @@ export class KiroExecutor extends BaseExecutor {
       assertToolBufferBound();
     };
     const parsedToolInput = (tool) => {
-      if (!tool.inputKind) throw new Error("Kiro tool call is missing input");
+      if (!tool.inputKind) {
+        // Kiro sends no input fragment for a zero-argument call (e.g. skills_list,
+        // kanban_show). That is only distinguishable from a truncated stream by an
+        // explicit tool_use stop, so accept {} then and keep rejecting otherwise.
+        if (state.explicitStop && state.stopReason === "tool_use") return {};
+        throw new Error("Kiro tool call is missing input");
+      }
       if (tool.inputKind === "object") return tool.inputObject;
       try {
         const input = JSON.parse(tool.inputChunks.join(""));

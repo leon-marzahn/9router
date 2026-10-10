@@ -311,6 +311,20 @@ describe("Kiro terminal integrity recovery", () => {
     expect(body).not.toContain('"id":"bad"');
   });
 
+  it("emits a zero-argument tool call as {} when Kiro stops with tool_use", async () => {
+    fetchMock.mockResolvedValueOnce(response([
+      frame("toolUseEvent", { toolUseId: "noargs", name: "skills_list" }),
+      frame("metadataEvent", { stopReason: "tool_use" })
+    ]));
+
+    const body = await (await execute()).response.text();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(body).toContain('"name":"skills_list"');
+    expect(body).toContain('"arguments":"{}"');
+    expect(body).toContain('"finish_reason":"tool_calls"');
+  });
+
   it("requires complete direct tool input and keeps the failure private", async () => {
     const pending = frame("toolUseEvent", { toolUseId: "pending", name: "read_file" });
     fetchMock
