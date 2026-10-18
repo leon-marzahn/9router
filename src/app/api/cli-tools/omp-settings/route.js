@@ -3,6 +3,7 @@
 import { NextResponse } from "next/server";
 import { DISPLAY_NAME, PROVIDER_KEY, PROVIDER_KEYS } from "@/shared/constants/brand.js";
 import { resolveCliApiKey } from "../resolveApiKey.js";
+import { yamlString, configErrorStatus } from "../configText.js";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
@@ -58,8 +59,8 @@ const buildOmpProviderYaml = (baseUrl, apiKey) => {
   const normalizedBaseUrl = baseUrl.endsWith("/v1") ? baseUrl : `${baseUrl}/v1`;
   const key = apiKey || "";
   return `  ${PROVIDER_ID}:
-    baseUrl: ${normalizedBaseUrl}
-    apiKey: ${key}
+    baseUrl: ${yamlString(normalizedBaseUrl, "Base URL")}
+    apiKey: ${yamlString(key, "API key")}
     api: openai-completions
     authHeader: true
     disableStrictTools: true
@@ -87,7 +88,7 @@ export async function GET() {
       configPath: getOmpModelsYmlPath(),
     });
   } catch (err) {
-    return NextResponse.json({ error: { message: err.message } }, { status: 500 });
+    return NextResponse.json({ error: { message: err.message } }, { status: configErrorStatus(err) });
   }
 }
 
@@ -118,7 +119,7 @@ export async function POST(request) {
     if (!ymlContent.trim()) {
       ymlContent = `providers:\n${providerBlock}\n`;
     } else if (ymlContent.includes("providers:")) {
-      ymlContent = ymlContent.replace(/providers:/, `providers:\n${providerBlock}`);
+      ymlContent = ymlContent.replace(/^providers:/m, () => `providers:\n${providerBlock}`);
     } else {
       ymlContent = `${ymlContent.trim()}\n\nproviders:\n${providerBlock}\n`;
     }
@@ -159,7 +160,7 @@ export async function POST(request) {
       configPath: getOmpModelsYmlPath(),
     });
   } catch (err) {
-    return NextResponse.json({ error: { message: err.message } }, { status: 500 });
+    return NextResponse.json({ error: { message: err.message } }, { status: configErrorStatus(err) });
   }
 }
 
@@ -179,6 +180,6 @@ export async function DELETE() {
       message: `${DISPLAY_NAME} removed from Oh My Pi`,
     });
   } catch (err) {
-    return NextResponse.json({ error: { message: err.message } }, { status: 500 });
+    return NextResponse.json({ error: { message: err.message } }, { status: configErrorStatus(err) });
   }
 }

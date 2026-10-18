@@ -9,6 +9,15 @@
 //   delegation: { ... }         # top-level, subagent model
 //   auxiliary: { <task>: { provider, model, base_url, api_key } }
 
+import { yamlString, assertConfigValue, ConfigValueError } from "../configText.js";
+
+// Aux role names become YAML keys and part of a RegExp; keep them to plain identifiers.
+const ROLE_RE = /^[A-Za-z0-9_-]{1,64}$/;
+export const assertRoleName = (role) => {
+  if (!ROLE_RE.test(String(role))) throw new ConfigValueError("Role", "Invalid Hermes role name");
+  return role;
+};
+
 // Top-level "model:" mapping block — key on its own line, indented children.
 // NOTE: does NOT match the scalar sentinel `model: ""` (no newline right after `model:`).
 export const MODEL_BLOCK_RE = /^model:[ \t]*\r?\n((?:[ \t]+.*\r?\n?|[ \t]*\r?\n)*)/m;
@@ -19,16 +28,16 @@ export const MODEL_SCALAR_RE = /^model:[ \t]*[^\r\n]*\r?\n?/m;
 export const DELEGATION_BLOCK_RE = /^delegation:[ \t]*\r?\n((?:[ \t]+.*\r?\n?|[ \t]*\r?\n)*)/m;
 // "auxiliary:" block; children are 2-space-indented role keys with 4+-space fields
 export const AUX_BLOCK_RE = /^auxiliary:[ \t]*\r?\n((?:(?:[ \t]+.*\r?\n?)|(?:[ \t]*\r?\n))*)/m;
-export const auxRoleRe = (role) => new RegExp(`^  ${role}:[ \\t]*\\r?\\n(?:(?:[ \\t]{4,}.*\\r?\\n?)|(?:[ \\t]*\\r?\\n))*`, "m");
+export const auxRoleRe = (role) => new RegExp(`^  ${assertRoleName(role)}:[ \\t]*\\r?\\n(?:(?:[ \\t]{4,}.*\\r?\\n?)|(?:[ \\t]*\\r?\\n))*`, "m");
 
 export const buildModelBlock = (model, baseUrl) =>
-  `model:\n  default: "${model}"\n  provider: "custom"\n  base_url: "${baseUrl}"\n  api_key: \${OPENAI_API_KEY}\n`;
+  `model:\n  default: ${yamlString(model, "Model")}\n  provider: "custom"\n  base_url: ${yamlString(baseUrl, "Base URL")}\n  api_key: \${OPENAI_API_KEY}\n`;
 
 export const buildDelegationBlock = (model, baseUrl) =>
-  `delegation:\n  model: "${model}"\n  provider: "custom"\n  base_url: "${baseUrl}"\n  api_key: \${OPENAI_API_KEY}\n`;
+  `delegation:\n  model: ${yamlString(model, "Model")}\n  provider: "custom"\n  base_url: ${yamlString(baseUrl, "Base URL")}\n  api_key: \${OPENAI_API_KEY}\n`;
 
 export const buildAuxRoleBlock = (role, model, baseUrl) =>
-  `  ${role}:\n    provider: "custom"\n    model: "${model}"\n    base_url: "${baseUrl}"\n    api_key: \${OPENAI_API_KEY}\n`;
+  `  ${assertRoleName(role)}:\n    provider: "custom"\n    model: ${yamlString(model, "Model")}\n    base_url: ${yamlString(baseUrl, "Base URL")}\n    api_key: \${OPENAI_API_KEY}\n`;
 
 const parseKeyValues = (body) => {
   const get = (key) => {
@@ -53,15 +62,15 @@ export const parseModelBlock = (yaml) => {
 };
 
 export const upsertModelBlock = (yaml, newBlock) => {
-  if (MODEL_BLOCK_RE.test(yaml)) return yaml.replace(MODEL_BLOCK_RE, newBlock);
+  if (MODEL_BLOCK_RE.test(yaml)) return yaml.replace(MODEL_BLOCK_RE, () => newBlock);
   // Scalar sentinel would otherwise survive the upsert and produce a duplicate `model:` key
   // (last-wins in most YAML loaders → the 9router block is silently ignored).
-  if (MODEL_SCALAR_RE.test(yaml)) return yaml.replace(MODEL_SCALAR_RE, newBlock);
+  if (MODEL_SCALAR_RE.test(yaml)) return yaml.replace(MODEL_SCALAR_RE, () => newBlock);
   return yaml.length > 0 ? `${newBlock}\n${yaml}` : newBlock;
 };
 
 export const upsertDelegationBlock = (yaml, newBlock) => {
-  if (DELEGATION_BLOCK_RE.test(yaml)) return yaml.replace(DELEGATION_BLOCK_RE, newBlock);
+  if (DELEGATION_BLOCK_RE.test(yaml)) return yaml.replace(DELEGATION_BLOCK_RE, () => newBlock);
   return yaml.endsWith("\n") || yaml.length === 0 ? `${yaml}${newBlock}` : `${yaml}\n${newBlock}`;
 };
 
@@ -74,8 +83,8 @@ export const upsertAuxRole = (yaml, role, roleBlock) => {
     const block = `auxiliary:\n${roleBlock}`;
     return yaml.endsWith("\n") || yaml.length === 0 ? `${yaml}${block}` : `${yaml}\n${block}`;
   }
-  const body = re.test(m[1]) ? m[1].replace(re, roleBlock) : `${m[1]}${roleBlock}`;
-  return yaml.replace(AUX_BLOCK_RE, `auxiliary:\n${body}`);
+  const body = re.test(m[1]) ? m[1].replace(re, () => roleBlock) : `${m[1]}${roleBlock}`;
+  return yaml.replace(AUX_BLOCK_RE, () => `auxiliary:\n${body}`);
 };
 
 export const removeAuxRole = (yaml, role) => {
@@ -83,7 +92,7 @@ export const removeAuxRole = (yaml, role) => {
   if (!m) return yaml;
   const body = m[1].replace(auxRoleRe(role), "");
   if (body.trim() === "") return yaml.replace(AUX_BLOCK_RE, "");
-  return yaml.replace(AUX_BLOCK_RE, `auxiliary:\n${body}`);
+  return yaml.replace(AUX_BLOCK_RE, () => `auxiliary:\n${body}`);
 };
 
 // role -> { model, provider, base_url } for every entry under "auxiliary:"
@@ -116,8 +125,9 @@ export const removeModelBlock = (yaml) => {
 // .env helpers — upsert/remove single KEY=VALUE line
 export const upsertEnvVar = (envText, key, value) => {
   const re = new RegExp(`^${key}=.*$`, "m");
-  const line = `${key}=${value}`;
-  if (re.test(envText)) return envText.replace(re, line);
+  // .env values are read raw up to the line end, so a line break is the only escape hatch.
+  const line = `${key}=${assertConfigValue(value, key)}`;
+  if (re.test(envText)) return envText.replace(re, () => line);
   return envText.length > 0 && !envText.endsWith("\n") ? `${envText}\n${line}\n` : `${envText}${line}\n`;
 };
 
@@ -197,12 +207,12 @@ export const is9RouterStt = (cfg) =>
   cfg?.provider === "openai" && !!cfg?.base_url && cfg?.api_key === STT_API_KEY_REF;
 
 export const buildSttBlock = (model, baseUrl) =>
-  `stt:\n  enabled: true\n  provider: "openai"\n  openai:\n    model: "${model}"\n    base_url: "${baseUrl}"\n    api_key: ${STT_API_KEY_REF}\n`;
+  `stt:\n  enabled: true\n  provider: "openai"\n  openai:\n    model: ${yamlString(model, "Model")}\n    base_url: ${yamlString(baseUrl, "Base URL")}\n    api_key: ${STT_API_KEY_REF}\n`;
 
 // Replace-or-append one `  key: value` direct child of the stt block body.
 const upsertSttDirect = (body, key, value) => {
   const re = new RegExp(`^  ${key}:[^\\r\\n]*`, "m");
-  if (re.test(body)) return body.replace(re, `  ${key}: ${value}`);
+  if (re.test(body)) return body.replace(re, () => `  ${key}: ${value}`);
   const head = `  ${key}: ${value}\n`;
   return body.length > 0 && !body.endsWith("\n") ? `${body}\n${head}` : `${body}${head}`;
 };
@@ -218,11 +228,11 @@ const upsertSttOpenai = (body, key, value) => {
   }
   const re = new RegExp(`^ {4}${key}:[^\\r\\n]*`, "m");
   const subBody = re.test(sub[1])
-    ? sub[1].replace(re, `    ${key}: ${value}`)
+    ? sub[1].replace(re, () => `    ${key}: ${value}`)
     : sub[1].endsWith("\n") || sub[1].length === 0
       ? `${sub[1]}    ${key}: ${value}\n`
       : `${sub[1]}\n    ${key}: ${value}\n`;
-  return body.replace(sttSubRe("openai"), `  openai:\n${subBody}`);
+  return body.replace(sttSubRe("openai"), () => `  openai:\n${subBody}`);
 };
 
 // Write the 9router STT wiring, preserving every sibling setting the user already has
@@ -235,10 +245,10 @@ export const upsertStt9Router = (yaml, model, baseUrl) => {
   }
   body = upsertSttDirect(body, "enabled", "true");
   body = upsertSttDirect(body, "provider", `"openai"`);
-  body = upsertSttOpenai(body, "model", `"${model}"`);
-  body = upsertSttOpenai(body, "base_url", `"${baseUrl}"`);
+  body = upsertSttOpenai(body, "model", yamlString(model, "Model"));
+  body = upsertSttOpenai(body, "base_url", yamlString(baseUrl, "Base URL"));
   body = upsertSttOpenai(body, "api_key", STT_API_KEY_REF);
-  return yaml.replace(STT_BLOCK_RE, `stt:\n${body}`);
+  return yaml.replace(STT_BLOCK_RE, () => `stt:\n${body}`);
 };
 
 // Drop only the keys the wiring above writes — enabled (only when true, the default),
@@ -258,8 +268,8 @@ export const removeStt9Router = (yaml) => {
     for (const key of ["model", "base_url", "api_key"]) {
       subBody = subBody.replace(new RegExp(`^ {4}${key}:[^\\r\\n]*\\r?\\n?`, "m"), "");
     }
-    body = body.replace(sttSubRe("openai"), subBody.trim() === "" ? "" : `  openai:\n${subBody}`);
+    body = body.replace(sttSubRe("openai"), () => (subBody.trim() === "" ? "" : `  openai:\n${subBody}`));
   }
   if (body.trim() === "") return yaml.replace(STT_BLOCK_RE, "").replace(/^\n+/, "");
-  return yaml.replace(STT_BLOCK_RE, `stt:\n${body}`);
+  return yaml.replace(STT_BLOCK_RE, () => `stt:\n${body}`);
 };

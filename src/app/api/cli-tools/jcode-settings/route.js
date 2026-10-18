@@ -2,6 +2,7 @@
 
 import { NextResponse } from "next/server";
 import { resolveCliApiKey } from "../resolveApiKey.js";
+import { dotenvString, configErrorStatus } from "../configText.js";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
@@ -115,7 +116,7 @@ const writeProviderEnv = async (env) => {
   let content = "# jcode provider environment variables\n";
 
   for (const [key, value] of Object.entries(env)) {
-    content += `${key}="${value}"\n`;
+    content += `${key}=${dotenvString(value, key)}\n`;
   }
 
   await fs.writeFile(envPath, content, "utf-8");
@@ -199,7 +200,7 @@ export async function POST(request) {
     console.error("Error configuring jcode:", error);
     return NextResponse.json(
       { error: error.message },
-      { status: 500 }
+      { status: configErrorStatus(error) }
     );
   }
 }
@@ -229,7 +230,7 @@ export async function DELETE() {
     console.error("Error removing jcode configuration:", error);
     return NextResponse.json(
       { error: error.message },
-      { status: 500 }
+      { status: configErrorStatus(error) }
     );
   }
 }

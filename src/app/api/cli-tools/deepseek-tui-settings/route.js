@@ -3,6 +3,7 @@
 import { NextResponse } from "next/server";
 import { DISPLAY_NAME } from "@/shared/constants/brand.js";
 import { resolveCliApiKey } from "../resolveApiKey.js";
+import { tomlString } from "../configText.js";
 import { exec } from "child_process";
 import { promisify } from "util";
 import fs from "fs/promises";
@@ -59,9 +60,9 @@ const build9RouterConfig = (baseUrl, apiKey, model) => {
     return `provider = "openai"
 
 [providers.openai]
-base_url = "${normalizedBaseUrl}"
-api_key = "${apiKey}"
-model = "${model}"
+base_url = ${tomlString(normalizedBaseUrl, "Base URL")}
+api_key = ${tomlString(apiKey, "API key")}
+model = ${tomlString(model, "Model")}
 `;
 };
 

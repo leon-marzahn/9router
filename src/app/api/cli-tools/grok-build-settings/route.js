@@ -1,6 +1,7 @@
 "use server";
 
 import { NextResponse } from "next/server";
+import { configErrorStatus } from "../configText.js";
 import { DISPLAY_NAME } from "@/shared/constants/brand.js";
 import { resolveCliApiKey } from "../resolveApiKey.js";
 import { exec } from "child_process";
@@ -95,7 +96,7 @@ export async function GET() {
     });
   } catch (error) {
     console.log("Error checking grok-build settings:", error);
-    return NextResponse.json({ error: "Failed to check grok-build settings" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to check grok-build settings" }, { status: configErrorStatus(error) });
   }
 }
 
@@ -126,7 +127,7 @@ export async function POST(request) {
     });
   } catch (error) {
     console.log("Error updating grok-build settings:", error);
-    return NextResponse.json({ error: "Failed to update grok-build settings" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to update grok-build settings" }, { status: configErrorStatus(error) });
   }
 }
 
@@ -150,6 +151,6 @@ export async function DELETE() {
     });
   } catch (error) {
     console.log("Error resetting grok-build settings:", error);
-    return NextResponse.json({ error: "Failed to reset grok-build settings" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to reset grok-build settings" }, { status: configErrorStatus(error) });
   }
 }

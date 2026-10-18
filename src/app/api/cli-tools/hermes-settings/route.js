@@ -2,6 +2,7 @@
 
 import { NextResponse } from "next/server";
 import { resolveCliApiKey } from "../resolveApiKey.js";
+import { ConfigValueError } from "../configText.js";
 import { DISPLAY_NAME } from "@/shared/constants/brand.js";
 import { exec } from "child_process";
 import { promisify } from "util";
@@ -266,6 +267,7 @@ export async function POST(request) {
     });
   } catch (error) {
     console.log("Error updating hermes settings:", error);
+    if (error instanceof ConfigValueError) return NextResponse.json({ error: error.message }, { status: 400 });
     return NextResponse.json({ error: "Failed to update hermes settings" }, { status: 500 });
   }
 }
