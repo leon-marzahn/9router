@@ -34,7 +34,9 @@ function updateManifest(fn) {
     let manifest = {};
     try {
       manifest = JSON.parse(await fs.readFile(manifestPath(), "utf-8")) || {};
-    } catch { /* missing or unreadable: start over */ }
+    } catch {
+      /* missing or unreadable: start over */
+    }
     const next = fn(manifest) || manifest;
     await fs.mkdir(path.dirname(manifestPath()), { recursive: true });
     await fs.writeFile(manifestPath(), JSON.stringify(next, null, 2), { mode: SECRET_MODE });

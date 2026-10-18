@@ -2,10 +2,16 @@
 // Reset removes these and nothing else; a SECURITY_RELAX key is only removed while it
 // still holds the value we wrote, so a setting the user changed afterwards survives.
 
-const GATEWAY_KEYS = ["inferenceGatewayBaseUrl", "inferenceGatewayApiKey", "inferenceModels", "managedMcpServers"];
+const GATEWAY_KEYS = [
+  "inferenceGatewayBaseUrl",
+  "inferenceGatewayApiKey",
+  "inferenceModels",
+  "managedMcpServers",
+];
 
 export function mergeCoworkConfig(existing, ours) {
-  const base = existing && typeof existing === "object" && !Array.isArray(existing) ? { ...existing } : {};
+  const base =
+    existing && typeof existing === "object" && !Array.isArray(existing) ? { ...existing } : {};
   // managedMcpServers is fully ours: an Apply with none selected must drop the old list.
   delete base.managedMcpServers;
   return { ...base, ...ours };

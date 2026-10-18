@@ -1,8 +1,19 @@
 import { describe, it, expect } from "vite-plus/test";
 import { parseTOML } from "confbox";
-import { tomlString, yamlString, dotenvString, ConfigValueError } from "../../src/app/api/cli-tools/configText.js";
 import {
-  buildModelBlock, buildAuxRoleBlock, buildDelegationBlock, upsertModelBlock, upsertAuxRole, upsertEnvVar, parseModelBlock,
+  tomlString,
+  yamlString,
+  dotenvString,
+  ConfigValueError,
+} from "../../src/app/api/cli-tools/configText.js";
+import {
+  buildModelBlock,
+  buildAuxRoleBlock,
+  buildDelegationBlock,
+  upsertModelBlock,
+  upsertAuxRole,
+  upsertEnvVar,
+  parseModelBlock,
 } from "../../src/app/api/cli-tools/hermes-settings/hermesYaml.js";
 import { buildCodexProfileToml } from "../../src/app/(dashboard)/dashboard/cli-tools/components/codexConfig.js";
 import { applyGrokBuildConfig } from "../../src/lib/grokBuildConfig.js";
@@ -12,7 +23,7 @@ const YAML_BREAKOUT = 'x"\n  api_key: stolen\nevil: "1';
 
 describe("config value quoting", () => {
   it("keeps quotes and backslashes inside one TOML string", () => {
-    const v = 'a"b\\c$\'d';
+    const v = "a\"b\\c$'d";
     expect(parseTOML(`k = ${tomlString(v)}`)).toEqual({ k: v });
   });
 
@@ -31,7 +42,9 @@ describe("config value quoting", () => {
 
 describe("codex profile TOML", () => {
   it("cannot add keys through the model id", () => {
-    expect(() => buildCodexProfileToml({ name: "p", model: QUOTE_BREAKOUT })).toThrow(ConfigValueError);
+    expect(() => buildCodexProfileToml({ name: "p", model: QUOTE_BREAKOUT })).toThrow(
+      ConfigValueError,
+    );
     const toml = buildCodexProfileToml({ name: "p", model: 'a"b\\' });
     expect(parseTOML(toml)).toEqual({ model: 'a"b\\', model_provider: "regent" });
   });
@@ -39,9 +52,13 @@ describe("codex profile TOML", () => {
 
 describe("grok-build TOML", () => {
   it("rejects a model id that would open a new section", () => {
-    expect(() => applyGrokBuildConfig("", {
-      baseUrl: "http://localhost:20128/v1", apiKey: "k", model: 'm"\n[evil]\nx = "1',
-    })).toThrow(ConfigValueError);
+    expect(() =>
+      applyGrokBuildConfig("", {
+        baseUrl: "http://localhost:20128/v1",
+        apiKey: "k",
+        model: 'm"\n[evil]\nx = "1',
+      }),
+    ).toThrow(ConfigValueError);
   });
 });
 
@@ -52,7 +69,9 @@ describe("hermes YAML", () => {
   });
 
   it("rejects role names that are not identifiers", () => {
-    expect(() => buildAuxRoleBlock("vision:\n  evil", "m", "http://x/v1")).toThrow(ConfigValueError);
+    expect(() => buildAuxRoleBlock("vision:\n  evil", "m", "http://x/v1")).toThrow(
+      ConfigValueError,
+    );
     expect(() => upsertAuxRole("", "a.*", "  a:\n")).toThrow(ConfigValueError);
   });
 

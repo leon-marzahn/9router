@@ -1,4 +1,5 @@
 "use client";
+// oxlint-disable react/set-state-in-effect, react/immutability -- upstream data-loading effects, untouched here; the UI redesign rewrites this card.
 
 import { useState, useEffect, useRef } from "react";
 import { Card, Button, ModelSelectModal, ManualConfigModal } from "@/shared/components";

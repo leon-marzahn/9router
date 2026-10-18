@@ -3,7 +3,11 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import {
-  writeConfigFile, removeConfigFile, listBackups, restoreBackups, BACKUP_SUFFIX,
+  writeConfigFile,
+  removeConfigFile,
+  listBackups,
+  restoreBackups,
+  BACKUP_SUFFIX,
 } from "../../src/app/api/cli-tools/configFile.js";
 
 const mode = (p) => fs.statSync(p).mode & 0o777;

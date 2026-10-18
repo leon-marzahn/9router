@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/shared/components";
 
 // "Restore previous": puts back the config files as they were before the last
@@ -10,22 +10,26 @@ export default function RestoreBackupButton({ toolId, refreshSignal, onRestored 
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState(null);
 
-  const check = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/cli-tools/restore?toolId=${encodeURIComponent(toolId)}`);
-      const data = res.ok ? await res.json() : null;
-      setAvailable(!!data?.available);
-    } catch {
-      setAvailable(false);
-    }
-  }, [toolId]);
+  const [checkSignal, setCheckSignal] = useState(0);
 
   useEffect(() => {
-    void check();
-  }, [check, refreshSignal]);
+    let live = true;
+    fetch(`/api/cli-tools/restore?toolId=${encodeURIComponent(toolId)}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .catch(() => null)
+      .then((data) => {
+        if (live) setAvailable(!!data?.available);
+      });
+    return () => {
+      live = false;
+    };
+  }, [toolId, refreshSignal, checkSignal]);
 
   const restore = async () => {
-    if (!window.confirm("Restore the config files to how they were before the last Apply or Reset?")) return;
+    if (
+      !window.confirm("Restore the config files to how they were before the last Apply or Reset?")
+    )
+      return;
     setBusy(true);
     setMessage(null);
     try {
@@ -42,7 +46,7 @@ export default function RestoreBackupButton({ toolId, refreshSignal, onRestored 
       setMessage({ ok: false, text: error.message });
     } finally {
       setBusy(false);
-      void check();
+      setCheckSignal((n) => n + 1);
     }
   };
 
@@ -55,7 +59,9 @@ export default function RestoreBackupButton({ toolId, refreshSignal, onRestored 
         </Button>
       )}
       {message && (
-        <span className={message.ok ? "text-xs text-success" : "text-xs text-danger"}>{message.text}</span>
+        <span className={message.ok ? "text-xs text-success" : "text-xs text-danger"}>
+          {message.text}
+        </span>
       )}
     </div>
   );
