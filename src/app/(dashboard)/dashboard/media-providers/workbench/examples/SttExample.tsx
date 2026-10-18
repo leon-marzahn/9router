@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Input, Switch } from "@/ui";
+import { Input, Switch, Select } from "@/ui";
 import { getProviderAlias } from "@/shared/constants/providers";
 import { getModelsByProviderId, getModelKind } from "@/shared/constants/models";
 import {
@@ -12,7 +12,6 @@ import {
   RequestBlock,
   ResponseBlock,
   Row,
-  Select,
   authHeaders,
   errorText,
   now,

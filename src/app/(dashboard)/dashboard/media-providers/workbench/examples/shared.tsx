@@ -5,10 +5,8 @@ import {
   useState,
   useSyncExternalStore,
   type ReactNode,
-  type SelectHTMLAttributes,
 } from "react";
-import { Button, Eyebrow, Icon, Tag, cn, inputClass } from "@/ui";
-import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
+import { Button, CodeBlock, Eyebrow, Icon, Tag, cn } from "@/ui";
 
 const noSubscribe = () => () => {};
 
@@ -100,10 +98,6 @@ export function maskB64(obj: unknown): unknown {
   );
 }
 
-export function Select({ className, ...rest }: SelectHTMLAttributes<HTMLSelectElement>) {
-  return <select className={cn(inputClass, "pr-8", className)} {...rest} />;
-}
-
 /** Label + control; stacked on mobile, side by side from sm. */
 export function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -187,33 +181,6 @@ export function ExamplePanel({
   );
 }
 
-/** Bordered block with a header bar and a mono body (the request drawer's look). */
-function CodeBlock({
-  title,
-  meta,
-  actions,
-  children,
-}: {
-  title: string;
-  meta?: ReactNode;
-  actions?: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <div className="overflow-hidden rounded-xl border border-border">
-      <div className="flex min-h-10 flex-wrap items-center gap-x-2 gap-y-1 px-3 py-1.5">
-        <span className="text-[13px] font-medium">{title}</span>
-        {meta}
-        <div className="ml-auto flex items-center gap-1">{actions}</div>
-      </div>
-      <div className="border-t border-border bg-bg-alt">{children}</div>
-    </div>
-  );
-}
-
-const codeClass =
-  "max-h-80 overflow-auto whitespace-pre-wrap break-all px-3 py-2.5 font-mono text-[11px] leading-relaxed";
-
 /**
  * curl preview + Run. `curl(key)` builds the command; the page shows it with a
  * masked key and the full key only goes to the clipboard.
@@ -235,7 +202,6 @@ export function RequestBlock({
   runLabel?: string;
   runningLabel?: string;
 }) {
-  const { copied, copy } = useCopyToClipboard();
   const keyFor = (full: boolean) =>
     env.apiKey ? (full ? env.apiKey : maskKey(env.apiKey)) : "YOUR_KEY";
   return (
@@ -254,19 +220,12 @@ export function RequestBlock({
       <CodeBlock
         title="Request"
         meta={<span className="text-[11px] text-text-subtle">curl</span>}
-        actions={
-          <Button
-            variant="ghost"
-            icon={copied ? "check" : "content_copy"}
-            onClick={() => copy(curl(keyFor(true)))}
-            title="Copies the command with your full key"
-          >
-            {copied ? "Copied" : "Copy"}
-          </Button>
-        }
-      >
-        <pre className={cn(codeClass, "text-text")}>{curl(keyFor(false))}</pre>
-      </CodeBlock>
+        copy={curl(keyFor(true))}
+        copyLabel="Copy command with your full key"
+        text={curl(keyFor(false))}
+        wrap
+        preClassName="max-h-80"
+      />
     </>
   );
 }
@@ -300,7 +259,6 @@ export function ResponseBlock({
   action?: ReactNode;
   children?: ReactNode;
 }) {
-  const { copied, copy } = useCopyToClipboard();
   return (
     <CodeBlock
       title="Response"
@@ -311,33 +269,14 @@ export function ResponseBlock({
           !text && !children && <span className="text-[11px] text-text-subtle">example</span>
         )
       }
-      actions={
-        <>
-          {action}
-          {text && (
-            <Button
-              variant="ghost"
-              icon={copied ? "check" : "content_copy"}
-              onClick={() => copy(copyText ?? text)}
-            >
-              {copied ? "Copied" : "Copy"}
-            </Button>
-          )}
-        </>
-      }
+      actions={action}
+      copy={text ? (copyText ?? text) : undefined}
+      text={text || placeholder}
+      muted={!text}
+      wrap
+      preClassName="max-h-80"
     >
       {children && <div className="space-y-2 p-3">{children}</div>}
-      {(text || placeholder) && (
-        <pre
-          className={cn(
-            codeClass,
-            text ? "text-text" : "text-text-subtle",
-            !!children && "border-t border-border",
-          )}
-        >
-          {text || placeholder}
-        </pre>
-      )}
     </CodeBlock>
   );
 }

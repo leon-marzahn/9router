@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Button, Field, Icon, Input } from "@/ui";
+import { Button, CodeBlock, Field, Icon, Input } from "@/ui";
 import { Modal } from "@/shared/components";
 
 interface Check {
@@ -147,12 +147,7 @@ export function TailscaleSetup({
           )
         )}
         {(installing || log.length > 0) && (
-          <pre
-            ref={logRef}
-            className="max-h-48 overflow-y-auto rounded-lg bg-bg-alt p-3 font-mono text-[11px] leading-relaxed text-text-muted"
-          >
-            {log.join("\n") || "Starting…"}
-          </pre>
+          <CodeBlock preRef={logRef} text={log.join("\n") || "Starting…"} wrap muted preClassName="max-h-48 text-[11px]" />
         )}
         {error && <p className="text-danger-text">{error}</p>}
       </div>
