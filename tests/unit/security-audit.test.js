@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vite-plus/test";
 import fs from "fs";
 import path from "path";
+import os from "os";
 
 // ============================================================
 // AUDIT-002 (#1962): API key masking in usage stats
@@ -48,15 +49,33 @@ describe("AUDIT-002: API key masking", () => {
     expect(livePath.length).toBeGreaterThanOrEqual(1);
   });
 
-  it("byApiKey object keys should use masked key, not raw key", () => {
-    const source = fs.readFileSync(
-      path.resolve("src/lib/db/repos/usageRepo.js"),
-      "utf-8"
-    );
-    // The 24h path should use apiKeyMasked in the akKey template
-    expect(source).toContain("${apiKeyMasked}|${r.model}|${r.provider");
-    // Should NOT use raw r.apiKey in the key
-    expect(source).not.toContain("${r.apiKey}|${r.model}|${r.provider");
+  it("byApiKey object keys should not expose the raw key", async () => {
+    // Buckets are keyed by the full key internally (masked keys collide across keys
+    // sharing a machine-id prefix, see usage-api-key-attribution.test.js), so the
+    // guarantee is checked on the returned stats rather than on the source text.
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "regent-audit-002-"));
+    const originalDataDir = process.env.DATA_DIR;
+    process.env.DATA_DIR = tempDir;
+    try {
+      vi.resetModules();
+      const db = await import("@/lib/db/index.js");
+      await db.initDb();
+      const rawKey = "sk-machine-secret-abcdef-1234";
+      await db.saveRequestUsage({
+        provider: "openai", model: "gpt-4", connectionId: "c1", apiKey: rawKey,
+        tokens: { prompt_tokens: 10, completion_tokens: 5 }, status: "ok",
+      });
+      for (const period of ["24h", "7d"]) {
+        const stats = await db.getUsageStats(period);
+        const ids = Object.keys(stats.byApiKey);
+        expect(ids.length).toBeGreaterThan(0);
+        expect(JSON.stringify(stats.byApiKey)).not.toContain(rawKey);
+      }
+    } finally {
+      if (originalDataDir === undefined) delete process.env.DATA_DIR;
+      else process.env.DATA_DIR = originalDataDir;
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
   });
 });
 

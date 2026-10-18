@@ -35,7 +35,9 @@ describe("detectRequiredCapabilities", () => {
     expect(r.has("vision")).toBe(true);
   });
 
-  it("web_search tool -> search", () => {
+  // Upstream disabled "search" detection in b282f055 ("search: temporarily disabled in
+  // auto-switch (feature not wired yet)" in open-sse/services/combo.js). Re-enable with it.
+  it.skip("web_search tool -> search", () => {
     const r = detectRequiredCapabilities({ messages: [{ role: "user", content: "q" }], tools: [
       { type: "web_search" },
     ] });
@@ -68,7 +70,8 @@ describe("reorderByCapabilities", () => {
   it("keeps order when no model matches", () => {
     const models = ["deepseek/deepseek-chat", "deepseek/deepseek-reasoner"];
     const out = reorderByCapabilities(models, new Set(["vision"]));
-    expect(out).toBe(models);
+    // Returns a new (stably sorted) array once anything is required; order is what matters.
+    expect(out).toEqual(models);
   });
 
   it("single model -> unchanged", () => {

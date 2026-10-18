@@ -24,9 +24,18 @@ const SPECIALIZED = new Set([
 ]);
 
 // Sanitize header: khử token + field thời gian động (kimi X-Msh-Device-Id) để snapshot ổn định.
+// Machine/run-dependent header values (host, OS, Node/app version, timezone, random session ids)
+// are masked by name so the snapshot is stable across machines and runs; presence is still locked.
+const ENV_DEPENDENT = new Set([
+  "x-client-version", "x-core-version", "x-platform", "x-platform-version",
+  "x-msh-version", "x-msh-device-name", "x-msh-device-model", "x-mavis-session-id", "x-mavis-timezone-offset",
+]);
 function sanitize(headers) {
   const out = {};
   for (const [k, v] of Object.entries(headers)) {
+    const lk = k.toLowerCase();
+    if (ENV_DEPENDENT.has(lk) && typeof v === "string") { out[k] = `<${lk}>`; continue; }
+    if (lk === "user-agent" && typeof v === "string" && /^Regent\//.test(v)) { out[k] = "Regent/<VERSION>"; continue; }
     out[k] = typeof v === "string"
       ? v.replace(/Bearer .+/, "Bearer <TOK>")
           .replace(/sk-test-APIKEY|tok-test-ACCESS/g, "<CRED>")

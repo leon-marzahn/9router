@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { EventEmitter } from "events";
 import { getAdapter } from "../driver.js";
 import { parseJson, stringifyJson } from "../helpers/jsonCol.js";
@@ -9,6 +10,20 @@ function maskApiKey(key) {
   if (trimmed.length <= 12) return trimmed.charAt(0) + "***";
   // Keep the tail: keys sharing a machine-id prefix (team keys) must not collide.
   return trimmed.slice(0, 8) + "***" + trimmed.slice(-4);
+}
+
+// byApiKey buckets are keyed internally by the full key (masking collides keys that
+// share a machine-id prefix). Before stats leave this module, swap the raw key in each
+// bucket id for a short one-way hash: still unique per key, never the secret itself.
+function redactApiKeyBucketIds(byApiKey) {
+  const out = {};
+  for (const [bucketId, bucket] of Object.entries(byApiKey)) {
+    const sep = bucketId.indexOf("|");
+    if (bucketId === "local-no-key" || sep < 0) { out[bucketId] = bucket; continue; }
+    const digest = createHash("sha256").update(bucketId.slice(0, sep)).digest("hex").slice(0, 16);
+    out[`key-${digest}${bucketId.slice(sep)}`] = bucket;
+  }
+  return out;
 }
 
 const PENDING_TIMEOUT_MS = 60 * 1000;
@@ -256,6 +271,10 @@ export async function saveRequestUsage(entry) {
   try {
     const db = await getAdapter();
 
+    // Dedupe only applies to caller-supplied timestamps (replayed/duplicate writes of
+    // the same request). A timestamp generated here identifies nothing, so distinct
+    // entries saved in the same millisecond must not collapse into one.
+    const dedupe = Boolean(entry.timestamp);
     if (!entry.timestamp) entry.timestamp = new Date().toISOString();
     entry.cost = await calculateCost(entry.provider, entry.model, entry.tokens);
 
@@ -268,7 +287,7 @@ export async function saveRequestUsage(entry) {
     // All 3 writes (history insert, daily upsert, lifetime counter) in ONE transaction.
     // better-sqlite3 is sync → no JS yield mid-transaction → no race in same process.
     db.transaction(() => {
-      const existing = db.get(
+      const existing = dedupe && db.get(
         `SELECT id, endpoint FROM usageHistory
          WHERE timestamp = ?
            AND COALESCE(provider, '') = COALESCE(?, '')
@@ -695,6 +714,7 @@ export async function getUsageStats(period = "all") {
   }
 
   stats.totalRequests = Object.values(stats.byProvider).reduce((sum, p) => sum + (p.requests || 0), 0);
+  stats.byApiKey = redactApiKeyBucketIds(stats.byApiKey);
   return stats;
 }
 
