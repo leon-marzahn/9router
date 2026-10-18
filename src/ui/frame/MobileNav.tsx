@@ -33,7 +33,7 @@ export function MobileNav({
         nested && "ml-4 py-2 text-[13px]",
         active
           ? "bg-surface-2 font-medium text-text"
-          : "text-text-muted hover:bg-surface-2 hover:text-text",
+          : "text-text-muted hover:bg-bg hover:text-text",
       )}
     >
       <Icon
@@ -72,13 +72,13 @@ export function MobileNav({
             type="button"
             onClick={onClose}
             aria-label="Close menu"
-            className="ml-auto grid size-8 place-items-center rounded-lg text-text-muted hover:bg-surface-2"
+            className="ml-auto grid size-8 place-items-center rounded-lg text-text-muted hover:bg-bg"
           >
             <Icon name="close" size={20} />
           </button>
         </div>
         {NAV.map((g) => (
-          <div key={g.id} className="mb-3">
+          <div key={g.id} className="mb-3 space-y-0.5">
             <div className="px-3 pb-1 text-[11px] font-medium uppercase tracking-wider text-text-subtle">
               {g.label}
             </div>
@@ -93,7 +93,7 @@ export function MobileNav({
                         onClick={() => setMediaOpen(!mediaOpen)}
                         aria-expanded={mediaOpen}
                         className={cn(
-                          "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-[14px] hover:bg-surface-2",
+                          "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-[14px] hover:bg-bg",
                           pathname.startsWith(MEDIA_ROOT)
                             ? "font-medium text-text"
                             : "text-text-muted",
@@ -121,12 +121,12 @@ export function MobileNav({
               )}
           </div>
         ))}
-        <div className="mt-auto border-t border-border pt-3">
+        <div className="mt-auto space-y-0.5 border-t border-border pt-3">
           {link(SETTINGS_HREF, "Settings", "tune", pathname.startsWith(SETTINGS_HREF))}
           <button
             type="button"
             onClick={toggleTheme}
-            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-[13px] text-text-muted hover:bg-surface-2"
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-[13px] text-text-muted hover:bg-bg"
           >
             <Icon name={isDark ? "light_mode" : "dark_mode"} size={18} />{" "}
             {isDark ? "Light mode" : "Dark mode"}
