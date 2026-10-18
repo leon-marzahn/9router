@@ -84,7 +84,7 @@
 }
 
 .dark {
-  /* Dark: lighter rose fill with a dark label (8.4:1) */
+  /* Dark: lighter rose fill with a dark label (7.96:1) */
   --color-accent: var(--color-brand-300);
   --color-accent-hover: #ebabbe;
   --color-accent-fg: #2A0D16;

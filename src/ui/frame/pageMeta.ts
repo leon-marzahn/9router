@@ -23,7 +23,7 @@ const providers = {
 const TITLES: [string, string][] = [
   ["/dashboard/providers", "Providers"],
   ["/dashboard/combos", "Combos"],
-  ["/dashboard/usage", "Usage & Analytics"],
+  ["/dashboard/usage", "Usage"],
   ["/dashboard/quota", "Quota Tracker"],
   ["/dashboard/mitm", "MITM Proxy"],
   ["/dashboard/token-saver", "Token Saver"],

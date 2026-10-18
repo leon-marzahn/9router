@@ -3,8 +3,10 @@ import { getRequestDetails } from "@/lib/usageDb";
 
 /**
  * GET /api/usage/request-details
- * Query parameters: page, pageSize (1-100), provider, model, connectionId, status, startDate, endDate
+ * Query parameters: page, pageSize (1-100), provider, model, connectionId, status, startDate, endDate,
+ * summary=1 (drop the captured request/response bodies — for live lists; fetch one by id for bodies)
  */
+const BODY_FIELDS = ["request", "providerRequest", "providerResponse", "response"];
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -47,6 +49,13 @@ export async function GET(request) {
     if (endDate) filter.endDate = endDate;
     
     const result = await getRequestDetails(filter);
+    if (searchParams.get("summary") === "1") {
+      result.details = result.details.map((d) => {
+        const lean = { ...d };
+        for (const f of BODY_FIELDS) delete lean[f];
+        return lean;
+      });
+    }
 
     // Dashboard access is enforced by dashboardGuard. Return the captured
     // payloads for inspection; credential headers are sanitized before storage.
