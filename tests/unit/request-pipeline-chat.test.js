@@ -12,6 +12,9 @@ vi.mock("../../src/sse/services/model.js", () => ({
   getComboModels: vi.fn(async () => null),
   stripComboPrefix: (m) => m,
 }));
+vi.mock("@/lib/db/repos/apiKeysRepo.js", () => ({
+  getApiKeyByKey: vi.fn(async (key) => (key === "sk-attached" ? { id: "key-1" } : null)),
+}));
 vi.mock("../../src/sse/services/stepReadiness.js", () => ({ isStepReady: vi.fn(async () => true) }));
 vi.mock("../../src/sse/services/tokenRefresh.js", () => ({
   updateProviderCredentials: vi.fn(), checkAndRefreshToken: vi.fn(async (_, credentials) => credentials),
@@ -85,4 +88,28 @@ it("authenticates before resolving the pipeline", async () => {
   isValidApiKey.mockResolvedValue(false);
   expect((await handleChat(request("missing"))).status).toBe(401);
   expect(handleChatCore).not.toHaveBeenCalled();
+});
+
+const attached = (attach) => getSettings.mockResolvedValue({
+  requestPipelines: [{ name: "strip", rules: [{ regex: "a", replacement: "" }], attach }],
+});
+const keyRequest = (key, model = "openai/test") => new Request("http://localhost/v1/chat/completions", {
+  method: "POST",
+  headers: { Authorization: `Bearer ${key}` },
+  body: JSON.stringify({ model, messages: [{ role: "user", content: "aaab" }] }),
+});
+
+it("runs a pipeline attached to the request's API key without a header", async () => {
+  attached({ keys: ["key-1"] });
+  await handleChat(keyRequest("sk-attached"));
+  expect(handleChatCore.mock.calls[0][0].body.messages[0].content).toBe("b");
+  await handleChat(keyRequest("sk-other"));
+  expect(handleChatCore.mock.calls[1][0].body.messages[0].content).toBe("aaab");
+});
+
+it("runs a pipeline attached to the requested combo", async () => {
+  attached({ combos: ["Fast"] });
+  getComboModels.mockImplementation(async (name) => (name === "fast" ? ["openai/test"] : null));
+  await handleChat(keyRequest("sk-other", "fast"));
+  expect(handleChatCore.mock.calls[0][0].body.messages[0].content).toBe("b");
 });

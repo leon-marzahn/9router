@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vite-plus/test";
-import { validatePipelines } from "../../src/lib/request-pipelines/config.js";
+import { selectPipelines, validatePipelines } from "../../src/lib/request-pipelines/config.js";
 import { transformRequest } from "../../src/lib/request-pipelines/engine.js";
-import { runRequestPipeline } from "../../src/lib/request-pipelines/run.js";
+import { getPipelineStats, runPipelines, runRequestPipeline } from "../../src/lib/request-pipelines/run.js";
 
 const rule = { regex: "<internal_states>[\\s\\S]*?</internal_states>", replacement: "", depth: 1 };
 const pipelines = [{ name: "agentic", rules: [rule] }];
@@ -13,7 +13,7 @@ describe("request pipelines", () => {
     const body = { model: "test", messages: [{ role: "user", content: `a${old}` }, { role: "user", content: `b${old}c${latest}` }] };
     const result = await runRequestPipeline(body, "agentic", pipelines);
     expect(result.body.messages.map((message) => message.content)).toEqual(["a", `bc${latest}`]);
-    expect(result.stats).toEqual([{ matches: 3, replaced: 2, preserved: 1 }]);
+    expect(result.stats).toEqual([{ matches: 3, replaced: 2, preserved: 1, removed: 2 * old.length }]);
     expect(body.messages[0].content).toBe(`a${old}`);
   });
 
@@ -88,6 +88,62 @@ describe("request pipelines", () => {
     }
     expect(() => validatePipelines([...pipelines, ...pipelines])).toThrow("Duplicate");
     expect(() => validatePipelines([{ name: "bad name", rules: [rule] }])).toThrow();
+  });
+
+  it("compiles step kinds from their parameters, ignoring a sent regex", () => {
+    const [p] = validatePipelines([{ name: "rp", rules: [
+      { kind: "tag", tag: "internal_states", unclosed: true, depth: 1, regex: "anything" },
+      { kind: "markers", start: "<!-- GFX_START -->", end: "<!-- GFX_END -->", unclosed: true },
+      { kind: "details", title: "Scene Plan" },
+      { kind: "redact", replacement: "kept?", depth: 3 },
+    ] }]);
+    const text = [
+      "a <internal_states>old</internal_states>",
+      "<!--GFX_START-->x<!--  GFX_END -->b",
+      "<details><summary>📋 Scene Plan</summary>p<details><summary>n</summary>m</details>q</details>c",
+      "<details><summary>Other</summary>keep</details>",
+      "key sk-ant-abcdefghijklmnop1234 <internal_states>open, never closed",
+    ].join("|");
+    const out = transformRequest({ input: text }, p.rules).body.input;
+    expect(out).toBe("a |b|c|<details><summary>Other</summary>keep</details>|key [redacted] <internal_states>open, never closed");
+    expect(p.rules[3]).toMatchObject({ kind: "redact", replacement: "[redacted]", depth: 0 });
+    expect(p.rules[0].regex).not.toBe("anything");
+  });
+
+  it("escapes step parameters and rejects unsafe tag names", () => {
+    const [p] = validatePipelines([{ name: "x", rules: [{ kind: "details", title: "a.b (c)" }] }]);
+    expect(transformRequest({ input: "<details><summary>axb (c)</summary>z</details>" }, p.rules).body.input).not.toBe("");
+    for (const rule of [{ kind: "tag", tag: "a>b" }, { kind: "tag" }, { kind: "markers", start: "x" }, { kind: "eval" }]) {
+      expect(() => validatePipelines([{ name: "x", rules: [rule] }])).toThrow();
+    }
+  });
+
+  it("skips disabled rules and keeps stats aligned with rules", async () => {
+    const result = await runPipelines({ input: "ab" }, [{ name: "p", rules: [{ regex: "a", enabled: false }, { regex: "b" }] }]);
+    expect(result.body.input).toBe("a");
+    expect(result.stats[0]).toBeNull();
+    expect(result.stats[1]).toMatchObject({ replaced: 1 });
+  });
+
+  it("selects attached pipelines before the header one, once each, and the header cannot remove them", () => {
+    const list = validatePipelines([
+      { name: "key", rules: [rule], attach: { keys: ["k1"] } },
+      { name: "combo", rules: [rule], attach: { combos: ["Fast"] } },
+      { name: "agentic", rules: [rule] },
+    ]);
+    const names = (ctx) => selectPipelines(list, ctx).map((p) => p.name);
+    expect(names({ keyId: "k1", combo: "fast", header: "agentic" })).toEqual(["key", "combo", "agentic"]);
+    expect(names({ keyId: "k1", header: "key" })).toEqual(["key"]);
+    expect(names({ keyId: "k2", combo: "slow" })).toEqual([]);
+    expect(() => selectPipelines(list, { keyId: "k1", header: "missing" })).toThrow("Unknown request pipeline");
+  });
+
+  it("counts tracked runs only", async () => {
+    const p = [{ name: "counted", rules: [{ regex: "a" }] }];
+    await runPipelines({ input: "aaa" }, p);
+    expect(getPipelineStats().counted).toBeUndefined();
+    await runPipelines({ input: "aaa" }, p, { track: true });
+    expect(getPipelineStats().counted).toMatchObject({ requests: 1, charsRemoved: 3 });
   });
 
   it("terminates pathological regex execution", async () => {
