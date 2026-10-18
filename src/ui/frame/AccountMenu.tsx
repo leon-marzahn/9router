@@ -9,7 +9,7 @@ import { Icon } from "../Icon";
 import { Popover, MenuItem, MenuSeparator } from "../Popover";
 import { cn } from "../cn";
 import { RailTooltip } from "./Tooltip";
-import { EXTERNAL_LINKS, SETTINGS_HREF } from "./nav";
+import { SETTINGS_HREF } from "./nav";
 import { logout, type AuthInfo } from "./useFrameData";
 
 type Modal = null | "language" | "shutdown";
@@ -88,18 +88,6 @@ export function AccountMenu({
         <MenuItem icon="language" onClick={() => openModal("language")}>
           Language
         </MenuItem>
-        <MenuSeparator />
-        {EXTERNAL_LINKS.map((l) => (
-          <MenuItem
-            key={l.href}
-            icon={l.icon}
-            href={l.href}
-            external
-            onClick={() => setOpen(false)}
-          >
-            {l.label}
-          </MenuItem>
-        ))}
         <MenuSeparator />
         <MenuItem icon="power_settings_new" danger onClick={() => openModal("shutdown")}>
           Shut down server

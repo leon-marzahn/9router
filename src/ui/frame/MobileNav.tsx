@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { useTheme } from "@/shared/hooks/useTheme";
 import { Icon } from "../Icon";
 import { cn } from "../cn";
-import { EXTERNAL_LINKS, MEDIA_ITEMS, MEDIA_ROOT, NAV, SETTINGS_HREF, isActive } from "./nav";
+import { MEDIA_ITEMS, MEDIA_ROOT, NAV, SETTINGS_HREF, isActive } from "./nav";
 import { logout } from "./useFrameData";
 
 /** Full-label navigation drawer for small screens (below md). */
@@ -95,18 +95,6 @@ export function MobileNav({
             <Icon name={isDark ? "light_mode" : "dark_mode"} size={18} />{" "}
             {isDark ? "Light mode" : "Dark mode"}
           </button>
-          {EXTERNAL_LINKS.map((l) => (
-            <a
-              key={l.href}
-              href={l.href}
-              target="_blank"
-              rel="noreferrer"
-              className="flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] text-text-muted hover:bg-surface-2"
-            >
-              <Icon name={l.icon} size={18} /> {l.label}{" "}
-              <Icon name="arrow_outward" size={14} className="ml-auto" />
-            </a>
-          ))}
           <button
             type="button"
             onClick={logout}
