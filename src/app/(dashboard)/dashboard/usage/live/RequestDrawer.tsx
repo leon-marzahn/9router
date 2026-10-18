@@ -51,6 +51,21 @@ export function RequestDrawer({
     };
   }, [item.id]);
 
+  // On phones the drawer is full-screen: lock the page behind it so only the
+  // drawer scrolls (otherwise both scroll areas fight over the same swipe).
+  useEffect(() => {
+    if (!window.matchMedia("(max-width: 767px)").matches) return;
+    const page = document.querySelector("main");
+    const body = document.body;
+    const prev = [page?.style.overflow ?? "", body.style.overflow];
+    if (page) page.style.overflow = "hidden";
+    body.style.overflow = "hidden";
+    return () => {
+      if (page) page.style.overflow = prev[0];
+      body.style.overflow = prev[1];
+    };
+  }, []);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement)?.closest("input, textarea")) return;
@@ -83,7 +98,7 @@ export function RequestDrawer({
     <aside
       role="dialog"
       aria-label="Request details"
-      className="fixed bottom-0 right-0 top-12 z-40 flex w-[min(560px,100vw)] flex-col border-l border-border bg-surface shadow-elev"
+      className="fixed inset-0 z-50 flex flex-col bg-surface md:inset-auto md:bottom-0 md:right-0 md:top-12 md:z-40 md:w-[min(560px,100vw)] md:border-l md:border-border md:shadow-elev"
     >
       <header className="flex items-start gap-3 border-b border-border px-5 py-4">
         <div className="min-w-0 flex-1">
@@ -102,8 +117,8 @@ export function RequestDrawer({
         <IconButton icon="close" label="Close (Esc)" onClick={onClose} />
       </header>
 
-      <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-5 py-5">
-        <div className="grid grid-cols-4 gap-px overflow-hidden rounded-xl border border-border bg-border">
+      <div className="min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain px-5 py-5">
+        <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border bg-border sm:grid-cols-4">
           {stats.map(([k, v]) => (
             <div key={k} className="bg-surface px-3 py-2.5">
               <div className="text-[10px] uppercase tracking-wider text-text-subtle">{k}</div>
@@ -141,7 +156,7 @@ export function RequestDrawer({
         )}
       </div>
 
-      <footer className="flex items-center gap-3 border-t border-border px-5 py-2.5 text-[11px] text-text-subtle">
+      <footer className="hidden items-center gap-3 border-t border-border px-5 py-2.5 text-[11px] text-text-subtle md:flex">
         <span className="flex items-center gap-1">
           <Kbd>j</Kbd>
           <Kbd>k</Kbd> step
@@ -183,7 +198,7 @@ function Section({
           className="text-text-subtle"
         />
         <span className="text-[13px] font-medium">{title}</span>
-        <span className="text-[11px] text-text-subtle">{hint}</span>
+        <span className="hidden text-[11px] text-text-subtle sm:inline">{hint}</span>
         {!empty && (
           <span className="ml-auto text-[11px] tabular-nums text-text-subtle">
             {fmtTokens(text.length)} chars
