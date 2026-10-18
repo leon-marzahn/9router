@@ -151,6 +151,26 @@ export function useProviders() {
     [notify, refresh],
   );
 
+  const clearCooldown = useCallback(
+    async (provider: string, model: string) => {
+      try {
+        const res = await fetch("/api/models/availability", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "clearCooldown", provider, model }),
+        });
+        if (res.ok)
+          notify.success(model === "__all" ? "Cooldown cleared" : `Cooldown cleared for ${model}`);
+        else notify.error("Failed to clear cooldown");
+      } catch {
+        notify.error("Failed to clear cooldown");
+      } finally {
+        void refresh();
+      }
+    },
+    [notify, refresh],
+  );
+
   return {
     providers,
     loading,
@@ -160,6 +180,7 @@ export function useProviders() {
     setConnectionActive,
     runTest,
     testConnection,
+    clearCooldown,
     setNodes,
   };
 }

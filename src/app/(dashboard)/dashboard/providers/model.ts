@@ -250,4 +250,34 @@ export function buildProviders(connections: Connection[], nodes: ProviderNode[])
 
 /** A primitive that changes whenever the row's visible state changes (drives the live flash). */
 export const versionOf = (p: ProviderEntry) =>
-  `${p.status}:${p.stats.connected}/${p.stats.total}:${p.stats.errorCode ?? ""}`;
+  `${p.status}:${p.stats.connected}/${p.stats.total}:${p.stats.errorCode ?? ""}:${cooldownsOf(p).length}`;
+
+export interface Cooldown {
+  /** Model id, or "__all" when the whole account is locked. */
+  model: string;
+  /** Latest expiry across the provider's accounts (ISO). */
+  until: string;
+  accounts: string[];
+}
+
+const LOCK_PREFIX = "modelLock_";
+
+/** Active per-model cooldowns for a provider, merged across its accounts. */
+export function cooldownsOf(p: ProviderEntry, now = Date.now()): Cooldown[] {
+  const byModel = new Map<string, Cooldown>();
+  for (const c of p.connections) {
+    for (const [k, v] of Object.entries(c)) {
+      if (!k.startsWith(LOCK_PREFIX) || typeof v !== "string" || new Date(v).getTime() <= now)
+        continue;
+      const model = k.slice(LOCK_PREFIX.length) || "__all";
+      const cur = byModel.get(model);
+      if (cur) {
+        cur.accounts.push(connectionLabel(c));
+        if (v > cur.until) cur.until = v;
+      } else {
+        byModel.set(model, { model, until: v, accounts: [connectionLabel(c)] });
+      }
+    }
+  }
+  return [...byModel.values()].sort((a, b) => a.until.localeCompare(b.until));
+}

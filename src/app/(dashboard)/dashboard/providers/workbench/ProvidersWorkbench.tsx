@@ -19,7 +19,7 @@ import {
   needsAttention,
   cn,
 } from "@/ui";
-import { KIND_LABEL, versionOf, type ProviderEntry } from "../model";
+import { KIND_LABEL, cooldownsOf, versionOf, type ProviderEntry } from "../model";
 import { useProviders } from "../useProviders";
 import { ProviderOverview } from "./ProviderOverview";
 import { ProviderDetail } from "./ProviderDetail";
@@ -42,6 +42,7 @@ export function ProvidersWorkbench() {
     setConnectionActive,
     runTest,
     testConnection,
+    clearCooldown,
   } = useProviders();
   const [q, setQ] = useState("");
   const [scope, setScope] = useState<Scope>("live");
@@ -295,6 +296,7 @@ export function ProvidersWorkbench() {
               onTest={runTest}
               onTestConnection={testConnection}
               onSetActive={setConnectionActive}
+              onClearCooldown={clearCooldown}
             />
           ) : loading ? null : (
             <ProviderOverview
@@ -322,6 +324,7 @@ function ProviderRow({
   onClick: () => void;
 }) {
   const unconfigured = p.status === "none";
+  const cooling = cooldownsOf(p).length;
   return (
     <ListRow
       id={p.id}
@@ -356,6 +359,11 @@ function ProviderRow({
         p.stats.errorCode ? (
           <Tag tone="danger" mono>
             {p.stats.errorCode}
+          </Tag>
+        ) : cooling > 0 ? (
+          <Tag tone="warning" className="gap-0.5">
+            <Icon name="schedule" size={11} />
+            {cooling}
           </Tag>
         ) : undefined
       }

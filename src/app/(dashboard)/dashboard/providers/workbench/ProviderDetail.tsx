@@ -13,7 +13,15 @@ import {
   Tag,
   cn,
 } from "@/ui";
-import { KIND_LABEL, connectionLabel, errorTag, isFailing, type ProviderEntry } from "../model";
+import {
+  KIND_LABEL,
+  connectionLabel,
+  cooldownsOf,
+  errorTag,
+  isFailing,
+  type ProviderEntry,
+} from "../model";
+import { Cooldowns } from "./Cooldowns";
 
 /** Selected provider: status, actions, and its accounts managed inline. */
 export function ProviderDetail({
@@ -22,12 +30,14 @@ export function ProviderDetail({
   onTest,
   onTestConnection,
   onSetActive,
+  onClearCooldown,
 }: {
   p: ProviderEntry;
   testing: string | null;
   onTest: (id: string) => void;
   onTestConnection: (id: string) => void;
   onSetActive: (ids: string[], active: boolean) => void;
+  onClearCooldown: (provider: string, model: string) => Promise<void>;
 }) {
   const href = `/dashboard/providers/${encodeURIComponent(p.id)}`;
   const connected = p.stats.total > 0 || p.noAuth;
@@ -58,8 +68,8 @@ export function ProviderDetail({
           </div>
         </div>
         {p.stats.total > 0 && (
-          <label className="flex shrink-0 items-center gap-2 text-xs text-text-muted">
-            Routing
+          <div className="flex shrink-0 items-center gap-2 text-xs text-text-muted">
+            <span aria-hidden>Routing</span>
             <Switch
               checked={routing}
               label={routing ? `Pause ${p.name}` : `Resume ${p.name}`}
@@ -70,7 +80,7 @@ export function ProviderDetail({
                 )
               }
             />
-          </label>
+          </div>
         )}
       </div>
 
@@ -130,6 +140,8 @@ export function ProviderDetail({
           ))}
         </div>
       )}
+
+      <Cooldowns cooldowns={cooldownsOf(p)} onClear={(model) => onClearCooldown(p.id, model)} />
 
       <Eyebrow className="mb-2 mt-10">Accounts</Eyebrow>
       {p.noAuth ? (

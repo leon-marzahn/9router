@@ -41,3 +41,25 @@ describe("providers status derivation", () => {
     expect(list.at(-1).status).toBe("none");
   });
 });
+
+describe("provider model cooldowns", () => {
+  it("merges active per-model locks across accounts and ignores expired ones", async () => {
+    const { cooldownsOf } = await import("@/app/(dashboard)/dashboard/providers/model.ts");
+    const soon = new Date(Date.now() + 60_000).toISOString();
+    const later = new Date(Date.now() + 120_000).toISOString();
+    const past = new Date(Date.now() - 1_000).toISOString();
+    const list = buildProviders(
+      [
+        conn({ name: "a", "modelLock_claude-opus": soon, "modelLock_old-model": past }),
+        conn({ name: "b", "modelLock_claude-opus": later }),
+        conn({ name: "c", modelLock_: soon }),
+      ],
+      [],
+    );
+    const cds = cooldownsOf(find(list, "claude"));
+    expect(cds.map((c) => c.model).sort()).toEqual(["__all", "claude-opus"]);
+    const opus = cds.find((c) => c.model === "claude-opus");
+    expect(opus.until).toBe(later);
+    expect(opus.accounts).toEqual(["a", "b"]);
+  });
+});
