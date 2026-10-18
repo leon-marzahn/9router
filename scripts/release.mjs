@@ -18,22 +18,17 @@ if (git("status", "--porcelain")) throw new Error("Working tree is not clean");
 if (git("rev-parse", "--abbrev-ref", "HEAD") !== "master") throw new Error("Release from master");
 if (git("tag", "-l", tag)) throw new Error(`${tag} already exists`);
 
-for (const file of [
-  "package.json",
-  "cli/package.json",
-  "package-lock.json",
-  "cli/package-lock.json",
-]) {
+// bun.lock records no root version, so only the manifests need bumping.
+for (const file of ["package.json", "cli/package.json"]) {
   if (!fs.existsSync(file)) continue;
   const json = JSON.parse(fs.readFileSync(file, "utf8"));
   json.version = version;
-  if (json.packages?.[""]) json.packages[""].version = version;
   fs.writeFileSync(file, `${JSON.stringify(json, null, 2)}\n`);
 }
 
 execFileSync(
-  "npx",
-  ["--yes", "git-cliff@2.14.2", "--unreleased", "--tag", tag, "--prepend", "CHANGELOG.md"],
+  "bunx",
+  ["git-cliff@2.14.2", "--unreleased", "--tag", tag, "--prepend", "CHANGELOG.md"],
   {
     stdio: "inherit",
   },

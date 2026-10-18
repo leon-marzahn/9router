@@ -3,6 +3,10 @@ ARG NODE_IMAGE=node:22-alpine
 ARG ALPINE_MIRROR=dl-cdn.alpinelinux.org
 ARG NPM_REGISTRY=https://registry.npmjs.org/
 ARG APP_VERSION=unknown
+# Bun only installs dependencies; keep in sync with "packageManager" in package.json.
+ARG BUN_IMAGE=oven/bun:1.3.14-alpine
+
+FROM ${BUN_IMAGE} AS bun
 
 FROM ${NODE_IMAGE} AS base
 ARG ALPINE_MIRROR
@@ -19,19 +23,17 @@ ARG NPM_REGISTRY
 
 RUN apk add --no-cache python3 make g++ linux-headers
 
-COPY package.json ./
-RUN --mount=type=cache,target=/root/.npm \
-    npm install \
-      --registry="${NPM_REGISTRY}" \
-      --fetch-retries=5 \
-      --fetch-retry-factor=2 \
-      --fetch-retry-mintimeout=10000 \
-      --fetch-retry-maxtimeout=120000 \
-      --fetch-timeout=300000
+COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
+COPY package.json bun.lock ./
+# Frozen lockfile: the build fails instead of resolving new versions.
+# better-sqlite3 is the only trusted install script (see trustedDependencies).
+RUN --mount=type=cache,target=/root/.bun/install/cache \
+    BUN_CONFIG_REGISTRY="${NPM_REGISTRY}" \
+    bun install --frozen-lockfile
 
 COPY . ./
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN npm run build
+RUN bun run build
 
 FROM ${NODE_IMAGE} AS runner
 ARG ALPINE_MIRROR

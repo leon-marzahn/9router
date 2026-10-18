@@ -18,17 +18,19 @@ Point Claude Code, Codex, Cursor, Cline, OpenCode or any OpenAI-compatible clien
 
 ## Quick start
 
+Needs Node (version in `.node-version`) to run and [Bun](https://bun.sh) 1.3+ to install dependencies.
+
 ```bash
 cp .env.example .env
-npm install
-npm run dev                      # dashboard on http://localhost:20127/dashboard
+bun install
+bun run dev                      # dashboard on http://localhost:20127/dashboard
 ```
 
 Production:
 
 ```bash
-npm run build
-PORT=20128 HOSTNAME=0.0.0.0 npm run start
+bun run build
+PORT=20128 HOSTNAME=0.0.0.0 bun run start
 ```
 
 Change `INITIAL_PASSWORD` and `JWT_SECRET` in `.env` before exposing the server to a network. The full environment reference is in `.env.example` and `docs/ARCHITECTURE.md`.
