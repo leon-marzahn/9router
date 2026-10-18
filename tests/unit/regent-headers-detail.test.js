@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import { pickRegentHeaders, extractRequestConfig } from "../../open-sse/handlers/chatCore/requestDetail.js";
 
 describe("regent headers in request detail", () => {
