@@ -58,12 +58,19 @@ function appendCodexQuotaWindows(quotas, prefix, snapshot) {
   const secondary = rateLimit.secondary_window || rateLimit.secondary || snapshot.secondary_window || snapshot.secondary;
   let added = false;
 
-  if (primary) {
-    quotas[prefix ? `${prefix}_session` : "session"] = formatCodexWindow(primary);
-    added = true;
-  }
-  if (secondary) {
-    quotas[prefix ? `${prefix}_weekly` : "weekly"] = formatCodexWindow(secondary);
+  // Classify by the window's own length when it says so: some plans/states only
+  // send a single (weekly) window as primary. Fall back to position otherwise.
+  const kindOf = (window, fallback) => {
+    const seconds = toFiniteNumber(window?.limit_window_seconds, NaN);
+    if (!Number.isFinite(seconds) || seconds <= 0) return fallback;
+    return seconds >= 24 * 3600 ? "weekly" : "session";
+  };
+  for (const [window, fallback] of [[primary, "session"], [secondary, "weekly"]]) {
+    if (!window) continue;
+    let kind = kindOf(window, fallback);
+    const key = (k) => (prefix ? `${prefix}_${k}` : k);
+    if (quotas[key(kind)]) kind = kind === "session" ? "weekly" : "session"; // never overwrite
+    quotas[key(kind)] = formatCodexWindow(window);
     added = true;
   }
 

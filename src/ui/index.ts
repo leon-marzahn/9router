@@ -17,3 +17,4 @@ export { AppFrame } from "./frame/AppFrame";
 export { TopBarContent, TopBarActions } from "./frame/slots";
 export { ProviderLogo } from "./ProviderLogo";
 export { Logo } from "./Logo";
+export { Skeleton } from "./Skeleton";

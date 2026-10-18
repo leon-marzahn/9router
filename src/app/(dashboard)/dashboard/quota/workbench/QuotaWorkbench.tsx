@@ -19,6 +19,7 @@ import {
   ProviderLogo,
   SearchInput,
   Segmented,
+  Skeleton,
   StatusDot,
   Tag,
   TopBarActions,
@@ -329,6 +330,15 @@ function AccountRow({
       </span>
       {a.error ? (
         <span className="truncate pl-3.5 text-[11px] text-danger-text">{a.error}</span>
+      ) : a.loading && !shown.length ? (
+        <span className="grid grid-cols-2 gap-x-3 pl-3.5">
+          {[0, 1].map((i) => (
+            <span key={i} className="min-w-0">
+              <Skeleton className="my-[2px] h-[11px] w-3/4" />
+              <Skeleton className="mt-0.5 h-1 rounded-full" />
+            </span>
+          ))}
+        </span>
       ) : (
         <span
           className="grid gap-x-3 gap-y-1 pl-3.5"
@@ -399,6 +409,17 @@ function Capacity({
       }
     return [...m.values()];
   }, [live]);
+  if (!kinds.length && live.some((a) => a.loading))
+    return (
+      <div className="space-y-3">
+        {[0, 1].map((i) => (
+          <div key={i} className="space-y-1">
+            <Skeleton className="h-[15px] w-1/2" />
+            <Skeleton className="h-2.5 rounded-[3px]" />
+          </div>
+        ))}
+      </div>
+    );
   if (!live.length)
     return <p className="text-xs text-text-muted">No active accounts with readable quota.</p>;
   return (
@@ -631,11 +652,18 @@ function AccountDetail({
               onHide={w.key ? () => void actions.setHidden(a.provider, w.key, true) : undefined}
             />
           ))}
-          {!a.windows.length && (
-            <p className="text-sm text-text-muted">
-              {a.loading ? "Reading quota…" : "No limits reported."}
-            </p>
-          )}
+          {!a.windows.length &&
+            (a.loading ? (
+              [0, 1].map((i) => (
+                <div key={i} className="space-y-1.5">
+                  <Skeleton className="h-[18px] w-2/3" />
+                  <Skeleton className="h-1.5 rounded-full" />
+                  <Skeleton className="h-[15px] w-1/2" />
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-text-muted">No limits reported.</p>
+            ))}
         </Panel>
       )}
       {a.hidden.length > 0 && (

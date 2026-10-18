@@ -204,6 +204,15 @@ export function useQuota() {
         return;
       }
       setOrder(conns.map((c) => c.id));
+      // Seed rows immediately so the list renders (with skeletons) before quota arrives.
+      setEntries((m) => {
+        const next = { ...m };
+        for (const c of conns)
+          next[c.id] = next[c.id]
+            ? { ...next[c.id], conn: c }
+            : { conn: c, rows: [], loading: true, fetchedAt: 0 };
+        return next;
+      });
       const now = Date.now();
       const due = conns.filter((c) => {
         const prev = entriesRef.current[c.id];
