@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCustomModels, addCustomModel, deleteCustomModel } from "@/models";
+import { getCustomModels, addCustomModel, updateCustomModel, deleteCustomModel } from "@/models";
 import { CAPACITY_META, isSttTransport } from "@/shared/constants/models";
 
 export const dynamic = "force-dynamic";
@@ -49,6 +49,30 @@ export async function POST(request) {
   } catch (error) {
     console.log("Error adding custom model:", error);
     return NextResponse.json({ error: "Failed to add custom model" }, { status: 500 });
+  }
+}
+
+// PATCH /api/models/custom - Edit caps/transport of an existing custom model.
+// The id, provider and type are the record's key, so they can't be changed.
+export async function PATCH(request) {
+  try {
+    const { providerAlias, id, type, caps, transport } = await request.json();
+    if (!providerAlias || !id) {
+      return NextResponse.json({ error: "providerAlias and id required" }, { status: 400 });
+    }
+    const modelType = type || "llm";
+    const model = await updateCustomModel({
+      providerAlias,
+      id,
+      type: modelType,
+      caps: sanitizeCaps(caps),
+      transport: sanitizeTransport(transport, modelType),
+    });
+    if (!model) return NextResponse.json({ error: "Custom model not found" }, { status: 404 });
+    return NextResponse.json({ success: true, model });
+  } catch (error) {
+    console.log("Error updating custom model:", error);
+    return NextResponse.json({ error: "Failed to update custom model" }, { status: 500 });
   }
 }
 
