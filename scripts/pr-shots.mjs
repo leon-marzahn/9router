@@ -124,7 +124,7 @@ try {
   }
 } finally {
   await browser?.close();
-  if (server) {
+  if (server?.pid) {
     try {
       process.kill(-server.pid, "SIGTERM");
     } catch {}
