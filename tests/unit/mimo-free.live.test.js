@@ -7,6 +7,9 @@ import { describe, it, expect } from "vite-plus/test";
 import { proxyAwareFetch } from "../../open-sse/utils/proxyFetch.js";
 import { __test__ } from "../../open-sse/executors/mimo-free.js";
 
+// Live network test: opt in with RUN_REAL=1 (same switch as tests/translator/real/*).
+const RUN_REAL = process.env.RUN_REAL === "1";
+
 const { BOOTSTRAP_URL, CHAT_URL, generateFingerprint, MIMO_SYSTEM_MARKER } = __test__;
 
 const CHROME_UA =
@@ -43,7 +46,7 @@ async function chatWith(jwt, ua) {
   return proxyAwareFetch(CHAT_URL, { method: "POST", headers, body: JSON.stringify(body) });
 }
 
-describe("MiMo Free bootstrap (live)", () => {
+describe.skipIf(!RUN_REAL)("MiMo Free bootstrap (live)", () => {
   it("bootstrap returns 200 with JWT", async () => {
     const { status, jwt } = await bootstrapWith(CHROME_UA);
     expect(status).toBe(200);
@@ -51,7 +54,7 @@ describe("MiMo Free bootstrap (live)", () => {
   });
 });
 
-describe("MiMo Free anti-abuse gate (live)", () => {
+describe.skipIf(!RUN_REAL)("MiMo Free anti-abuse gate (live)", () => {
   it("chat WITH Chrome User-Agent → 200", async () => {
     const { jwt } = await bootstrapWith(CHROME_UA);
     const r = await chatWith(jwt, CHROME_UA);

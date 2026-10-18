@@ -2,7 +2,13 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vite-plus/test"
 
 // Mock DNS lookup so we control which host resolves to what IP.
 const lookupMock = vi.fn();
-vi.mock("node:dns/promises", () => ({ lookup: (...a) => lookupMock(...a) }));
+// image.js resolves with { all: true } (DNS-pinning fix c7d07448), which returns an array of records.
+vi.mock("node:dns/promises", () => ({
+  lookup: async (host, opts) => {
+    const r = await lookupMock(host, opts);
+    return opts?.all ? [{ family: 4, ...r }] : r;
+  },
+}));
 
 import { fetchImageAsBase64 } from "../../open-sse/translator/concerns/image.js";
 

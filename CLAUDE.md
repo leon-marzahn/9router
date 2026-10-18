@@ -39,7 +39,7 @@ DATA_DIR="$(mktemp -d)" PORT=20137 NEXT_PUBLIC_BASE_URL=http://localhost:20137 b
 Pick another port if 20137 is taken. Usage/log files ignore `DATA_DIR` and still go to `~/.regent` (see Persistence), so avoid generating traffic you don't want in the user's usage history. The scratch data starts empty (default password, no providers), so seed what the check needs through the dashboard or API.
 
 ### PR evidence (agents)
-CI (`.github/workflows/pr.yml`) runs typecheck, `vp lint` on the files the PR changes (`scripts/ci/lint-changed.sh`; fix errors in files you touch), and `vp test run` compared against `tests/__baseline__/known-fails.txt` (`scripts/ci/compare-tests.mjs`: new failures fail the job, listed tests that now pass are reported so you can delete their lines). For UI changes, attach screenshots of demo data only (the repo is public):
+CI (`.github/workflows/pr.yml`) runs typecheck, `vp lint` on the files the PR changes (`scripts/ci/lint-changed.sh`; fix errors in files you touch), and `vp test run`, which must be green: any failure fails the job unless it is listed in `tests/__baseline__/known-fails.txt` (empty; `scripts/ci/compare-tests.mjs` also reports listed tests that pass again). For UI changes, attach screenshots of demo data only (the repo is public):
 ```bash
 node scripts/pr-shots.mjs --routes /dashboard/usage,/dashboard/providers --label after [--dark]
 node scripts/pr-shots-publish.mjs --pr <number>
@@ -61,12 +61,8 @@ vp test run tests/unit/capabilities.test.js   # single file
 > Test runs are isolated from your real data: `vite.config.ts` points `DATA_DIR`, `HOME`, `USERPROFILE` and `APPDATA` at a fresh temp dir per run, so nothing reaches `~/.regent`.
 > `tests/package.json` only exists for `"type": "module"`; it has no deps of its own. Tests run with the repo root as cwd — resolve file paths with `import.meta.dirname`, not `path.resolve("../…")`.
 >
-> **The suite is NOT expected to be all-green on a plain checkout.** ~3780 pass, ~50 fail. Judge regressions by diffing failing test names against the base branch (`tests/__baseline__/verify-no-regression.mjs` assumes Docker `/app/` paths and misreports locally). Expected red:
-> - Catalogued in `tests/__baseline__/known-fails.txt` (CI's allow-list; see PR evidence above).
-> - `unit/embeddings.cloud.test.js` imports `cloud/src/handlers/embeddings.js` — the `cloud/` worker dir is **not in this repo**, so it always fails here.
-> - `unit/xai-oauth-service.test.js` times out (5s) when the xAI endpoint-discovery fetch isn't reachable/mocked.
-> - `real/*.real.test.js` make live provider calls — need credentials, skip otherwise.
-- `*.real.test.js` under `tests/translator/real/` make live provider calls — skip unless credentials are set.
+> **The suite is expected to be all-green on a plain checkout** (~3920 pass, ~95 skipped, 0 fail). `tests/__baseline__/known-fails.txt` lists tests that are allowed to fail (one `file :: full name` per line); it is empty — keep it that way, and if a red test truly can't be fixed in your change, add it there with a reason in the PR. (`tests/__baseline__/verify-no-regression.mjs` assumes Docker `/app/` paths and misreports locally.) Skipped on purpose:
+> - `real/*.real.test.js` and `unit/*.live.test.js` make live provider calls — they skip unless `RUN_REAL=1` (plus credentials) is set.
 - Regression baselines: `tests/__baseline__/verify-*.mjs` compare against committed snapshots (providers, aliases, OAuth URLs). Run these after touching provider registry / alias logic.
 
 ## Architecture

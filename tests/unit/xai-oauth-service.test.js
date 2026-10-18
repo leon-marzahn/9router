@@ -1,5 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
+// Importing src/lib/oauth/providers.js pulls in proxyFetch.js, which replaces
+// globalThis.fetch with its proxy/MITM-aware wrapper. Through an env proxy that
+// wrapper bypasses the stubbed fetch and hits the real xAI discovery endpoint
+// (timeouts offline). Keep the module but stop it from patching the global.
+vi.mock("../../open-sse/utils/proxyFetch.js", () => {
+  const passthrough = (...args) => globalThis.fetch(...args);
+  return { proxyAwareFetch: passthrough, default: passthrough };
+});
+
 describe("xai/oauth service", () => {
   beforeEach(() => {
     vi.resetModules();

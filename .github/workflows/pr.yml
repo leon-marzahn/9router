@@ -50,7 +50,7 @@ jobs:
       - name: Test
         run: bunx vp test run --reporter=default --reporter=json --outputFile=vitest-report.json || true
 
-      - name: Compare against known failures
+      - name: Fail on any test failure (except tests/__baseline__/known-fails.txt, kept empty)
         run: node scripts/ci/compare-tests.mjs vitest-report.json
 
       - name: Upload test report
