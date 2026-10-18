@@ -96,7 +96,7 @@ export function AccountMenu({
         </MenuItem>
         <MenuSeparator />
         <MenuItem icon="power_settings_new" danger onClick={() => openModal("shutdown")}>
-          Stop regent
+          Stop Elizabeth&rsquo;s Proxy
         </MenuItem>
         <MenuItem
           icon="logout"

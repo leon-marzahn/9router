@@ -2,8 +2,8 @@
 export const STOP_APP = {
   title: "Stop Elizabeth's Proxy?",
   message:
-    "Nothing can reach regent until you start it again: apps and tools pointed at it (Claude Code, Cursor, your scripts) get connection errors straight away, and this dashboard goes offline too. Start it again the way you launched it, from the terminal, the tray or your container.",
-  confirm: "Stop regent",
+    "Nothing can reach it until you start it again: apps and tools pointed at it (Claude Code, Cursor, your scripts) get connection errors straight away, and this dashboard goes offline too. Start it again the way you launched it, from the terminal (`regent`), the tray or your container.",
+  confirm: "Stop",
 };
 
 export async function stopApp() {

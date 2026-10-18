@@ -2,7 +2,7 @@ import pkg from "../../../package.json" with { type: "json" };
 
 // App configuration
 export const APP_CONFIG = {
-  name: "Regent",
+  name: "Elizabeth's Proxy",
   description: "AI Infrastructure Management",
   version: pkg.version,
   forkedFrom: pkg.forkedFrom,
