@@ -3,7 +3,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Eyebrow, Icon, IconButton, Kbd, StatusLabel, Tag } from "@/ui";
+import { Eyebrow, Icon, IconButton, Kbd, StatGrid, StatusLabel, Tag } from "@/ui";
 import { cn } from "@/ui/cn";
 import { fmtCost, fmtTokens, isFailed, type FeedItem } from "./useUsage";
 
@@ -83,15 +83,18 @@ export function RequestDrawer({
   }, [onClose, onStep]);
 
   const failed = isFailed(item.status);
-  const stats: [string, string][] = [
-    ["Input", fmtTokens(item.inTokens)],
-    ["Cached", item.cachedTokens ? fmtTokens(item.cachedTokens) : "—"],
-    ["Output", fmtTokens(item.outTokens)],
-    ["Credits", item.credits ? item.credits.toFixed(2) : "—"],
-    ["Cost", item.cost ? fmtCost(item.cost) : "—"],
-    ["First token", item.ttft != null ? `${(item.ttft / 1000).toFixed(2)}s` : "—"],
-    ["Total", item.total != null ? `${(item.total / 1000).toFixed(1)}s` : "—"],
-    ["Token saver", item.pxpipeSavedPct != null ? `−${item.pxpipeSavedPct}%` : "off"],
+  const stats = [
+    { label: "Input", value: fmtTokens(item.inTokens) },
+    { label: "Cached", value: item.cachedTokens ? fmtTokens(item.cachedTokens) : "—" },
+    { label: "Output", value: fmtTokens(item.outTokens) },
+    { label: "Credits", value: item.credits ? item.credits.toFixed(2) : "—" },
+    { label: "Cost", value: item.cost ? fmtCost(item.cost) : "—" },
+    { label: "First token", value: item.ttft != null ? `${(item.ttft / 1000).toFixed(2)}s` : "—" },
+    { label: "Total", value: item.total != null ? `${(item.total / 1000).toFixed(1)}s` : "—" },
+    {
+      label: "Token saver",
+      value: item.pxpipeSavedPct != null ? `−${item.pxpipeSavedPct}%` : "off",
+    },
   ];
 
   return (
@@ -118,14 +121,7 @@ export function RequestDrawer({
       </header>
 
       <div className="min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain px-5 py-5">
-        <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border bg-border sm:grid-cols-4">
-          {stats.map(([k, v]) => (
-            <div key={k} className="bg-surface px-3 py-2.5">
-              <div className="text-[10px] uppercase tracking-wider text-text-subtle">{k}</div>
-              <div className="mt-0.5 text-sm font-semibold tabular-nums">{v}</div>
-            </div>
-          ))}
-        </div>
+        <StatGrid items={stats} />
 
         {failed && detail?.providerResponse?.error && (
           <div className="rounded-xl border border-danger-border bg-danger-soft px-4 py-3 text-xs text-danger-text">

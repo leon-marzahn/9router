@@ -8,11 +8,12 @@ import Link from "next/link";
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   Button,
+  EmptyState,
   Eyebrow,
   Kbd,
-  LiveNumber,
   Panel,
   Segmented,
+  StatGrid,
   StatusDot,
   Tag,
   TopBarContent,
@@ -289,12 +290,14 @@ function Feed({
                     }
                   />
                 ))
-              ) : (
-                <p className="px-4 py-10 text-center text-sm text-text-muted">
-                  {filter === "errors"
-                    ? "No failed requests in this window."
-                    : "Waiting for traffic…"}
+              ) : filter === "errors" ? (
+                <p className="px-2.5 py-6 text-center text-[12px] text-text-muted">
+                  No failed requests in this window.
                 </p>
+              ) : (
+                <EmptyState icon="sensors" className="m-4">
+                  Waiting for traffic…
+                </EmptyState>
               )}
             </div>
           </div>
@@ -317,28 +320,31 @@ function Feed({
         className={cn("space-y-4 lg:sticky lg:top-0 lg:self-start", selected && "lg:invisible")}
       >
         <Segmented<Period> value={period} onChange={setPeriod} options={PERIODS} />
-        <div className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-border bg-border shadow-soft">
-          <Kpi label="Requests" value={<LiveNumber value={u.totals.requests} />} />
-          <Kpi
-            label="Est. cost"
-            value={fmtCost(u.totals.cost)}
-            sub={
-              u.totals.requests ? `${fmtCost(u.totals.cost / u.totals.requests)} / req` : undefined
-            }
-          />
-          <Kpi label="Input" value={fmtTokens(u.totals.promptTokens)} sub="tokens" />
-          <Kpi
-            label="Cached"
-            value={fmtTokens(u.totals.cachedTokens)}
-            sub={`${cacheRate(u.totals)}% of input`}
-          />
-          <Kpi label="Output" value={fmtTokens(u.totals.completionTokens)} sub="tokens" />
-          <Kpi
-            label="Credits"
-            value={u.totals.credits ? u.totals.credits.toFixed(1) : "—"}
-            sub={u.totals.credits ? "credit-billed" : "none used"}
-          />
-        </div>
+        <StatGrid
+          className="sm:grid-cols-2"
+          items={[
+            { label: "Requests", value: u.totals.requests },
+            {
+              label: "Est. cost",
+              value: fmtCost(u.totals.cost),
+              sub: u.totals.requests
+                ? `${fmtCost(u.totals.cost / u.totals.requests)} / req`
+                : undefined,
+            },
+            { label: "Input", value: fmtTokens(u.totals.promptTokens), sub: "tokens" },
+            {
+              label: "Cached",
+              value: fmtTokens(u.totals.cachedTokens),
+              sub: `${cacheRate(u.totals)}% of input`,
+            },
+            { label: "Output", value: fmtTokens(u.totals.completionTokens), sub: "tokens" },
+            {
+              label: "Credits",
+              value: u.totals.credits ? u.totals.credits.toFixed(1) : "—",
+              sub: u.totals.credits ? "credit-billed" : "none used",
+            },
+          ]}
+        />
         <Panel className="p-4">
           <div className="mb-3 flex items-center justify-between">
             <Eyebrow>Requests / min</Eyebrow>
@@ -532,16 +538,6 @@ function LoadOlder({ onLoad }: { onLoad: () => Promise<void> }) {
       >
         Load older requests
       </Button>
-    </div>
-  );
-}
-
-function Kpi({ label, value, sub }: { label: string; value: React.ReactNode; sub?: string }) {
-  return (
-    <div className="bg-surface px-4 py-3">
-      <Eyebrow>{label}</Eyebrow>
-      <div className="mt-0.5 text-xl font-semibold tabular-nums">{value}</div>
-      {sub && <div className="text-[11px] text-text-muted">{sub}</div>}
     </div>
   );
 }
