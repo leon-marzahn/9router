@@ -24,6 +24,24 @@ function sanitizeTransport(transport, type) {
   return transport.trim();
 }
 
+const MAX_NAME_LENGTH = 120;
+
+// Optional display name: a trimmed string, capped. Anything else is dropped
+// (undefined), so a PATCH without a name keeps the stored one.
+function sanitizeName(name) {
+  if (typeof name !== "string") return undefined;
+  return name.trim().slice(0, MAX_NAME_LENGTH);
+}
+
+// The dialog knows the provider, so the id is the bare upstream model id. A
+// pasted `<alias>/model` keeps working: strip the provider's own prefix.
+function sanitizeId(id, providerAlias) {
+  if (typeof id !== "string") return "";
+  const clean = id.trim();
+  const prefix = `${providerAlias}/`;
+  return clean.startsWith(prefix) ? clean.slice(prefix.length).trim() : clean;
+}
+
 // GET /api/models/custom - List all custom models
 export async function GET() {
   try {
@@ -38,13 +56,14 @@ export async function GET() {
 // POST /api/models/custom - Add custom model
 export async function POST(request) {
   try {
-    const { providerAlias, id, type, name, caps, transport } = await request.json();
-    if (!providerAlias || !id) {
+    const { providerAlias, id: rawId, type, name, caps, transport } = await request.json();
+    const id = sanitizeId(rawId, providerAlias);
+    if (!providerAlias || typeof providerAlias !== "string" || !id) {
       return NextResponse.json({ error: "providerAlias and id required" }, { status: 400 });
     }
     const cleanCaps = sanitizeCaps(caps);
     const cleanTransport = sanitizeTransport(transport, type || "llm");
-    const added = await addCustomModel({ providerAlias, id, type: type || "llm", name, ...(cleanCaps ? { caps: cleanCaps } : {}), ...(cleanTransport ? { transport: cleanTransport } : {}) });
+    const added = await addCustomModel({ providerAlias, id, type: type || "llm", name: sanitizeName(name) || undefined, ...(cleanCaps ? { caps: cleanCaps } : {}), ...(cleanTransport ? { transport: cleanTransport } : {}) });
     return NextResponse.json({ success: true, added });
   } catch (error) {
     console.log("Error adding custom model:", error);
@@ -52,11 +71,11 @@ export async function POST(request) {
   }
 }
 
-// PATCH /api/models/custom - Edit caps/transport of an existing custom model.
+// PATCH /api/models/custom - Edit name/caps/transport of an existing custom model.
 // The id, provider and type are the record's key, so they can't be changed.
 export async function PATCH(request) {
   try {
-    const { providerAlias, id, type, caps, transport } = await request.json();
+    const { providerAlias, id, type, name, caps, transport } = await request.json();
     if (!providerAlias || !id) {
       return NextResponse.json({ error: "providerAlias and id required" }, { status: 400 });
     }
@@ -65,6 +84,7 @@ export async function PATCH(request) {
       providerAlias,
       id,
       type: modelType,
+      name: sanitizeName(name),
       caps: sanitizeCaps(caps),
       transport: sanitizeTransport(transport, modelType),
     });

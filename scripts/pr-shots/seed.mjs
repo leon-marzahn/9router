@@ -2,7 +2,7 @@
 // boots (see scripts/pr-shots.mjs). Everything here is fake: keys are obvious
 // placeholders that no upstream accepts.
 import { getAdapter } from "@/lib/db/driver.js";
-import { createCombo, createProviderConnection, initDb } from "@/lib/db/index.js";
+import { addCustomModel, createCombo, createProviderConnection, initDb } from "@/lib/db/index.js";
 import { saveRequestUsage } from "@/lib/db/repos/usageRepo.js";
 
 if (!process.env.DATA_DIR || !process.env.HOME?.includes("pr-shots-")) {
@@ -43,6 +43,11 @@ for (const [id, name, key] of keys) {
     [id, key, name, "demo-machine", 1, "2026-01-01T00:00:00.000Z", 0, "[]"],
   );
 }
+
+// Custom models on the Anthropic provider page: one named, one bare id, one long.
+await addCustomModel({ providerAlias: "anthropic", id: "claude-opus-4-6-demo", name: "Claude Opus 4.6 (demo)", caps: { vision: true } });
+await addCustomModel({ providerAlias: "anthropic", id: "claude-haiku-demo-preview" });
+await addCustomModel({ providerAlias: "anthropic", id: "claude-sonnet-4-5-20250929-extended-context-preview-demo", name: "Sonnet 4.5 extended context preview" });
 
 await createCombo({
   name: "demo-fast",

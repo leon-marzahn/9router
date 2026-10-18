@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import PropTypes from "prop-types";
 import { Button, Modal, Select, Toggle } from "@/shared/components";
 import { CAPACITY_META, STT_TRANSPORT_META, STT_TRANSPORTS } from "@/shared/constants/models";
@@ -8,31 +8,28 @@ import { CAPACITY_META, STT_TRANSPORT_META, STT_TRANSPORTS } from "@/shared/cons
 const defaultCaps = () => Object.fromEntries(Object.keys(CAPACITY_META).map((key) => [key, false]));
 
 // `model` (a stored custom model record) switches the dialog to edit mode: the id
-// and STT type are the record's key so they stay locked; caps/transport are editable.
-export default function AddCustomModelModal({ isOpen, providerAlias, providerDisplayAlias, model, onSave, onClose }) {
+// and STT type are the record's key so they stay locked; name/caps/transport are editable.
+export default function AddCustomModelModal({ isOpen, providerAlias, providerDisplayAlias, providerId, model, onSave, onClose }) {
   const isEdit = !!model;
-  const [modelId, setModelId] = useState("");
-  const [caps, setCaps] = useState(defaultCaps);
+  // The parent remounts the dialog (key) per open/record, so state starts from props.
+  const [modelId, setModelId] = useState(() => model?.id || "");
+  // Records default name to the id; only a real custom name fills the field.
+  const [name, setName] = useState(() => (model?.name && model.name !== model.id ? model.name : ""));
+  const [caps, setCaps] = useState(() => ({ ...defaultCaps(), ...(model?.caps || {}), ...(model && (model.kind || model.type) === "stt" ? { stt: true } : {}) }));
   const [testStatus, setTestStatus] = useState(null); // null | "testing" | "ok" | "error"
   const [testError, setTestError] = useState("");
   const [saving, setSaving] = useState(false);
   // Realtime dispatch marker for the transport select; "" = provider default REST.
-  const [transport, setTransport] = useState("");
+  const [transport, setTransport] = useState(() => model?.transport || "");
 
-  // Reset state when modal opens
-  useEffect(() => {
-    if (!isOpen) return;
-    setModelId(model?.id || "");
-    setCaps({ ...defaultCaps(), ...(model?.caps || {}), ...(model && (model.kind || model.type) === "stt" ? { stt: true } : {}) });
-    setTransport(model?.transport || "");
-    setTestStatus(null);
-    setTestError("");
-  }, [isOpen, model]);
-
-  // Strip provider's own alias prefix (e.g. "cc/model" -> "model" for cc provider)
+  // The provider is fixed, so the field takes the bare model id. A pasted
+  // "kr/model" (display alias, storage alias or provider id) is stripped.
   const stripAlias = (id) => {
-    const prefix = `${providerAlias}/`;
-    return id.startsWith(prefix) ? id.slice(prefix.length) : id;
+    for (const p of new Set([providerDisplayAlias, providerAlias, providerId].filter(Boolean))) {
+      const prefix = `${p}/`;
+      if (id.startsWith(prefix)) return id.slice(prefix.length);
+    }
+    return id;
   };
 
   const handleTest = async () => {
@@ -62,7 +59,7 @@ export default function AddCustomModelModal({ isOpen, providerAlias, providerDis
     try {
       // caps.stt is UI-only; the parent save flow derives the model type from
       // it and forwards the pinned transport (null unless the caller picked one).
-      await onSave(cleanId, caps, caps.stt ? transport : null);
+      await onSave(cleanId, caps, caps.stt ? transport : null, name.trim());
     } finally {
       setSaving(false);
     }
@@ -76,18 +73,28 @@ export default function AddCustomModelModal({ isOpen, providerAlias, providerDis
     <Modal isOpen={isOpen} onClose={onClose} title={isEdit ? "Edit Custom Model" : "Add Custom Model"}>
       <div className="flex flex-col gap-4">
         <div>
-          <label className="text-sm font-medium mb-1.5 block">Model ID</label>
+          <label htmlFor="custom-model-id" className="text-sm font-medium mb-1.5 block">Model ID</label>
           <div className="flex gap-2">
-            <input
-              type="text"
-              value={modelId}
-              onChange={(e) => { setModelId(e.target.value); setTestStatus(null); setTestError(""); }}
-              onKeyDown={handleKeyDown}
-              placeholder="e.g. claude-opus-4-5"
-              className="min-w-0 flex-1 px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:border-primary"
-              readOnly={isEdit}
-              autoFocus={!isEdit}
-            />
+            <div className={`flex min-w-0 flex-1 items-center rounded-lg border border-border bg-background focus-within:border-primary ${isEdit ? "opacity-80" : ""}`}>
+              <span className="shrink-0 select-none border-r border-border px-2.5 py-2 font-mono text-sm text-text-muted" title="Provider prefix, added automatically">
+                {providerDisplayAlias}/
+              </span>
+              <input
+                id="custom-model-id"
+                type="text"
+                value={modelId}
+                onChange={(e) => { setModelId(e.target.value); setTestStatus(null); setTestError(""); }}
+                onBlur={() => setModelId((v) => stripAlias(v.trim()))}
+                onKeyDown={handleKeyDown}
+                placeholder="claude-opus-4.6"
+                className="min-w-0 flex-1 bg-transparent px-2.5 py-2 font-mono text-sm focus:outline-none"
+                readOnly={isEdit}
+                autoFocus={!isEdit}
+                autoCapitalize="off"
+                autoCorrect="off"
+                spellCheck={false}
+              />
+            </div>
             <Button
               variant="secondary"
               icon="science"
@@ -98,9 +105,26 @@ export default function AddCustomModelModal({ isOpen, providerAlias, providerDis
               {testStatus === "testing" ? "Testing..." : "Test"}
             </Button>
           </div>
-          <p className="text-xs text-text-muted mt-1">
-            Sent to provider as: <code className="font-mono bg-sidebar px-1 rounded">{stripAlias(modelId.trim()) || "model-id"}</code>
+          <p className="text-xs text-text-muted mt-1 [overflow-wrap:anywhere]">
+            Call it as <code className="font-mono bg-sidebar px-1 rounded">{providerDisplayAlias}/{stripAlias(modelId.trim()) || "model-id"}</code>
+            {" · "}sent upstream as <code className="font-mono bg-sidebar px-1 rounded">{stripAlias(modelId.trim()) || "model-id"}</code>
           </p>
+        </div>
+
+        <div>
+          <label htmlFor="custom-model-name" className="text-sm font-medium mb-1.5 block">
+            Display name <span className="font-normal text-text-muted">(optional)</span>
+          </label>
+          <input
+            id="custom-model-name"
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            maxLength={120}
+            placeholder="e.g. Claude Opus 4.6"
+            className="w-full min-w-0 px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:border-primary"
+          />
+          <p className="text-xs text-text-muted mt-1">Shown in model pickers and as the name in /v1/models.</p>
         </div>
 
         <div>
@@ -180,6 +204,7 @@ AddCustomModelModal.propTypes = {
   isOpen: PropTypes.bool.isRequired,
   providerAlias: PropTypes.string.isRequired,
   providerDisplayAlias: PropTypes.string.isRequired,
+  providerId: PropTypes.string,
   model: PropTypes.object,
   onSave: PropTypes.func.isRequired,
   onClose: PropTypes.func.isRequired,

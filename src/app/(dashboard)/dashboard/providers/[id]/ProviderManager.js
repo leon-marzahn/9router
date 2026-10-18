@@ -485,6 +485,7 @@ export default function ProviderManager({ providerId, embedded = false, liveVers
   }, [liveVersion, fetchConnections]);
 
   useEffect(() => {
+    // eslint-disable-next-line react/set-state-in-effect -- initial data load on mount; the fetchers set loading state before awaiting
     fetchConnections();
     fetchAliases();
     fetchCustomModels();
@@ -498,6 +499,7 @@ export default function ProviderManager({ providerId, embedded = false, liveVers
   useEffect(() => {
     const isLiveCatalog = providerId === "cursor" || providerId === "zed";
     if (!isLiveCatalog) {
+      // eslint-disable-next-line react/set-state-in-effect -- clears a catalog fetched for a previous provider id
       setLiveModels([]);
       return;
     }
@@ -576,12 +578,12 @@ export default function ProviderManager({ providerId, embedded = false, liveVers
 
   // `transport` pins a realtime STT dispatch marker (shared whitelist
   // STT_TRANSPORT_META); the API only honours it on type "stt" records.
-  const handleAddCustomModel = async (modelId, type = "llm", providerAliasOverride = providerStorageAlias, caps, transport) => {
+  const handleAddCustomModel = async (modelId, type = "llm", providerAliasOverride = providerStorageAlias, caps, transport, name) => {
     try {
       const res = await fetch("/api/models/custom", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ providerAlias: providerAliasOverride, id: modelId, type, ...(caps ? { caps } : {}), ...(transport ? { transport } : {}) }),
+        body: JSON.stringify({ providerAlias: providerAliasOverride, id: modelId, type, ...(name ? { name } : {}), ...(caps ? { caps } : {}), ...(transport ? { transport } : {}) }),
       });
       if (res.ok) {
         await fetchCustomModels();
@@ -597,12 +599,12 @@ export default function ProviderManager({ providerId, embedded = false, liveVers
 
   const closeCustomModelDialog = () => { setShowAddCustomModel(false); setEditingCustomModel(null); };
 
-  const handleUpdateCustomModel = async (modelId, type, caps, transport) => {
+  const handleUpdateCustomModel = async (modelId, type, caps, transport, name) => {
     try {
       const res = await fetch("/api/models/custom", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ providerAlias: providerStorageAlias, id: modelId, type, caps, transport }),
+        body: JSON.stringify({ providerAlias: providerStorageAlias, id: modelId, type, name, caps, transport }),
       });
       if (res.ok) {
         await fetchCustomModels();
@@ -989,6 +991,7 @@ export default function ProviderManager({ providerId, embedded = false, liveVers
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react/set-state-in-effect -- drops selections for connections that were removed
     setSelectedConnectionIds((prev) => prev.filter((id) => connections.some((conn) => conn.id === id)));
   }, [connections]);
 
@@ -1788,17 +1791,19 @@ export default function ProviderManager({ providerId, embedded = false, liveVers
       )}
       {!isCompatible && (
         <AddCustomModelModal
+          key={editingCustomModel ? `edit-${editingCustomModel.providerAlias}-${editingCustomModel.id}` : showAddCustomModel ? "add" : "closed"}
           isOpen={showAddCustomModel || !!editingCustomModel}
           providerAlias={providerStorageAlias}
           providerDisplayAlias={providerDisplayAlias}
+          providerId={providerId}
           model={editingCustomModel}
-          onSave={async (modelId, caps, transport) => {
+          onSave={async (modelId, caps, transport, name) => {
             if (editingCustomModel) {
-              await handleUpdateCustomModel(modelId, editingCustomModel.kind || editingCustomModel.type || "llm", caps, transport);
+              await handleUpdateCustomModel(modelId, editingCustomModel.kind || editingCustomModel.type || "llm", caps, transport, name);
             } else {
               // caps.stt is a UI-only flag; the API accepts transports only on
               // type "stt" records, so the save derives the type from it.
-              await handleAddCustomModel(modelId, caps?.stt ? "stt" : "llm", providerStorageAlias, caps, transport);
+              await handleAddCustomModel(modelId, caps?.stt ? "stt" : "llm", providerStorageAlias, caps, transport, name);
             }
             closeCustomModelDialog();
           }}
