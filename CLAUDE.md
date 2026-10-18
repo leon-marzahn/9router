@@ -27,6 +27,15 @@ npm run build && PORT=20128 HOSTNAME=0.0.0.0 npm run start           # productio
 - `vp check` = format + lint (Oxlint, type-aware via tsgolint) + type-check. ~150 pre-existing React Compiler lint errors in upstream pages make it exit non-zero; judge your change by not adding new ones (`vp lint <paths>`).
 - Formatting (`vp fmt`) is scoped by an allow-list in `vite.config.ts` `fmt.ignorePatterns` to fork-owned files only, so upstream files keep their style and merges stay clean. Add new fork-owned files/dirs there.
 
+### Working in a fresh worktree (agents)
+A new git worktree has no `node_modules`, so `npm run typecheck`, `vp lint`, `vp test` and the dev server fail until you install. The `SessionStart` hook in `.claude/settings.json` runs `.claude/hooks/ensure-deps.sh` to do this automatically; if it didn't (or failed), run `vp install` (fallback `npm install`) first.
+
+To check UI in a browser from a worktree, don't use `npm run dev`: it always binds port 20127 (likely the user's own dev server) and reads the real `~/.regent` data. Start your own instance on a free port with a throwaway data dir:
+```bash
+DATA_DIR="$(mktemp -d)" PORT=20137 NEXT_PUBLIC_BASE_URL=http://localhost:20137 npx next dev --port 20137
+```
+Pick another port if 20137 is taken. Usage/log files ignore `DATA_DIR` and still go to `~/.regent` (see Persistence), so avoid generating traffic you don't want in the user's usage history. The scratch data starts empty (default password, no providers), so seed what the check needs through the dashboard or API.
+
 CLI package (`cli/`):
 ```bash
 npm run cli:pack       # build + npm pack from root
