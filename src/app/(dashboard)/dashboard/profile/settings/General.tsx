@@ -99,7 +99,7 @@ export function Routing({ api }: { api: SettingsApi }) {
               options={[
                 { value: "fill", label: "Fill first" },
                 { value: "rr", label: "Take turns" },
-                { value: "affinity", label: "Per conversation" },
+                { value: "affinity", label: "By chat" },
               ]}
             />
           </Row>

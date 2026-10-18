@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Screenshot dashboard routes against a throwaway instance seeded with demo data.
 //
-//   node scripts/pr-shots.mjs --routes /dashboard/usage,/dashboard/profile [--out pr-shots] [--dark] [--label after]
+//   node scripts/pr-shots.mjs --routes /dashboard/usage,/dashboard/profile#routing [--out pr-shots] [--dark] [--label after]
 //
 // Boots `next dev` on a free port with DATA_DIR and HOME in a fresh temp dir
 // (usage/log files ignore DATA_DIR, so HOME must move too), seeds demo data
@@ -43,8 +43,8 @@ const routes = args.routes
   .map((r) => r.trim())
   .filter(Boolean);
 for (const r of routes) {
-  if (!/^\/[\w\-/]*$/.test(r))
-    throw new Error(`route must be a plain path like /dashboard/usage: ${r}`);
+  if (!/^\/[\w\-/]*(#[\w-]+)?$/.test(r))
+    throw new Error(`route must be a plain path like /dashboard/usage[#section]: ${r}`);
 }
 
 const root = resolve(import.meta.dirname, "..");
@@ -111,12 +111,21 @@ try {
         await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
         await page.evaluate(() => document.fonts.ready);
         await page.waitForTimeout(1_000);
-        const slug = route.replace(/^\/|\/$/g, "").replace(/\//g, "-") || "root";
+        // A `#id` route frames that section instead of the (inner-scrolling) full page.
+        const hash = route.includes("#") ? route.slice(route.indexOf("#") + 1) : "";
+        const section = hash ? page.locator(`[id="${hash}"]`) : null;
+        if (section) await section.scrollIntoViewIfNeeded();
+        const slug =
+          route
+            .replace(/^\/|\/$/g, "")
+            .replace(/[/#]/g, "-")
+            .replace(/[^\w.-]/g, "") || "root";
         const file = join(
           outDir,
           `${args.label ? args.label + "-" : ""}${slug}-${vpName}-${theme}.png`,
         );
-        await page.screenshot({ path: file, fullPage: true });
+        if (section) await section.screenshot({ path: file });
+        else await page.screenshot({ path: file, fullPage: true });
         console.log(file);
       }
       await context.close();
