@@ -1,6 +1,6 @@
 import { FORMATS } from "../../translator/formats.js";
 import { needsTranslation } from "../../translator/index.js";
-import { fromOpenAIFinish } from "../../translator/concerns/finishReason.js";
+import { openAICompletionToClaudeMessage } from "../../translator/concerns/claudeMessage.js";
 import { ollamaBodyToOpenAI } from "../../translator/response/ollama-to-openai.js";
 import { addBufferToUsage, filterUsageForFormat } from "../../utils/usageTracking.js";
 import { createErrorResult } from "../../utils/error.js";
@@ -13,74 +13,6 @@ import { appendRequestLog, saveRequestDetail } from "@/lib/usageDb.js";
 import { decloakToolNames } from "../../utils/claudeCloaking.js";
 import { restoreToolNames } from "../../utils/opencodeFingerprint.js";
 import { ROLE, RESPONSES_ITEM } from "../../translator/schema/index.js";
-
-function parseToolArguments(value) {
-  if (!value) return {};
-  if (typeof value === "object") return value;
-  try {
-    return JSON.parse(value);
-  } catch {
-    return {};
-  }
-}
-
-function openAICompletionToClaudeMessage(responseBody) {
-  if (!responseBody?.choices?.[0]) return responseBody;
-  const choice = responseBody.choices[0];
-  const message = choice.message || {};
-  const content = [];
-
-  const reasoning = message.reasoning_content || message.provider_specific_fields?.reasoning_content || "";
-  if (reasoning || message.reasoning_signature) {
-    content.push({
-      type: "thinking",
-      thinking: reasoning,
-      ...(message.reasoning_signature ? { signature: message.reasoning_signature } : {}),
-    });
-  }
-  if (typeof message.content === "string" && message.content.length > 0) {
-    content.push({ type: "text", text: message.content });
-  }
-  for (const toolCall of message.tool_calls || []) {
-    const fn = toolCall.function || {};
-    content.push({
-      type: "tool_use",
-      id: toolCall.id || `toolu_${Date.now()}_${content.length}`,
-      name: fn.name || toolCall.name || "",
-      input: parseToolArguments(fn.arguments || toolCall.arguments),
-    });
-  }
-  if (content.length === 0) content.push({ type: "text", text: "" });
-
-  const usage = responseBody.usage || {};
-  return {
-    id: String(responseBody.id || `msg_${Date.now()}`).replace(/^chatcmpl-/, ""),
-    type: "message",
-    role: "assistant",
-    model: responseBody.model || "unknown",
-    content,
-    stop_reason: fromOpenAIFinish(choice.finish_reason, FORMATS.CLAUDE),
-    stop_sequence: null,
-    usage: claudeUsageFromOpenAI(usage),
-  };
-}
-
-// Claude contract: input_tokens EXCLUDES cache read/creation (clients sum all three).
-// OpenAI prompt_tokens includes cache, so subtract it; an already Claude-shaped
-// input_tokens is passed through as is.
-function claudeUsageFromOpenAI(usage) {
-  const cacheRead = usage.cache_read_input_tokens ?? usage.prompt_tokens_details?.cached_tokens;
-  const cacheCreation = usage.cache_creation_input_tokens ?? usage.prompt_tokens_details?.cache_creation_tokens;
-  const inputTokens = usage.prompt_tokens != null
-    ? Math.max(0, usage.prompt_tokens - (cacheRead || 0) - (cacheCreation || 0))
-    : usage.input_tokens || 0;
-  return {
-    input_tokens: inputTokens,
-    output_tokens: usage.completion_tokens || usage.output_tokens || 0,
-    ...(typeof cacheRead === "number" ? { cache_read_input_tokens: cacheRead } : {}),
-    ...(typeof cacheCreation === "number" ? { cache_creation_input_tokens: cacheCreation } : {}),
-  };
-}
 
 /**
  * Convert an OpenAI Chat Completions non-streaming response body into the
