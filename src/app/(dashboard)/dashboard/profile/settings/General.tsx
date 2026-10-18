@@ -25,28 +25,31 @@ export function Appearance() {
   const { theme, setTheme } = useTheme();
   const [lang, setLang] = useState(false);
   return (
-    <SectionCard id="appearance" icon="palette" title="Appearance">
-      <Row title="Theme">
-        <Segmented
-          value={theme ?? "system"}
-          onChange={setTheme}
-          options={[
-            { value: "light", label: "Light" },
-            { value: "dark", label: "Dark" },
-            { value: "system", label: "System" },
-          ]}
-        />
-      </Row>
-      <Row
-        title="Language"
-        hint="Dashboard text only. Requests through the gateway aren't affected."
-      >
-        <Button size="sm" icon="translate" onClick={() => setLang(true)}>
-          Change
-        </Button>
-      </Row>
+    <>
+      <SectionCard id="appearance" icon="palette" title="Appearance">
+        <Row title="Theme">
+          <Segmented
+            value={theme ?? "system"}
+            onChange={setTheme}
+            options={[
+              { value: "light", label: "Light" },
+              { value: "dark", label: "Dark" },
+              { value: "system", label: "System" },
+            ]}
+          />
+        </Row>
+        <Row
+          title="Language"
+          hint="Dashboard text only. Requests through the gateway aren't affected."
+        >
+          <Button size="sm" icon="translate" onClick={() => setLang(true)}>
+            Change
+          </Button>
+        </Row>
+      </SectionCard>
+      {/* Outside the card: its (hidden) wrapper would get a divider line from divide-y. */}
       <LanguageSwitcher hideTrigger isOpen={lang} onClose={() => setLang(false)} />
-    </SectionCard>
+    </>
   );
 }
 
