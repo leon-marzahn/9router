@@ -6,7 +6,7 @@ import path from "node:path";
 
 let testApi;
 try {
-  testApi = await import("vitest");
+  testApi = await import("vite-plus/test");
 } catch (error) {
   if (error.code !== "ERR_MODULE_NOT_FOUND") throw error;
   testApi = await import("node:test");

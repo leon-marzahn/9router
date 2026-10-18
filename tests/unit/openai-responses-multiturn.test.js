@@ -2,7 +2,7 @@
  * Multi-turn continuity for store=false Responses backends (Grok CLI / Codex).
  * Prior-turn reasoning (+ encrypted_content) must survive Chat Completions ↔ Responses.
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import {
   openaiToOpenAIResponsesRequest,
   openaiResponsesToOpenAIRequest,

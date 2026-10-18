@@ -15,7 +15,11 @@ const SlotsContext = createContext<Slots | null>(null);
 export function FrameSlotsProvider({ children }: { children: ReactNode }) {
   const [center, setCenter] = useState<HTMLElement | null>(null);
   const [actions, setActions] = useState<HTMLElement | null>(null);
-  return <SlotsContext.Provider value={{ center, actions, setCenter, setActions }}>{children}</SlotsContext.Provider>;
+  return (
+    <SlotsContext.Provider value={{ center, actions, setCenter, setActions }}>
+      {children}
+    </SlotsContext.Provider>
+  );
 }
 
 export function useFrameSlots() {

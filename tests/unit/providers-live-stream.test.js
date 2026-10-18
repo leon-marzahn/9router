@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vite-plus/test";
 import { emitLive } from "@/lib/liveEvents.js";
 import { GET } from "@/app/api/providers/stream/route.js";
 

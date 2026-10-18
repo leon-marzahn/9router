@@ -11,7 +11,7 @@
  *  - Error handling (401, 429)
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vite-plus/test";
 import {
   parseOpenAIMessages,
   buildQuery,

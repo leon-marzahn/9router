@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import { detectRequiredCapabilities, reorderByCapabilities } from "../../open-sse/services/combo.js";
 
 describe("detectRequiredCapabilities", () => {

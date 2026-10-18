@@ -5,7 +5,7 @@
 // DefaultExecutor.buildUrl/buildHeaders read — so a wrong routing decision shows up as the
 // wrong baseUrl here, same as on the wire. Executor-level cells check URL and auth
 // without any network.
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vite-plus/test";
 
 const { executeMock } = vi.hoisted(() => ({
   executeMock: vi.fn(),

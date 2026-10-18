@@ -8,7 +8,17 @@ import { useFlashOnChange } from "./live/useFlashOnChange";
  * Row in a list pane. Pass `version` (any value that changes when the row's
  * live data changes) to get the live-update flash.
  */
-export function ListRow({ leading, title, subtitle, trailing, active, onClick, version, id, className }: {
+export function ListRow({
+  leading,
+  title,
+  subtitle,
+  trailing,
+  active,
+  onClick,
+  version,
+  id,
+  className,
+}: {
   leading?: ReactNode;
   title: ReactNode;
   subtitle?: ReactNode;
@@ -43,7 +53,12 @@ export function ListRow({ leading, title, subtitle, trailing, active, onClick, v
   );
 }
 
-export function ListGroup({ title, count, tone, children }: {
+export function ListGroup({
+  title,
+  count,
+  tone,
+  children,
+}: {
   title: string;
   count?: number;
   tone?: "danger";
@@ -51,7 +66,12 @@ export function ListGroup({ title, count, tone, children }: {
 }) {
   return (
     <div className="mb-2">
-      <div className={cn("px-2.5 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wider", tone === "danger" ? "text-danger-text" : "text-text-subtle")}>
+      <div
+        className={cn(
+          "px-2.5 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wider",
+          tone === "danger" ? "text-danger-text" : "text-text-subtle",
+        )}
+      >
         {title} {count != null && <span className="font-normal opacity-70">{count}</span>}
       </div>
       {children}

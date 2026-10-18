@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import { USD_PER_CREDIT, creditsToUsd } from "../../open-sse/providers/pricing.js";
 
 describe("creditsToUsd", () => {

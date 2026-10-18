@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { handleFetchCore } from "../../open-sse/handlers/fetch/index.js";
 
 const originalFetch = global.fetch;

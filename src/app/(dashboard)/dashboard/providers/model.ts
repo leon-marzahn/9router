@@ -107,7 +107,13 @@ function authTypesFor(key: string, info: ProviderInfo): string[] {
 export function errorTag(c: Connection): string {
   const t = c.lastErrorType;
   if (t === "runtime_error") return "RUNTIME";
-  if (t === "upstream_auth_error" || t === "auth_missing" || t === "token_refresh_failed" || t === "token_expired") return "AUTH";
+  if (
+    t === "upstream_auth_error" ||
+    t === "auth_missing" ||
+    t === "token_refresh_failed" ||
+    t === "token_expired"
+  )
+    return "AUTH";
   if (t === "upstream_rate_limited") return "429";
   if (t === "upstream_unavailable") return "5XX";
   if (t === "network_error") return "NET";
@@ -120,8 +126,10 @@ export function errorTag(c: Connection): string {
   if (fromMessage && fromMessage !== "ERR") return fromMessage;
 
   const msg = (c.lastError || "").toLowerCase();
-  if (msg.includes("runtime") || msg.includes("not runnable") || msg.includes("not installed")) return "RUNTIME";
-  if (["invalid api key", "token invalid", "revoked", "unauthorized"].some((s) => msg.includes(s))) return "AUTH";
+  if (msg.includes("runtime") || msg.includes("not runnable") || msg.includes("not installed"))
+    return "RUNTIME";
+  if (["invalid api key", "token invalid", "revoked", "unauthorized"].some((s) => msg.includes(s)))
+    return "AUTH";
   return "ERR";
 }
 
@@ -133,15 +141,20 @@ function effectiveStatus(c: Connection): string | undefined {
   return c.testStatus === "unavailable" && !cooling ? "active" : c.testStatus;
 }
 
-export const isFailing = (c: Connection) => ["error", "expired", "unavailable"].includes(effectiveStatus(c) ?? "");
+export const isFailing = (c: Connection) =>
+  ["error", "expired", "unavailable"].includes(effectiveStatus(c) ?? "");
 const isHealthy = (c: Connection) => ["active", "success"].includes(effectiveStatus(c) ?? "");
 
 export function connectionLabel(c: Connection): string {
-  return c.name || c.email || c.displayName || (c.authType === "oauth" ? "OAuth account" : "API key");
+  return (
+    c.name || c.email || c.displayName || (c.authType === "oauth" ? "OAuth account" : "API key")
+  );
 }
 
 function statsFor(conns: Connection[]): ProviderStats {
-  const failing = conns.filter(isFailing).sort((a, b) => +new Date(b.lastErrorAt || 0) - +new Date(a.lastErrorAt || 0));
+  const failing = conns
+    .filter(isFailing)
+    .sort((a, b) => +new Date(b.lastErrorAt || 0) - +new Date(a.lastErrorAt || 0));
   const latest = failing[0];
   return {
     total: conns.length,
@@ -172,15 +185,30 @@ export function buildProviders(connections: Connection[], nodes: ProviderNode[])
   }
 
   const out = new Map<string, ProviderEntry>();
-  const add = (id: string, kind: ProviderKind, info: ProviderInfo, authTypes: string[], iconSrc: string | null, extra: Partial<ProviderEntry> = {}) => {
+  const add = (
+    id: string,
+    kind: ProviderKind,
+    info: ProviderInfo,
+    authTypes: string[],
+    iconSrc: string | null,
+    extra: Partial<ProviderEntry> = {},
+  ) => {
     if (out.has(id) || info.hidden) return;
     const conns = (byProvider.get(id) ?? []).filter((c) => authTypes.includes(c.authType));
     const stats = statsFor(conns);
     const noAuth = !!info.noAuth;
     out.set(id, {
-      id, kind, iconSrc, noAuth, authTypes,
-      name: info.name, color: info.color, textIcon: info.textIcon,
-      connections: conns, stats, status: statusFor(noAuth, stats),
+      id,
+      kind,
+      iconSrc,
+      noAuth,
+      authTypes,
+      name: info.name,
+      color: info.color,
+      textIcon: info.textIcon,
+      connections: conns,
+      stats,
+      status: statusFor(noAuth, stats),
       ...extra,
     });
   };
@@ -189,19 +217,35 @@ export function buildProviders(connections: Connection[], nodes: ProviderNode[])
     if (n.type !== "openai-compatible" && n.type !== "anthropic-compatible") continue;
     const anthropic = n.id.startsWith(ANTHROPIC_COMPATIBLE_PREFIX);
     add(
-      n.id, "custom",
-      { name: n.name || (anthropic ? "Anthropic Compatible" : "OpenAI Compatible"), color: anthropic ? "#D97757" : "#10A37F", textIcon: anthropic ? "AC" : "OC" },
+      n.id,
+      "custom",
+      {
+        name: n.name || (anthropic ? "Anthropic Compatible" : "OpenAI Compatible"),
+        color: anthropic ? "#D97757" : "#10A37F",
+        textIcon: anthropic ? "AC" : "OC",
+      },
       ["apikey"],
-      anthropic ? "/providers/anthropic-m.png" : n.apiType === "responses" ? "/providers/oai-r.png" : "/providers/oai-cc.png",
+      anthropic
+        ? "/providers/anthropic-m.png"
+        : n.apiType === "responses"
+          ? "/providers/oai-r.png"
+          : "/providers/oai-cc.png",
       { apiType: n.apiType, baseUrl: n.baseUrl },
     );
   }
-  for (const [k, info] of Object.entries(oauth)) add(k, "oauth", info, authTypesFor(k, info), getProviderIconSrc(info.id || k));
-  for (const [k, info] of Object.entries(free)) add(k, "free", info, authTypesFor(k, info), getProviderIconSrc(info.id || k));
-  for (const [k, info] of Object.entries(freeTier)) if (isLlm(info)) add(k, "freeTier", info, authTypesFor(k, info), getProviderIconSrc(info.id || k));
-  for (const [k, info] of Object.entries(apikey)) if (isLlm(info)) add(k, "apikey", info, ["apikey"], getProviderIconSrc(info.id || k));
+  for (const [k, info] of Object.entries(oauth))
+    add(k, "oauth", info, authTypesFor(k, info), getProviderIconSrc(info.id || k));
+  for (const [k, info] of Object.entries(free))
+    add(k, "free", info, authTypesFor(k, info), getProviderIconSrc(info.id || k));
+  for (const [k, info] of Object.entries(freeTier))
+    if (isLlm(info))
+      add(k, "freeTier", info, authTypesFor(k, info), getProviderIconSrc(info.id || k));
+  for (const [k, info] of Object.entries(apikey))
+    if (isLlm(info)) add(k, "apikey", info, ["apikey"], getProviderIconSrc(info.id || k));
 
-  return [...out.values()].sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status] || a.name.localeCompare(b.name));
+  return [...out.values()].sort(
+    (a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status] || a.name.localeCompare(b.name),
+  );
 }
 
 /** A primitive that changes whenever the row's visible state changes (drives the live flash). */

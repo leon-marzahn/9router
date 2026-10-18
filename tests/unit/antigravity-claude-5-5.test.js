@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { createRequire } from "module";
 import { getModelsByProviderId, getModelUpstreamId } from "../../open-sse/config/providerModels.js";
 import { stripThinkingSuffix } from "../../open-sse/translator/concerns/thinkingUnified.js";

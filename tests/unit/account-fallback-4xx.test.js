@@ -3,7 +3,7 @@
 // single connection — answered every other request in that window with a copy of
 // the first error. A 400 "maximum context length" from one session therefore
 // looked like the same failure in unrelated sessions.
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { checkFallbackError } from "../../open-sse/services/accountFallback.js";
 
 describe("checkFallbackError — request-scoped vs account-scoped failures", () => {

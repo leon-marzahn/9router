@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 import { getCapabilitiesForModel, setCatalogSource } from "../../open-sse/providers/capabilities.js";
 import { PROVIDER_ALIASES, build } from "../../src/lib/modelCatalog/sync.js";

@@ -4,7 +4,7 @@
 // Falling through to `default` dropped `recurring`, so one-shot bonus packs
 // (recurring:false, resetAt = hard expiry) rendered as "Reset in" instead of
 // "Expires in".
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 import { parseQuotaData } from "../../src/app/(dashboard)/dashboard/usage/components/ProviderLimits/utils.js";
 

@@ -8,7 +8,7 @@
  *  - tool-call (final): { toolCallId, toolName, input }
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import { commandCodeToOpenAIResponse } from "../../open-sse/translator/response/commandcode-to-openai.js";
 
 function feed(events) {

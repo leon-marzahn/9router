@@ -4,7 +4,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vite-plus/test";
 import { canonicalizeUsage } from "../../open-sse/utils/usageTracking.js";
 
 const originalDataDir = process.env.DATA_DIR;

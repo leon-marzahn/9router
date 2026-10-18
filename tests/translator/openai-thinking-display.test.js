@@ -10,7 +10,7 @@
 // - Chat Completions: setting reasoning_effort is the request for reasoning.
 // - Responses API: reasoning.summary is OpenAI's explicit ask for summaries.
 // Claude-format clients are untouched — they set display themselves.
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import "./registerAll.js";
 import { translateRequest } from "../../open-sse/translator/index.js";
 import { FORMATS } from "../../open-sse/translator/formats.js";

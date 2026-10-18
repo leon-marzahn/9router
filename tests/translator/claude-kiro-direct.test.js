@@ -1,7 +1,7 @@
 // Claude → Kiro (direct route) request translation + Kiro → Claude response.
 // Verifies the direct claude:kiro / kiro:claude routes added to bypass the
 // OpenAI pivot, and that the "Improperly formed request" 400-guards survive.
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import "./registerAll.js";
 import { translateRequest, translateResponse } from "../../open-sse/translator/index.js";
 import { FORMATS } from "../../open-sse/translator/formats.js";

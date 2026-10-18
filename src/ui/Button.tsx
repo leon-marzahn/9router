@@ -9,7 +9,8 @@ type Size = "sm" | "md";
 
 const VARIANTS: Record<Variant, string> = {
   primary: "bg-accent text-accent-fg shadow-warm hover:bg-accent-hover",
-  secondary: "border border-border-strong bg-surface text-text hover:bg-surface-2 dark:border-border",
+  secondary:
+    "border border-border-strong bg-surface text-text hover:bg-surface-2 dark:border-border",
   ghost: "text-text-muted hover:bg-surface-2 hover:text-text",
   inverse: "bg-inverse text-inverse-fg hover:opacity-90",
   danger: "border border-danger-border bg-danger-soft text-danger-text hover:bg-danger/15",
@@ -29,7 +30,18 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
-  { variant = "secondary", size = "sm", icon, trailingIcon, loading, disabled, className, children, type = "button", ...rest },
+  {
+    variant = "secondary",
+    size = "sm",
+    icon,
+    trailingIcon,
+    loading,
+    disabled,
+    className,
+    children,
+    type = "button",
+    ...rest
+  },
   ref,
 ) {
   const iconSize = size === "sm" ? 16 : 18;
@@ -47,7 +59,11 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       )}
       {...rest}
     >
-      {loading ? <Icon name="progress_activity" size={iconSize} className="animate-spin" /> : icon && <Icon name={icon} size={iconSize} />}
+      {loading ? (
+        <Icon name="progress_activity" size={iconSize} className="animate-spin" />
+      ) : (
+        icon && <Icon name={icon} size={iconSize} />
+      )}
       {children}
       {trailingIcon && <Icon name={trailingIcon} size={iconSize - 1} />}
     </button>
@@ -55,19 +71,20 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
 });
 
 /** Square icon-only button. Always pass `label` — it becomes the tooltip and aria-label. */
-export const IconButton = forwardRef<HTMLButtonElement, Omit<ButtonProps, "children" | "icon"> & { icon: string; label: string }>(
-  function IconButton({ icon, label, variant = "ghost", size = "sm", className, ...rest }, ref) {
-    return (
-      <Button
-        ref={ref}
-        variant={variant}
-        size={size}
-        aria-label={label}
-        title={label}
-        className={cn(size === "sm" ? "w-8 px-0" : "w-9 px-0", className)}
-        icon={icon}
-        {...rest}
-      />
-    );
-  },
-);
+export const IconButton = forwardRef<
+  HTMLButtonElement,
+  Omit<ButtonProps, "children" | "icon"> & { icon: string; label: string }
+>(function IconButton({ icon, label, variant = "ghost", size = "sm", className, ...rest }, ref) {
+  return (
+    <Button
+      ref={ref}
+      variant={variant}
+      size={size}
+      aria-label={label}
+      title={label}
+      className={cn(size === "sm" ? "w-8 px-0" : "w-9 px-0", className)}
+      icon={icon}
+      {...rest}
+    />
+  );
+});

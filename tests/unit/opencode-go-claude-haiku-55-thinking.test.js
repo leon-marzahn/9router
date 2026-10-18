@@ -5,7 +5,7 @@
 // The provider-scoped capability override (capabilities.js PROVIDER_CAPABILITIES["opencode-go"])
 // switches it to claude-adaptive, which emits exactly that pair. These tests drive the
 // real applyThinking() so a regression in the capability entry shows up as the old shape.
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { applyThinking } from "../../open-sse/translator/concerns/thinkingUnified.js";
 import { getCapabilitiesForModel } from "../../open-sse/providers/capabilities.js";
 

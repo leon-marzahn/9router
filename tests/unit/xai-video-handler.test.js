@@ -11,7 +11,7 @@
  *  - refresh failure recorded via markAccountUnavailable (dashboard re-auth signal)
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vite-plus/test";
 
 const authMocks = vi.hoisted(() => ({
   getProviderCredentials: vi.fn(),

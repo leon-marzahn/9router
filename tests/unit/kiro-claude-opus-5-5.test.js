@@ -10,7 +10,7 @@
  * - Add capability entries (vision, reasoning, search, 1M context, adaptive thinking)
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import { getCapabilitiesForModel } from "../../open-sse/providers/capabilities.js";
 import fs from "fs";
 import path from "path";

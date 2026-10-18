@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { DefaultExecutor } from "open-sse/executors/default.js";
 import { proxyAwareFetch } from "open-sse/utils/proxyFetch.js";
 

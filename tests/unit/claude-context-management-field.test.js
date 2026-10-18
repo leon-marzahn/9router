@@ -9,7 +9,7 @@
 //                   context_management: Extra inputs are not permitted"}}
 // Anthropic itself (the `claude` provider and anthropic-compatible-* nodes) must
 // keep receiving the block so context editing still works there.
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import { prepareClaudeRequest } from "../../open-sse/translator/formats/claude.js";
 
 const body = () => ({

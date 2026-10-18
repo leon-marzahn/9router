@@ -43,7 +43,12 @@ export const NAV: NavGroup[] = [
       { href: "/dashboard/usage", label: "Usage", icon: "bar_chart" },
       { href: "/dashboard/quota", label: "Quota Tracker", icon: "data_usage" },
       { href: "/dashboard/console-log", label: "Console Log", icon: "receipt_long" },
-      { href: "/dashboard/translator", label: "Translator", icon: "translate", flag: "enableTranslator" },
+      {
+        href: "/dashboard/translator",
+        label: "Translator",
+        icon: "translate",
+        flag: "enableTranslator",
+      },
     ],
   },
   {
@@ -70,7 +75,9 @@ const FULL_BLEED_PREFIXES = ["/dashboard/basic-chat"];
 const FULL_BLEED_EXACT = ["/dashboard/providers"];
 
 export function isFullBleed(pathname: string): boolean {
-  return FULL_BLEED_EXACT.includes(pathname) || FULL_BLEED_PREFIXES.some((r) => pathname.startsWith(r));
+  return (
+    FULL_BLEED_EXACT.includes(pathname) || FULL_BLEED_PREFIXES.some((r) => pathname.startsWith(r))
+  );
 }
 
 export function isActive(pathname: string, href: string): boolean {

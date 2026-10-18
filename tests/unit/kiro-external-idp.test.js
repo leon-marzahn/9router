@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vite-plus/test";
 
 const originalFetch = global.fetch;
 const TEST_CLIENT_ID = "00000000-0000-4000-8000-000000000000";

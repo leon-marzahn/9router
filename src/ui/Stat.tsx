@@ -24,8 +24,15 @@ export function StatGrid({ items, className }: { items: StatItem[]; className?: 
     >
       {items.map((s) => (
         <div key={s.label} className="bg-surface p-5">
-          <div className="text-[11px] font-medium uppercase tracking-wider text-text-muted">{s.label}</div>
-          <div className={cn("mt-1 text-3xl font-semibold tabular-nums", s.tone === "danger" && Number(s.value) > 0 && "text-danger-text")}>
+          <div className="text-[11px] font-medium uppercase tracking-wider text-text-muted">
+            {s.label}
+          </div>
+          <div
+            className={cn(
+              "mt-1 text-3xl font-semibold tabular-nums",
+              s.tone === "danger" && Number(s.value) > 0 && "text-danger-text",
+            )}
+          >
             {typeof s.value === "number" ? <LiveNumber value={s.value} /> : s.value}
           </div>
           {s.sub && <div className="text-xs text-text-muted">{s.sub}</div>}
@@ -36,7 +43,12 @@ export function StatGrid({ items, className }: { items: StatItem[]; className?: 
 }
 
 /** Inline KPI for the top bar strip: **12** live */
-export function InlineStat({ value, label, tone, onClick }: {
+export function InlineStat({
+  value,
+  label,
+  tone,
+  onClick,
+}: {
   value: number;
   label: ReactNode;
   tone?: "danger" | "success";
@@ -44,8 +56,20 @@ export function InlineStat({ value, label, tone, onClick }: {
 }) {
   const body = (
     <>
-      {tone && <span className={cn("size-1.5 rounded-full", tone === "danger" && value > 0 ? "bg-danger" : "bg-success")} />}
-      <b className={cn("tabular-nums text-text", tone === "danger" && value > 0 && "text-danger-text")}>
+      {tone && (
+        <span
+          className={cn(
+            "size-1.5 rounded-full",
+            tone === "danger" && value > 0 ? "bg-danger" : "bg-success",
+          )}
+        />
+      )}
+      <b
+        className={cn(
+          "tabular-nums text-text",
+          tone === "danger" && value > 0 && "text-danger-text",
+        )}
+      >
         <LiveNumber value={value} />
       </b>
       {label}
@@ -53,7 +77,9 @@ export function InlineStat({ value, label, tone, onClick }: {
   );
   const cls = "flex items-center gap-1.5 whitespace-nowrap text-xs text-text-muted";
   return onClick ? (
-    <button type="button" onClick={onClick} className={cn(cls, "hover:text-text")}>{body}</button>
+    <button type="button" onClick={onClick} className={cn(cls, "hover:text-text")}>
+      {body}
+    </button>
   ) : (
     <span className={cls}>{body}</span>
   );

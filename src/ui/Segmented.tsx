@@ -8,7 +8,13 @@ export interface SegmentedOption<T extends string> {
 }
 
 /** Mutually exclusive choice between 2–4 options (scope, mode, format). */
-export function Segmented<T extends string>({ value, onChange, options, className, size = "sm" }: {
+export function Segmented<T extends string>({
+  value,
+  onChange,
+  options,
+  className,
+  size = "sm",
+}: {
   value: T;
   onChange: (v: T) => void;
   options: SegmentedOption<T>[];
@@ -31,7 +37,9 @@ export function Segmented<T extends string>({ value, onChange, options, classNam
           className={cn(
             "truncate rounded-md px-2 transition-colors",
             size === "sm" ? "h-7" : "h-8",
-            value === o.value ? "bg-surface font-medium text-text shadow-sm dark:bg-surface-3" : "text-text-muted hover:text-text",
+            value === o.value
+              ? "bg-surface font-medium text-text shadow-sm dark:bg-surface-3"
+              : "text-text-muted hover:text-text",
           )}
         >
           {o.label}

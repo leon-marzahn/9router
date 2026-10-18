@@ -4,7 +4,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNotificationStore } from "@/store/notificationStore";
 import { buildProviders, type Connection, type ProviderNode } from "./model";
 
-type Notify = { success: (m: string) => void; warning: (m: string) => void; error: (m: string) => void };
+type Notify = {
+  success: (m: string) => void;
+  warning: (m: string) => void;
+  error: (m: string) => void;
+};
 
 interface BatchResult {
   summary?: { passed: number; failed: number; total: number };
@@ -34,7 +38,10 @@ export function useProviders() {
     }
     const fetchOnce = async () => {
       try {
-        const [cRes, nRes] = await Promise.all([fetch("/api/providers"), fetch("/api/provider-nodes")]);
+        const [cRes, nRes] = await Promise.all([
+          fetch("/api/providers"),
+          fetch("/api/provider-nodes"),
+        ]);
         if (cRes.ok) setConnections(((await cRes.json()).connections ?? []) as Connection[]);
         if (nRes.ok) setNodes(((await nRes.json()).nodes ?? []) as ProviderNode[]);
       } catch {
@@ -71,64 +78,88 @@ export function useProviders() {
 
   const providers = useMemo(() => buildProviders(connections, nodes), [connections, nodes]);
 
-  const setConnectionActive = useCallback(async (ids: string[], isActive: boolean) => {
-    setConnections((prev) => prev.map((c) => (ids.includes(c.id) ? { ...c, isActive } : c)));
-    const results = await Promise.allSettled(
-      ids.map((id) =>
-        fetch(`/api/providers/${encodeURIComponent(id)}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ isActive }),
-        }).then((r) => {
-          if (!r.ok) throw new Error(String(r.status));
-        }),
-      ),
-    );
-    if (results.some((r) => r.status === "rejected")) {
-      notify.error("Couldn't update some accounts");
-      void refresh();
-    }
-  }, [notify, refresh]);
+  const setConnectionActive = useCallback(
+    async (ids: string[], isActive: boolean) => {
+      setConnections((prev) => prev.map((c) => (ids.includes(c.id) ? { ...c, isActive } : c)));
+      const results = await Promise.allSettled(
+        ids.map((id) =>
+          fetch(`/api/providers/${encodeURIComponent(id)}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ isActive }),
+          }).then((r) => {
+            if (!r.ok) throw new Error(String(r.status));
+          }),
+        ),
+      );
+      if (results.some((r) => r.status === "rejected")) {
+        notify.error("Couldn't update some accounts");
+        void refresh();
+      }
+    },
+    [notify, refresh],
+  );
 
   /** mode "all" or a provider id. Results arrive via the live stream; we only toast the summary. */
-  const runTest = useCallback(async (target: "all" | string) => {
-    if (testing) return;
-    setTesting(target);
-    try {
-      const res = await fetch("/api/providers/test-batch", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(target === "all" ? { mode: "all" } : { mode: "provider", providerId: target }),
-      });
-      const data = (await res.json()) as BatchResult;
-      if (data.summary) {
-        const { passed, failed, total } = data.summary;
-        if (total === 0) notify.warning("Nothing to test yet");
-        else if (failed === 0) notify.success(`All ${total} accounts passed`);
-        else notify.warning(`${passed}/${total} passed, ${failed} failed`);
-      } else {
-        notify.error(data.error || "Test failed");
+  const runTest = useCallback(
+    async (target: string) => // "all" or a provider id
+      {
+        if (testing) return;
+        setTesting(target);
+        try {
+          const res = await fetch("/api/providers/test-batch", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(
+              target === "all" ? { mode: "all" } : { mode: "provider", providerId: target },
+            ),
+          });
+          const data = (await res.json()) as BatchResult;
+          if (data.summary) {
+            const { passed, failed, total } = data.summary;
+            if (total === 0) notify.warning("Nothing to test yet");
+            else if (failed === 0) notify.success(`All ${total} accounts passed`);
+            else notify.warning(`${passed}/${total} passed, ${failed} failed`);
+          } else {
+            notify.error(data.error || "Test failed");
+          }
+        } catch {
+          notify.error("Test request failed");
+        } finally {
+          setTesting(null);
+          void refresh();
+        }
+      },
+    [testing, notify, refresh],
+  );
+
+  const testConnection = useCallback(
+    async (id: string) => {
+      try {
+        const res = await fetch(`/api/providers/${encodeURIComponent(id)}/test`, {
+          method: "POST",
+        });
+        const data = (await res.json()) as { valid?: boolean; error?: string };
+        if (data.valid) notify.success("Account is working");
+        else notify.error(data.error || "Account test failed");
+      } catch {
+        notify.error("Test request failed");
+      } finally {
+        void refresh();
       }
-    } catch {
-      notify.error("Test request failed");
-    } finally {
-      setTesting(null);
-      void refresh();
-    }
-  }, [testing, notify, refresh]);
+    },
+    [notify, refresh],
+  );
 
-  const testConnection = useCallback(async (id: string) => {
-    try {
-      const res = await fetch(`/api/providers/${encodeURIComponent(id)}/test`, { method: "POST" });
-      const data = (await res.json()) as { valid?: boolean; error?: string };
-      if (data.valid) notify.success("Account is working");
-      else notify.error(data.error || "Account test failed");
-    } catch {
-      notify.error("Test request failed");
-    } finally {
-      void refresh();
-    }
-  }, [notify, refresh]);
-
-  return { providers, loading, live, testing, refresh, setConnectionActive, runTest, testConnection, setNodes };
+  return {
+    providers,
+    loading,
+    live,
+    testing,
+    refresh,
+    setConnectionActive,
+    runTest,
+    testConnection,
+    setNodes,
+  };
 }

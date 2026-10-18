@@ -12,7 +12,7 @@
  * Repro model: muse/muse-spark-1.3-contributor(xhigh)
  * Ref: https://github.com/decolua/9router/pull/3757
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 import { getModelTargetFormat, getModelSupportedFormats, getModelUpstreamId, PROVIDER_ID_TO_ALIAS } from "../../open-sse/config/providerModels.js";
 import { resolveTransport } from "../../open-sse/services/provider.js";

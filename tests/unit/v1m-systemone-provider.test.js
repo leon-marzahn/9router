@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import REGISTRY from "../../open-sse/providers/registry/index.js";
 import { PROVIDER_MEDIA } from "../../open-sse/providers/index.js";
 import { AI_PROVIDERS, getProvidersByKind } from "@/shared/constants/providers";

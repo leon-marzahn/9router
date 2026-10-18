@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from "react";
 import { createPortal } from "react-dom";
 import { cn } from "./cn";
 import { Icon } from "./Icon";
@@ -17,7 +24,14 @@ function place(anchor: DOMRect, side: Side): React.CSSProperties {
  * Floating panel anchored to a trigger, rendered in a portal so it escapes
  * overflow clipping (e.g. the scrolling icon rail). Closes on outside click / Esc.
  */
-export function Popover({ open, onClose, anchorRef, side = "right", className, children }: {
+export function Popover({
+  open,
+  onClose,
+  anchorRef,
+  side = "right",
+  className,
+  children,
+}: {
   open: boolean;
   onClose: () => void;
   anchorRef: RefObject<HTMLElement | null>;
@@ -33,7 +47,8 @@ export function Popover({ open, onClose, anchorRef, side = "right", className, c
     const s = place(anchorRef.current.getBoundingClientRect(), side);
     // keep inside the viewport vertically
     const h = panelRef.current?.offsetHeight ?? 0;
-    if (typeof s.top === "number" && s.top + h > window.innerHeight - 8) s.top = Math.max(8, window.innerHeight - h - 8);
+    if (typeof s.top === "number" && s.top + h > window.innerHeight - 8)
+      s.top = Math.max(8, window.innerHeight - h - 8);
     setStyle(s);
   }, [open, side, anchorRef]);
 
@@ -58,7 +73,10 @@ export function Popover({ open, onClose, anchorRef, side = "right", className, c
     <div
       ref={panelRef}
       style={style}
-      className={cn("fixed z-[90] min-w-52 overflow-hidden rounded-xl border border-border bg-surface py-1 text-[13px] shadow-elev fade-in", className)}
+      className={cn(
+        "fixed z-[90] min-w-52 overflow-hidden rounded-xl border border-border bg-surface py-1 text-[13px] shadow-elev fade-in",
+        className,
+      )}
     >
       {children}
     </div>,
@@ -66,7 +84,16 @@ export function Popover({ open, onClose, anchorRef, side = "right", className, c
   );
 }
 
-export function MenuItem({ icon, children, onClick, href, external, danger, trailing, active }: {
+export function MenuItem({
+  icon,
+  children,
+  onClick,
+  href,
+  external,
+  danger,
+  trailing,
+  active,
+}: {
   icon?: string;
   children: ReactNode;
   onClick?: () => void;
@@ -91,7 +118,12 @@ export function MenuItem({ icon, children, onClick, href, external, danger, trai
   );
   if (href) {
     return (
-      <a href={href} onClick={onClick} className={cls} {...(external ? { target: "_blank", rel: "noreferrer" } : {})}>
+      <a
+        href={href}
+        onClick={onClick}
+        className={cls}
+        {...(external ? { target: "_blank", rel: "noreferrer" } : {})}
+      >
         {body}
       </a>
     );
@@ -108,5 +140,9 @@ export function MenuSeparator() {
 }
 
 export function MenuLabel({ children }: { children: ReactNode }) {
-  return <div className="px-3 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wider text-text-subtle">{children}</div>;
+  return (
+    <div className="px-3 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wider text-text-subtle">
+      {children}
+    </div>
+  );
 }

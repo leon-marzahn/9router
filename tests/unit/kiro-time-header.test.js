@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { openaiToKiroRequest } from "../../open-sse/translator/request/openai-to-kiro.js";
 import { claudeToKiroRequest } from "../../open-sse/translator/request/claude-to-kiro.js";
 import { clearKiroSessionReplayStore } from "../../open-sse/utils/kiroSessionReplay.js";

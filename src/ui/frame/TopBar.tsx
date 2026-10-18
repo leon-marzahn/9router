@@ -23,7 +23,12 @@ export function TopBar({ onMenu }: { onMenu: () => void }) {
 
   return (
     <header className="flex h-12 shrink-0 items-center gap-4 border-b border-border px-3 md:px-4">
-      <button type="button" onClick={onMenu} aria-label="Open menu" className="grid size-8 place-items-center rounded-lg text-text-muted hover:bg-surface-2 md:hidden">
+      <button
+        type="button"
+        onClick={onMenu}
+        aria-label="Open menu"
+        className="grid size-8 place-items-center rounded-lg text-text-muted hover:bg-surface-2 md:hidden"
+      >
         <Icon name="menu" size={20} />
       </button>
 
@@ -33,23 +38,33 @@ export function TopBar({ onMenu }: { onMenu: () => void }) {
             <Fragment key={`${c.label}-${i}`}>
               {i > 0 && <Icon name="chevron_right" size={16} className="text-text-subtle" />}
               {c.href ? (
-                <Link href={c.href} className="hidden truncate text-[13px] text-text-muted hover:text-text sm:inline">
+                <Link
+                  href={c.href}
+                  className="hidden truncate text-[13px] text-text-muted hover:text-text sm:inline"
+                >
                   {translate(c.label)}
                 </Link>
               ) : (
                 <span className="flex min-w-0 items-center gap-2">
                   {c.image && <ProviderLogo src={c.image} name={c.label} size={20} />}
-                  <h1 className="truncate font-display text-lg tracking-tight">{translate(c.label)}</h1>
+                  <h1 className="truncate font-display text-lg tracking-tight">
+                    {translate(c.label)}
+                  </h1>
                 </span>
               )}
             </Fragment>
           ))}
         </nav>
       ) : (
-        <h1 className="shrink-0 truncate font-display text-lg tracking-tight">{translate(meta.title)}</h1>
+        <h1 className="shrink-0 truncate font-display text-lg tracking-tight">
+          {translate(meta.title)}
+        </h1>
       )}
 
-      <div ref={setCenter} className="hidden min-w-0 flex-1 items-center gap-4 overflow-hidden md:flex" />
+      <div
+        ref={setCenter}
+        className="hidden min-w-0 flex-1 items-center gap-4 overflow-hidden md:flex"
+      />
       <div className="flex-1 md:hidden" />
 
       <div className="flex shrink-0 items-center gap-2">

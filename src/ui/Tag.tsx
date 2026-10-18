@@ -14,7 +14,12 @@ const TONES: Record<Tone, string> = {
 };
 
 /** Small label. Use `mono` for codes (429, AUTH, model ids). */
-export function Tag({ tone = "neutral", mono, children, className }: {
+export function Tag({
+  tone = "neutral",
+  mono,
+  children,
+  className,
+}: {
   tone?: Tone;
   mono?: boolean;
   children: ReactNode;

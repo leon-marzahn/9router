@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vite-plus/test";
 
 vi.mock("../../src/lib/localDb.js", () => ({
   getProviderConnections: vi.fn(),

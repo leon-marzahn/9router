@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 vi.mock("../../open-sse/services/cursorModels.js", async (importOriginal) => {
   const actual = await importOriginal();

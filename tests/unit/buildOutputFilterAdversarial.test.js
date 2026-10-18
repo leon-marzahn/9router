@@ -1,6 +1,6 @@
 // Adversarial / edge-case tests for PR #1175
 // Goals: find corruption, boundary bugs, false positives, integration regressions
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import { autoDetectFilter } from "../../open-sse/rtk/autodetect.js";
 import { buildOutput } from "../../open-sse/rtk/filters/buildOutput.js";
 import { gitDiff } from "../../open-sse/rtk/filters/gitDiff.js";

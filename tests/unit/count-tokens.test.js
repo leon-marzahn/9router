@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 import { POST } from "../../src/app/api/v1/messages/count_tokens/route.js";
 

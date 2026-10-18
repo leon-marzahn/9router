@@ -8,7 +8,7 @@
 // then filtered it out. container_upload is valid Anthropic input on its own,
 // and on the Claude→Claude route no translation runs at all, so the block
 // should reach the provider untouched.
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 import { hasValidContent, prepareClaudeRequest } from "../../open-sse/translator/formats/claude.js";
 

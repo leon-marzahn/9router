@@ -9,7 +9,7 @@
  *  - xAI default path is unchanged by the adapter hook
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vite-plus/test";
 
 vi.mock("open-sse/services/tokenRefresh.js", async (importOriginal) => {
   const actual = await importOriginal();

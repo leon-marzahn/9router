@@ -14,7 +14,10 @@ export interface PageMeta {
 
 type Named = { name?: string; id?: string };
 const kinds = MEDIA_PROVIDER_KINDS as { id: string; label: string }[];
-const providers = { ...(OAUTH_PROVIDERS as Record<string, Named>), ...(APIKEY_PROVIDERS as Record<string, Named>) };
+const providers = {
+  ...(OAUTH_PROVIDERS as Record<string, Named>),
+  ...(APIKEY_PROVIDERS as Record<string, Named>),
+};
 
 // First match wins, so more specific prefixes come first.
 const TITLES: [string, string][] = [
@@ -53,7 +56,10 @@ export function getPageMeta(pathname: string): PageMeta {
   const mediaKind = pathname.match(/\/media-providers\/([^/]+)$/);
   if (mediaKind) {
     const kind = kinds.find((k) => k.id === mediaKind[1]);
-    return { title: kind?.label || (mediaKind[1] === "web" ? "Web Fetch & Search" : mediaKind[1]), crumbs: [] };
+    return {
+      title: kind?.label || (mediaKind[1] === "web" ? "Web Fetch & Search" : mediaKind[1]),
+      crumbs: [],
+    };
   }
   const provider = pathname.match(/\/dashboard\/providers\/([^/]+)$/);
   if (provider && provider[1] !== "new") {
@@ -61,12 +67,19 @@ export function getPageMeta(pathname: string): PageMeta {
     if (info?.name) {
       return {
         title: info.name,
-        crumbs: [{ label: "Providers", href: "/dashboard/providers" }, { label: info.name, image: getProviderIconSrc(info.id || provider[1]) ?? undefined }],
+        crumbs: [
+          { label: "Providers", href: "/dashboard/providers" },
+          { label: info.name, image: getProviderIconSrc(info.id || provider[1]) ?? undefined },
+        ],
       };
     }
   }
   const toolMatch = pathname.match(/\/cli-tools\/([^/]+)$/);
-  if (toolMatch) return { title: toolMatch[1], crumbs: [{ label: "CLI Tools", href: "/dashboard/cli-tools" }, { label: toolMatch[1] }] };
+  if (toolMatch)
+    return {
+      title: toolMatch[1],
+      crumbs: [{ label: "CLI Tools", href: "/dashboard/cli-tools" }, { label: toolMatch[1] }],
+    };
 
   if (pathname === "/dashboard") return { title: "Endpoint", crumbs: [] };
   const hit = TITLES.find(([prefix]) => pathname.startsWith(prefix));

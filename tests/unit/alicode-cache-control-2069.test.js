@@ -1,7 +1,7 @@
 // #2069 — cache_control markers stripped for alicode/alicode-intl (DashScope) providers.
 // DashScope supports explicit cache_control: { type: "ephemeral" } in content blocks,
 // but the default filterToOpenAIFormat strips them. preserveCacheControl quirk opts-in.
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import { filterToOpenAIFormat } from "../../open-sse/translator/formats/openai.js";
 
 const msgWithCache = [

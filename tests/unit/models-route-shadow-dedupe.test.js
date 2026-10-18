@@ -12,7 +12,7 @@
 // 1. a custom row whose providerAlias/id collides with a listed routedModel is
 //    dropped (read-time filter; the kv row itself is untouched);
 // 2. surviving custom rows resolve caps through the provider id, not the alias.
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vite-plus/test";
 
 vi.mock("@/models", () => ({
   getModelAliases: vi.fn(async () => ({})),

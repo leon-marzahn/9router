@@ -13,7 +13,7 @@
  * non-standard annotation keywords to the strip list.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import { cleanJSONSchemaForAntigravity, UNSUPPORTED_SCHEMA_CONSTRAINTS } from "../../open-sse/translator/formats/gemini.js";
 
 describe("UNSUPPORTED_SCHEMA_CONSTRAINTS includes non-standard annotation keywords (#4283)", () => {

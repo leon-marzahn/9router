@@ -15,15 +15,19 @@ export function useFrameData() {
 
   useEffect(() => {
     let cancelled = false;
-    (useSettingsStore as any).getState().fetchSettings().then((data: any) => {
-      if (!cancelled && data) setFlags({ enableTranslator: !!data.enableTranslator });
-    });
+    (useSettingsStore as any)
+      .getState()
+      .fetchSettings()
+      .then((data: any) => {
+        if (!cancelled && data) setFlags({ enableTranslator: !!data.enableTranslator });
+      });
     fetch("/api/auth/status", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (cancelled || !d) return;
         setAuth({
-          displayName: d.displayName || d.samlName || d.samlEmail || d.oidcName || d.oidcEmail || "",
+          displayName:
+            d.displayName || d.samlName || d.samlEmail || d.oidcName || d.oidcEmail || "",
           loginMethod: d.loginMethod || "",
         });
       })

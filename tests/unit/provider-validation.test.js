@@ -8,7 +8,7 @@
  *  - Error message handling
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vite-plus/test";
 
 // Mock fetch globally
 const originalFetch = global.fetch;

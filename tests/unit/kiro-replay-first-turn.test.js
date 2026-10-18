@@ -1,7 +1,7 @@
 // A first-turn request has no history: its only message is the session start. Sending it again
 // under the same session id (client retry, regenerate, or a reused id) must not replay the stored
 // start on top of it, or the first message goes upstream twice and the prompt roughly doubles.
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 import { openaiToKiroRequest } from "../../open-sse/translator/request/openai-to-kiro.js";
 import { clearKiroSessionReplayStore } from "../../open-sse/utils/kiroSessionReplay.js";
 

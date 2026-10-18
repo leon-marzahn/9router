@@ -4,7 +4,7 @@
  * Remote callers must not be able to force server-side fetches to
  * internal URLs; local-host use (self-hosted MCP servers) keeps working.
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vite-plus/test";
 
 vi.mock("next/server", () => ({
   NextResponse: {

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 // execute() fetches through proxyAwareFetch; capture what it actually sends to AWS.
 vi.mock("../../open-sse/utils/proxyFetch.js", async (importOriginal) => ({

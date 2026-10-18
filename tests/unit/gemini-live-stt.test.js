@@ -19,7 +19,7 @@
 // NOT pinned (unstated or implementation-only): goAway/reconnect semantics,
 // timeout clamp ceilings, specific status codes, byte-exact WS URLs (only
 // wss:// + bidiGenerateContent + model-id substrings), exact frame JSON paths.
-import { describe, it, expect, afterEach, vi, beforeEach } from "vitest";
+import { describe, it, expect, afterEach, vi, beforeEach } from "vite-plus/test";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";

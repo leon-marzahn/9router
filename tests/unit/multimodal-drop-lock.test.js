@@ -1,5 +1,5 @@
 // Locks multimodal quirks flagged in docs 11 §4: image_url.detail drop + input_audio per-format.
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import { openaiToClaudeRequest } from "../../open-sse/translator/request/openai-to-claude.js";
 import { convertOpenAIContentToParts } from "../../open-sse/translator/formats/gemini.js";
 

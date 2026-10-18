@@ -28,7 +28,10 @@ export function Rail({ flags, auth }: { flags: { enableTranslator?: boolean }; a
   const visible = (i: NavItem) => !i.flag || flags[i.flag];
 
   return (
-    <nav aria-label="Main" className="hidden w-14 shrink-0 flex-col items-center border-r border-border bg-bg-alt py-3 md:flex">
+    <nav
+      aria-label="Main"
+      className="hidden w-14 shrink-0 flex-col items-center border-r border-border bg-bg-alt py-3 md:flex"
+    >
       <Link
         href="/dashboard"
         aria-label="9Router home"
@@ -45,7 +48,11 @@ export function Rail({ flags, auth }: { flags: { enableTranslator?: boolean }; a
                 <MediaFlyout key={item.href} item={item} pathname={pathname} />
               ) : (
                 <RailTooltip key={item.href} label={item.label}>
-                  <Link href={item.href} aria-label={item.label} className={itemClass(isActive(pathname, item.href))}>
+                  <Link
+                    href={item.href}
+                    aria-label={item.label}
+                    className={itemClass(isActive(pathname, item.href))}
+                  >
                     <Icon name={item.icon} size={19} filled={isActive(pathname, item.href)} />
                   </Link>
                 </RailTooltip>
@@ -57,7 +64,12 @@ export function Rail({ flags, auth }: { flags: { enableTranslator?: boolean }; a
       <div className="mt-2 flex shrink-0 flex-col items-center gap-1">
         <UpdateFlow />
         <RailTooltip label={isDark ? "Light mode" : "Dark mode"}>
-          <button type="button" onClick={toggleTheme} aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"} className={itemClass(false)}>
+          <button
+            type="button"
+            onClick={toggleTheme}
+            aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+            className={itemClass(false)}
+          >
             <Icon name={isDark ? "light_mode" : "dark_mode"} size={19} />
           </button>
         </RailTooltip>
@@ -74,20 +86,36 @@ function MediaFlyout({ item, pathname }: { item: NavItem; pathname: string }) {
   return (
     <>
       <RailTooltip label={item.label}>
-        <button ref={ref} type="button" aria-label={item.label} aria-expanded={open} onClick={() => setOpen((v) => !v)} className={itemClass(active || open)}>
+        <button
+          ref={ref}
+          type="button"
+          aria-label={item.label}
+          aria-expanded={open}
+          onClick={() => setOpen((v) => !v)}
+          className={itemClass(active || open)}
+        >
           <Icon name={item.icon} size={19} filled={active} />
         </button>
       </RailTooltip>
       <Popover open={open} onClose={() => setOpen(false)} anchorRef={ref} side="right">
-        <div className="px-3 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wider text-text-subtle">Media providers</div>
+        <div className="px-3 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wider text-text-subtle">
+          Media providers
+        </div>
         {MEDIA_ITEMS.map((m) => (
           <Link
             key={m.href}
             href={m.href}
             onClick={() => setOpen(false)}
-            className={cn("flex items-center gap-2.5 px-3 py-2 hover:bg-surface-2", pathname.startsWith(m.href) && "bg-accent-soft text-accent-text")}
+            className={cn(
+              "flex items-center gap-2.5 px-3 py-2 hover:bg-surface-2",
+              pathname.startsWith(m.href) && "bg-accent-soft text-accent-text",
+            )}
           >
-            <Icon name={m.icon} size={18} className={pathname.startsWith(m.href) ? "" : "text-text-muted"} />
+            <Icon
+              name={m.icon}
+              size={18}
+              className={pathname.startsWith(m.href) ? "" : "text-text-muted"}
+            />
             {m.label}
           </Link>
         ))}

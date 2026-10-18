@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { PROVIDER_MODELS } from "../../open-sse/config/providerModels.js";
 import { MITM_TOOLS } from "../../src/shared/constants/cliTools.js";
 

@@ -1,7 +1,7 @@
 // P0 GOLDEN: lock OUTPUT của translateRequest (body) cho các đích đặc biệt.
 // openai → claude/gemini/kiro: thinking, tools, image, system, tool_result.
 // Sau refactor chạy lại phải khớp y hệt.
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import "./registerAll.js";
 import { translateRequest } from "../../open-sse/translator/index.js";
 import { FORMATS } from "../../open-sse/translator/formats.js";

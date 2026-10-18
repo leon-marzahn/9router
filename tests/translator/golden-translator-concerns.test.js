@@ -5,7 +5,7 @@
 //   - passthrough openai→openai (request + response)
 //   - kiro/ollama finish_reason sau tool (lock behavior HIỆN TẠI, kể cả bug đã biết)
 // Sau refactor chạy lại phải khớp y hệt. Lệch = regression.
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import "./registerAll.js";
 import { translateRequest, translateResponse, initState } from "../../open-sse/translator/index.js";
 import { FORMATS } from "../../open-sse/translator/formats.js";

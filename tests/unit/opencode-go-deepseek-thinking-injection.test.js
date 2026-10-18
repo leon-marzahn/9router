@@ -10,7 +10,7 @@
  * Signed placeholders were also accepted live (2026-08-15, opencode.go /messages),
  * but unsigned mirrors the official deepseek provider behavior exactly.
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import { prepareClaudeRequest } from "../../open-sse/translator/formats/claude.js";
 
 function makeBody(model) {

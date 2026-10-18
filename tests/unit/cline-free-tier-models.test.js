@@ -3,7 +3,7 @@
 // resolveClineModels() merges the feed's `free[]` into its catalog so the free
 // models reach /v1/models and the dashboard picker.
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vite-plus/test";
 
 const MODELS_URL = "https://api.cline.bot/api/v1/models";
 const FEED_URL = "https://api.cline.bot/api/v1/ai/cline/recommended-models";

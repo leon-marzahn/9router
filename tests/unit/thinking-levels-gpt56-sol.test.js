@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import { getThinkingLevels } from "../../open-sse/providers/thinkingLevels.js";
 
 describe("getThinkingLevels", () => {

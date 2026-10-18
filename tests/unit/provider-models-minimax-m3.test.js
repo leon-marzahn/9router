@@ -6,7 +6,7 @@
  * Run: cd tests && NODE_PATH=/tmp/node_modules /tmp/node_modules/.bin/vitest run tests/unit/provider-models-minimax-m3.test.js --reporter=verbose
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import { PROVIDER_MODELS, getModelsByProviderId } from "../../open-sse/config/providerModels.js";
 
 describe("MiniMax-M3 model registration", () => {

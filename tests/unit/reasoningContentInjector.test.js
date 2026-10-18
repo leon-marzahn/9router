@@ -9,7 +9,7 @@
  * actually runs the injector.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import { injectReasoningContent } from "../../open-sse/utils/reasoningContentInjector.js";
 import { OpenCodeExecutor } from "../../open-sse/executors/opencode.js";
 

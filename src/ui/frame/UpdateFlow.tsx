@@ -20,7 +20,10 @@ export function UpdateFlow() {
   const [panelOpen, setPanelOpen] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const [disconnected, setDisconnected] = useState(false);
-  const { copied, copy } = useCopyToClipboard(2000) as { copied: string | null; copy: (t: string) => void };
+  const { copied, copy } = useCopyToClipboard(2000) as {
+    copied: string | null;
+    copy: (t: string) => void;
+  };
 
   // Lazy version check after first render
   useEffect(() => {
@@ -89,7 +92,11 @@ export function UpdateFlow() {
                 <Icon name={disconnected ? "power_off" : "system_update_alt"} size={24} />
               </div>
               <div>
-                <h2 className="font-display text-xl">{disconnected ? "Server stopped" : `Update 9Router${latest ? ` to v${latest}` : ""}`}</h2>
+                <h2 className="font-display text-xl">
+                  {disconnected
+                    ? "Server stopped"
+                    : `Update 9Router${latest ? ` to v${latest}` : ""}`}
+                </h2>
                 <p className="text-xs text-text-muted">
                   {disconnected
                     ? "Paste the command into a terminal to install, then start 9router again."
@@ -103,17 +110,40 @@ export function UpdateFlow() {
               <code className="break-all font-mono text-xs text-accent-text">{INSTALL_CMD}</code>
             </div>
             <ol className="mb-5 list-inside list-decimal space-y-1 text-xs text-text-muted">
-              <li>Click <b>Copy &amp; shut down</b>.</li>
+              <li>
+                Click <b>Copy &amp; shut down</b>.
+              </li>
               <li>Paste the command into your terminal and press Enter.</li>
-              <li>Run <code className="rounded bg-surface-2 px-1">9router</code> again after install.</li>
+              <li>
+                Run <code className="rounded bg-surface-2 px-1">9router</code> again after install.
+              </li>
             </ol>
             {disconnected ? (
-              <Button className="w-full" onClick={() => globalThis.location.reload()}>Reload page</Button>
+              <Button className="w-full" onClick={() => globalThis.location.reload()}>
+                Reload page
+              </Button>
             ) : (
               <div className="flex gap-2">
-                <Button onClick={() => { setPanelOpen(false); setCountdown(0); }} disabled={counting}>Cancel</Button>
-                <Button variant="primary" className="flex-1" onClick={copyAndShutdown} disabled={counting}>
-                  {copied ? "Copied — shutting down…" : counting ? `Shutting down in ${countdown}s` : "Copy & shut down"}
+                <Button
+                  onClick={() => {
+                    setPanelOpen(false);
+                    setCountdown(0);
+                  }}
+                  disabled={counting}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="primary"
+                  className="flex-1"
+                  onClick={copyAndShutdown}
+                  disabled={counting}
+                >
+                  {copied
+                    ? "Copied — shutting down…"
+                    : counting
+                      ? `Shutting down in ${countdown}s`
+                      : "Copy & shut down"}
                 </Button>
               </div>
             )}

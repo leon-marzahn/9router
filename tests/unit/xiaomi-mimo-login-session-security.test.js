@@ -4,7 +4,7 @@
  *  - credentials bound to 9router's own origin are never forwarded upstream
  *  - upstream Set-Cookie is never replayed onto the app's own cookie jar
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import { __test__ } from "../../src/lib/mimoLoginSession.js";
 
 const { STRIP_UPSTREAM_HEADERS, buildBrowserResponse } = __test__;

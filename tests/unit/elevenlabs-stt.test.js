@@ -14,7 +14,7 @@
 //   - upstream non-2xx → gateway error envelope (status passthrough).
 //
 // NOT pinned: exact JSON key order, region hosts, ElevenLabs account entitlements.
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vite-plus/test";
 
 import { handleSttCore } from "open-sse/handlers/sttCore.js";
 import { PROVIDER_MODELS } from "open-sse/config/providerModels.js";

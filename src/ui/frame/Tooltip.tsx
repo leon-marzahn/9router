@@ -22,7 +22,8 @@ export function RailTooltip({ label, children }: { label: ReactNode; children: R
       onClick={() => setPos(null)}
     >
       {children}
-      {pos && typeof document !== "undefined" &&
+      {pos &&
+        typeof document !== "undefined" &&
         createPortal(
           <div
             role="tooltip"

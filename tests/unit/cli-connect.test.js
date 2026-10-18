@@ -1,5 +1,5 @@
 // `9router connect` — arg parsing, URL/cookie helpers and per-tool config writers.
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vite-plus/test";
 import { createRequire } from "node:module";
 import fs from "node:fs";
 import os from "node:os";

@@ -16,7 +16,15 @@ const ProviderIcon = ProviderIconJs as unknown as ComponentType<{
 }>;
 
 /** Provider logo with text fallback. Prefer `providerId`; pass `src` for custom icons. */
-export function ProviderLogo({ providerId, src, name, size = 22, color, fallbackText, className }: {
+export function ProviderLogo({
+  providerId,
+  src,
+  name,
+  size = 22,
+  color,
+  fallbackText,
+  className,
+}: {
   providerId?: string;
   src?: string | null;
   name: string;

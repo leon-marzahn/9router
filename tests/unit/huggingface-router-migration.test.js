@@ -15,7 +15,7 @@
  *  - every registered public model resolves through a provider the router serves
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import huggingface from "../../open-sse/providers/registry/huggingface.js";
 import imageAdapter from "../../open-sse/handlers/imageProviders/huggingface.js";
 

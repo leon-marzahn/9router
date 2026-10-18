@@ -1,5 +1,5 @@
 // Guards E1: display fields live in providersDisplay.js, merged back into AI_PROVIDERS (shape unchanged).
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 
 const DISPLAY_FIELDS = ["name", "icon", "color"];
 

@@ -1,5 +1,5 @@
 // A3: locks toOpenAIUsage per-provider token math (claude/gemini/kiro/ollama/commandcode).
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import { toOpenAIUsage } from "../../open-sse/translator/concerns/usage.js";
 
 describe("toOpenAIUsage", () => {

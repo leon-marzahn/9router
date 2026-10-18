@@ -4,7 +4,7 @@
 // generated name OVERWROTE an existing key instead of adding a new one.
 // Fix: planBulkAdd gap-fills the smallest free "<base> <n>" against existing
 // names (and earlier entries in the same batch) so a name is never reused.
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import { planBulkAdd } from "../../src/shared/utils/bulkAdd.js";
 
 describe("planBulkAdd: auto-named gap-fill (the replace bug)", () => {

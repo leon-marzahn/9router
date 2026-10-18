@@ -5,7 +5,7 @@
 // The route module pulls in Next.js-only deps (@/lib/localDb, etc.) that don't
 // resolve under raw vitest, so we mock them and exercise the exported function.
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vite-plus/test";
 
 // Mock the heavy Next.js-dependent imports BEFORE importing ping.js.
 vi.mock("@/lib/localDb", () => ({ getApiKeys: vi.fn(async () => [{ key: "test-key", isActive: true }]) }));

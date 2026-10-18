@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vite-plus/test";
 
 // Mock getModelInfo to simulate custom provider prefix resolution
 vi.mock("@/sse/services/model.js", () => ({

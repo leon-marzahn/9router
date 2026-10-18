@@ -18,7 +18,7 @@
 //   - openai-responses: assistant turn WITH reasoning item (Codex-style store=false replay)
 //   - openai: control — known-good (injectReasoningContent covers chat path)
 //   - claude: control — known-broken (handlesThinkingBlocks excludes opencode-go)
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import { getProviderCredentials } from "../../../src/sse/services/auth.js";
 import { checkAndRefreshToken } from "../../../src/sse/services/tokenRefresh.js";
 import { handleChatCore } from "../../../open-sse/handlers/chatCore.js";

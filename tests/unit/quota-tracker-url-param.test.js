@@ -12,12 +12,12 @@
  * a full Next.js setup. We verify the source text instead.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import fs from "fs";
 import path from "path";
 
 const src = fs.readFileSync(
-  path.resolve("../src/app/(dashboard)/dashboard/usage/components/ProviderLimits/index.js"),
+  path.resolve(import.meta.dirname, "../../src/app/(dashboard)/dashboard/usage/components/ProviderLimits/index.js"),
   "utf-8"
 );
 

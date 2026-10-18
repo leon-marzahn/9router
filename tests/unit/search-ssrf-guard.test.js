@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import { resolveBaseUrl } from "../../open-sse/handlers/search/callers.js";
 
 const CONFIG = { id: "searxng", baseUrl: "https://searxng.example.com" };

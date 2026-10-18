@@ -5,7 +5,7 @@
  * exercises checkAndRefreshToken dispatch + fail-open per connection.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vite-plus/test";
 
 const NOW = Date.parse("2026-08-01T12:00:00.000Z");
 

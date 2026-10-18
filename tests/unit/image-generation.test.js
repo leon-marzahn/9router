@@ -9,7 +9,7 @@
  *  - Error handling (missing prompt, invalid model)
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vite-plus/test";
 import { handleImageGenerationCore } from "../../open-sse/handlers/imageGenerationCore.js";
 import { CODEX_CLI_VERSION } from "../../open-sse/config/appConstants.js";
 

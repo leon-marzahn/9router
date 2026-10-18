@@ -1,6 +1,6 @@
 // custom-server.js is the only thing that makes x-9r-real-ip trustworthy. Boot a real
 // HTTP server through it and confirm a client cannot smuggle its own peer headers in.
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vite-plus/test";
 import { createRequire } from "node:module";
 import http from "node:http";
 import { __test__ as requestDetails } from "@/lib/db/repos/requestDetailsRepo.js";

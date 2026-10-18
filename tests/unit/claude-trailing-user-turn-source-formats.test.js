@@ -2,7 +2,7 @@
 // terminal role in their own shape. An explicit trailing model/assistant turn is real
 // prefill and must survive translation to Claude; an emptied trailing user turn must
 // still get the "Continue." restoration.
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import { translateRequest } from "../../open-sse/translator/index.js";
 
 const roles = (body) => body.messages.map((m) => m.role);

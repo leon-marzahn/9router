@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach } from "vite-plus/test";
 import { compressMessages, formatRtkLog } from "../../open-sse/rtk/index.js";
 import { gitDiff } from "../../open-sse/rtk/filters/gitDiff.js";
 import { gitStatus } from "../../open-sse/rtk/filters/gitStatus.js";

@@ -16,7 +16,7 @@
  * See: #3567.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import { anchorClaudeCache } from "../../open-sse/translator/formats/claude.js";
 import { prepareClaudeRequest } from "../../open-sse/translator/formats/claude.js";
 

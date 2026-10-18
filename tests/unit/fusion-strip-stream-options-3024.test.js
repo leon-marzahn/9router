@@ -2,7 +2,7 @@
 // when running non-streaming, or DeepSeek rejects with
 // "stream_options should be set along with stream = true".
 
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi } from "vite-plus/test";
 import { handleFusionChat } from "../../open-sse/services/combo.js";
 
 // Minimal logger stub (combo.js calls log.info/warn).

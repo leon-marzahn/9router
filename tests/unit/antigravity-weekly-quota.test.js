@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vite-plus/test";
 
 // Mock proxyAwareFetch before any imports that use it
 vi.mock("../../open-sse/utils/proxyFetch.js", () => ({

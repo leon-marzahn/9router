@@ -50,7 +50,9 @@ export async function GET(request) {
         clearInterval(keepalive);
         clearTimeout(timer);
         open.count -= 1;
-        try { controller.close(); } catch {}
+        try {
+          controller.close();
+        } catch {}
       };
       request.signal.addEventListener("abort", cleanup);
       write(`retry: 3000\n\n`);

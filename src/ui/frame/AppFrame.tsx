@@ -45,8 +45,19 @@ export function AppFrame({ children }: { children: ReactNode }) {
         <MobileNav open={menuOpen} onClose={() => setMenuOpen(false)} flags={flags} />
         <div className="flex min-w-0 flex-1 flex-col">
           <TopBar onMenu={() => setMenuOpen(true)} />
-          <main className={cn("min-h-0 flex-1", fullBleed ? "flex flex-col overflow-hidden" : "overflow-y-auto")}>
-            {fullBleed ? children : <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-10 lg:py-8">{children}</div>}
+          <main
+            className={cn(
+              "min-h-0 flex-1",
+              fullBleed ? "flex flex-col overflow-hidden" : "overflow-y-auto",
+            )}
+          >
+            {fullBleed ? (
+              children
+            ) : (
+              <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
+                {children}
+              </div>
+            )}
           </main>
         </div>
         <Toasts />

@@ -3,7 +3,13 @@
 import { cn } from "./cn";
 
 /** On/off switch. Stops click propagation so it can sit inside clickable rows. */
-export function Switch({ checked, onChange, label, disabled, className }: {
+export function Switch({
+  checked,
+  onChange,
+  label,
+  disabled,
+  className,
+}: {
   checked: boolean;
   onChange: (next: boolean) => void;
   label: string;
@@ -30,7 +36,12 @@ export function Switch({ checked, onChange, label, disabled, className }: {
         className,
       )}
     >
-      <span className={cn("size-3.5 rounded-full bg-white shadow transition-transform", checked ? "translate-x-[15px]" : "translate-x-0.5")} />
+      <span
+        className={cn(
+          "size-3.5 rounded-full bg-white shadow transition-transform",
+          checked ? "translate-x-[15px]" : "translate-x-0.5",
+        )}
+      />
     </button>
   );
 }

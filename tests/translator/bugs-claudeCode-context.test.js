@@ -1,7 +1,7 @@
 // Real Claude Code CLI requests (Claude format) → non-Claude provider via OpenAI bridge.
 // Focuses on context components a real CLI sends: system arrays w/ cache_control, thinking
 // signatures, tool_result with images, audio. KNOWN BUG = it.fails (source file:line in comments).
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import "./registerAll.js";
 import { translateRequest } from "../../open-sse/translator/index.js";
 import { FORMATS } from "../../open-sse/translator/formats.js";

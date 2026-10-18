@@ -1,4 +1,4 @@
-import { beforeEach, expect, it, vi } from "vitest";
+import { beforeEach, expect, it, vi } from "vite-plus/test";
 
 vi.mock("open-sse/index.js", () => ({}));
 vi.mock("@/lib/localDb", () => ({ getSettings: vi.fn() }));

@@ -1,5 +1,5 @@
 // Guards D3: antigravity 429/503 retry merged into base via computeRetryDelay hook.
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import { AntigravityExecutor } from "../../open-sse/executors/antigravity.js";
 import antigravity from "../../open-sse/providers/registry/antigravity.js";
 

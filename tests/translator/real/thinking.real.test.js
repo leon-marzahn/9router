@@ -6,7 +6,7 @@
 //   RUN_REAL=1 npx vitest run -c tests/vitest.config.js "tests/translator/real/thinking"
 //   RUN_REAL=1 REAL_PROVIDERS=claude,glm,deepseek npx vitest run -c tests/vitest.config.js "tests/translator/real/thinking"
 //
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import { getProviderCredentials } from "../../../src/sse/services/auth.js";
 import { checkAndRefreshToken } from "../../../src/sse/services/tokenRefresh.js";
 import { handleChatCore } from "../../../open-sse/handlers/chatCore.js";

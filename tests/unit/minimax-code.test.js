@@ -2,7 +2,7 @@
 // device flow module, refresh discipline, and quota-error normalization.
 // Protocol reference: docs/minimax-code-proxy-plan.md (reverse-engineered from
 // @magpie-community/opencode-minimax-auth 0.1.1).
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 // ── pure modules (no @/ or db deps) ─────────────────────────────────────────
 import { PROVIDERS, PROVIDER_OAUTH } from "../../open-sse/config/providers.js";

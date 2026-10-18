@@ -13,7 +13,7 @@
 //     is bypassed on master (suffix isn't stripped before the registry lookup) and these get
 //     routed to /messages, which the upstream does not serve for them.
 //   - minimax + (max) + claude — suffix must NOT block a genuinely declared format.
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vite-plus/test";
 
 const { executeMock } = vi.hoisted(() => ({
   executeMock: vi.fn(),

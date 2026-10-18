@@ -14,7 +14,7 @@
  *  - no Authorization/token material in output
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vite-plus/test";
 import http from "node:http";
 import fs from "node:fs";
 import os from "node:os";

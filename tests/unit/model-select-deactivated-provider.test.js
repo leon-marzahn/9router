@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import fs from "node:fs";
 import { getDeactivatedProviderIds } from "@/shared/utils/connectionStatus.js";
 

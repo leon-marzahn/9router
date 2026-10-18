@@ -13,7 +13,7 @@
  * "open-sse/index.js" specifier which vitest here does not resolve — a
  * pre-existing harness gap unrelated to this fix.)
  */
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vite-plus/test";
 
 const originalFetch = global.fetch;
 
