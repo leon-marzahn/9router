@@ -1,5 +1,4 @@
-import test from "node:test";
-import assert from "node:assert/strict";
+import { test, assert } from "vite-plus/test";
 import {
   formatX509Certificate,
   isSamlConfigured,
@@ -13,13 +12,13 @@ test("formatX509Certificate normalizes Base64 strings into PEM blocks", () => {
   const formatted = formatX509Certificate(rawBase64);
   assert.match(formatted, /-----BEGIN CERTIFICATE-----/);
   assert.match(formatted, /-----END CERTIFICATE-----/);
-  assert.equal(formatX509Certificate(""), "");
+  assert.strictEqual(formatX509Certificate(""), "");
 });
 
 test("isSamlConfigured checks required fields", () => {
-  assert.equal(isSamlConfigured({ samlEntryPoint: "https://idp.com/sso", samlCert: "cert" }), true);
-  assert.equal(isSamlConfigured({ samlEntryPoint: "https://idp.com/sso" }), false);
-  assert.equal(isSamlConfigured({}), false);
+  assert.strictEqual(isSamlConfigured({ samlEntryPoint: "https://idp.com/sso", samlCert: "cert" }), true);
+  assert.strictEqual(isSamlConfigured({ samlEntryPoint: "https://idp.com/sso" }), false);
+  assert.strictEqual(isSamlConfigured({}), false);
 });
 
 test("generateSamlMetadata produces valid SP XML", () => {
@@ -35,6 +34,6 @@ test("generateSamlMetadata produces valid SP XML", () => {
 
 test("Claims Extraction pickSamlEmail & pickSamlDisplayName", () => {
   const profile = { email: "test@example.com", name: "Test User" };
-  assert.equal(pickSamlEmail(profile, {}), "test@example.com");
-  assert.equal(pickSamlDisplayName(profile, {}), "Test User");
+  assert.strictEqual(pickSamlEmail(profile, {}), "test@example.com");
+  assert.strictEqual(pickSamlDisplayName(profile, {}), "Test User");
 });
