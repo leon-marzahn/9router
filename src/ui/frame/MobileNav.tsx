@@ -3,11 +3,10 @@
 import { Logo } from "../Logo";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
 import { useTheme } from "@/shared/hooks/useTheme";
 import { Icon } from "../Icon";
 import { cn } from "../cn";
-import { MEDIA_ITEMS, MEDIA_ROOT, NAV, SETTINGS_HREF, isActive } from "./nav";
+import { NAV, SETTINGS_HREF, isActive } from "./nav";
 import { logout } from "./useFrameData";
 
 /** Full-label navigation drawer for small screens (below md). */
@@ -22,24 +21,17 @@ export function MobileNav({
 }) {
   const pathname = usePathname() ?? "";
   const { isDark, toggleTheme } = useTheme() as { isDark: boolean; toggleTheme: () => void };
-  const [mediaOpen, setMediaOpen] = useState(() => pathname.startsWith(MEDIA_ROOT));
-  const link = (href: string, label: string, icon: string, active: boolean, nested = false) => (
+  const link = (href: string, label: string, icon: string, active: boolean) => (
     <Link
       key={href}
       href={href}
       onClick={onClose}
       className={cn(
         "flex items-center gap-3 rounded-lg px-3 py-2.5 text-[14px]",
-        nested && "ml-4 py-2 text-[13px]",
         active ? "bg-bg font-medium text-text" : "text-text-muted hover:bg-bg/60 hover:text-text",
       )}
     >
-      <Icon
-        name={icon}
-        size={nested ? 18 : 20}
-        filled={active}
-        className={active ? "text-accent" : undefined}
-      />
+      <Icon name={icon} size={20} filled={active} className={active ? "text-accent" : undefined} />
       {label}
     </Link>
   );
@@ -82,41 +74,7 @@ export function MobileNav({
             </div>
             {g.items
               .filter((i) => !i.flag || flags[i.flag])
-              .flatMap((i) =>
-                i.href === MEDIA_ROOT
-                  ? [
-                      <button
-                        key={i.href}
-                        type="button"
-                        onClick={() => setMediaOpen(!mediaOpen)}
-                        aria-expanded={mediaOpen}
-                        className={cn(
-                          "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-[14px] hover:bg-bg/60",
-                          pathname.startsWith(MEDIA_ROOT)
-                            ? "font-medium text-text"
-                            : "text-text-muted",
-                        )}
-                      >
-                        <Icon
-                          name={i.icon}
-                          size={20}
-                          className={pathname.startsWith(MEDIA_ROOT) ? "text-accent" : undefined}
-                        />
-                        {i.label}
-                        <Icon
-                          name="expand_more"
-                          size={18}
-                          className={cn("ml-auto transition-transform", mediaOpen && "rotate-180")}
-                        />
-                      </button>,
-                      ...(mediaOpen
-                        ? MEDIA_ITEMS.map((m) =>
-                            link(m.href, m.label, m.icon, pathname.startsWith(m.href), true),
-                          )
-                        : []),
-                    ]
-                  : [link(i.href, i.label, i.icon, isActive(pathname, i.href))],
-              )}
+              .map((i) => link(i.href, i.label, i.icon, isActive(pathname, i.href)))}
           </div>
         ))}
         <div className="mt-auto space-y-0.5 border-t border-border pt-3">

@@ -126,6 +126,7 @@ export default defineConfig({
       "!/src/app/(dashboard)/dashboard/combos",
       "/src/app/(dashboard)/dashboard/combos/*",
       "!/src/app/(dashboard)/dashboard/combos/workbench",
+      "!/src/app/(dashboard)/dashboard/media-providers",
       "!/src/app/(dashboard)/dashboard/quota",
       "/src/app/(dashboard)/dashboard/quota/*",
       "!/src/app/(dashboard)/dashboard/quota/page.tsx",
