@@ -2,6 +2,7 @@
 
 import { NextResponse } from "next/server";
 import { configWriter } from "../configFile.js";
+import { RESET_ENV_KEYS } from "./claudeEnv.js";
 import { resolveCliApiKey } from "../resolveApiKey.js";
 import { exec } from "child_process";
 import { promisify } from "util";
@@ -211,16 +212,6 @@ export async function POST(request) {
   }
 }
 
-// Fields to remove when resetting
-const RESET_ENV_KEYS = [
-  "ANTHROPIC_BASE_URL",
-  "ANTHROPIC_AUTH_TOKEN",
-  "ANTHROPIC_DEFAULT_OPUS_MODEL",
-  "ANTHROPIC_DEFAULT_SONNET_MODEL",
-  "ANTHROPIC_DEFAULT_HAIKU_MODEL",
-  "API_TIMEOUT_MS",
-  "CLAUDE_CODE_AUTO_COMPACT_WINDOW",
-];
 
 // DELETE - Reset settings (remove env fields)
 export async function DELETE() {
