@@ -1,12 +1,21 @@
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite-plus";
 
 const r = (p: string) => fileURLToPath(new URL(p, import.meta.url));
 
+// Tests must never touch the real ~/.9router (DB, usage, logs). Each run gets a
+// throwaway home: DATA_DIR for the DB layer, HOME/APPDATA for modules that
+// resolve ~/.9router (or ~/.codex etc.) via os.homedir() directly.
+const testHome = mkdtempSync(join(tmpdir(), "9router-test-"));
+
 export default defineConfig({
   // Unit tests live in tests/ (ESM via tests/package.json "type": "module").
   test: {
     dir: "tests",
+    env: { DATA_DIR: join(testHome, ".9router"), HOME: testHome, USERPROFILE: testHome, APPDATA: testHome },
     environment: "node",
     globals: true,
     include: ["**/*.test.js"],

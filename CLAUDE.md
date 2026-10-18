@@ -39,6 +39,7 @@ vp install                              # root deps (tests import from src/ and 
 vp test                                 # all tests, run from the repo root
 vp test run tests/unit/capabilities.test.js   # single file
 ```
+> Test runs are isolated from your real data: `vite.config.ts` points `DATA_DIR`, `HOME`, `USERPROFILE` and `APPDATA` at a fresh temp dir per run, so nothing reaches `~/.9router`.
 > `tests/package.json` only exists for `"type": "module"`; it has no deps of its own. Tests run with the repo root as cwd — resolve file paths with `import.meta.dirname`, not `path.resolve("../…")`.
 >
 > **The suite is NOT expected to be all-green on a plain checkout.** ~3780 pass, ~50 fail. Judge regressions by diffing failing test names against the base branch (`tests/__baseline__/verify-no-regression.mjs` assumes Docker `/app/` paths and misreports locally). Expected red:
