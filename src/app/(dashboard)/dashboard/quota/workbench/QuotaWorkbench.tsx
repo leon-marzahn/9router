@@ -107,12 +107,15 @@ export function QuotaWorkbench({
     const next = params.toString();
     router.replace(next ? `/dashboard/quota?${next}` : "/dashboard/quota", { scroll: false });
   };
-  const setSel = (next: Sel) =>
+  const setSel = (next: Sel) => {
+    // The hovered row may unmount on navigation without a mouseleave; clear it.
+    setHover(null);
     update((p) => {
       p.delete("provider");
       p.delete("account");
       if (next) p.set(next.kind === "provider" ? "provider" : "account", next.id);
     });
+  };
   const setSpan = (next: Span) =>
     update((p) => {
       if (next === 24) p.delete("range");
@@ -168,7 +171,13 @@ export function QuotaWorkbench({
     });
 
   return (
-    <div className="flex h-full min-h-0">
+    <div className="flex h-full min-h-0 flex-col md:flex-row">
+      {/* Small screens: one pane at a time. The switch sits above both panes so it never moves. */}
+      {!sel && (
+        <div className="shrink-0 border-b border-border bg-pane px-3 py-2 md:hidden">
+          <MobileSwitch value={mobileView} onChange={setMobileView} />
+        </div>
+      )}
       <TopBarActions>
         <BulkMenu accounts={accounts} actions={actions} />
         <RefreshAll onRefresh={onRefreshAll} />
@@ -176,12 +185,11 @@ export function QuotaWorkbench({
 
       <aside
         className={cn(
-          "flex w-full shrink-0 flex-col border-r border-border bg-pane md:w-[360px]",
+          "flex min-h-0 w-full flex-1 flex-col border-r border-border bg-pane md:w-[360px] md:flex-none",
           (sel || mobileView === "overview") && "hidden md:flex",
         )}
       >
         <div className="space-y-2 p-3">
-          <MobileSwitch value="accounts" onChange={setMobileView} />
           <SearchInput
             placeholder="Search accounts or providers"
             value={q}
@@ -274,7 +282,7 @@ export function QuotaWorkbench({
 
       <section
         className={cn(
-          "min-w-0 flex-1 overflow-y-auto",
+          "min-h-0 min-w-0 flex-1 overflow-y-auto",
           !sel && mobileView !== "overview" && "hidden md:block",
         )}
       >
@@ -294,9 +302,7 @@ export function QuotaWorkbench({
               <Icon name="arrow_back" size={16} />
               {selAccount ? providerName(selAccount.provider) : "All accounts"}
             </button>
-          ) : (
-            <MobileSwitch value="overview" onChange={setMobileView} />
-          )}
+          ) : null}
           {selAccount ? (
             <AccountDetail
               a={selAccount}
@@ -863,14 +869,22 @@ function BulkMenu({ accounts, actions }: { accounts: QuotaAccount[]; actions: Ac
         <BulkItem
           icon="pause_circle"
           title="Pause exhausted accounts"
-          hint={`Stop routing to accounts with ${EXHAUSTED}% or less left until you resume them.`}
+          hint={
+            depleted.length
+              ? `Stop routing to accounts with ${EXHAUSTED}% or less left until you resume them.`
+              : "No active account is out of quota right now."
+          }
           count={depleted.length}
           onClick={() => (setOpen(false), setConfirm("off"))}
         />
         <BulkItem
           icon="play_circle"
           title="Resume refilled accounts"
-          hint="Route to turned-off accounts again once they have quota left."
+          hint={
+            refilled.length
+              ? "Route to turned-off accounts again now that they have quota left."
+              : "No turned-off account has quota left right now."
+          }
           count={refilled.length}
           onClick={() => (setOpen(false), setConfirm("on"))}
         />
@@ -880,19 +894,15 @@ function BulkMenu({ accounts, actions }: { accounts: QuotaAccount[]; actions: Ac
         onClose={() => setConfirm(null)}
         loading={busy}
         variant={confirm === "off" ? "danger" : "primary"}
-        title={
-          confirm === "off" ? "Stop routing to exhausted accounts?" : "Resume accounts with quota?"
-        }
+        confirmIcon={confirm === "off" ? "pause" : "play_arrow"}
+        title={confirm === "off" ? "Pause exhausted accounts?" : "Resume refilled accounts?"}
         message={
-          target.length
-            ? `${target.map((a) => a.label).join(", ")} ${confirm === "off" ? "will stop receiving requests until you turn them back on." : "will receive requests again."}`
-            : confirm === "off"
-              ? "No active account is out of quota right now."
-              : "No turned-off account has quota left right now."
+          confirm === "off"
+            ? `${plural(target.length)} will stop receiving requests until you resume them: ${target.map((a) => a.label).join(", ")}.`
+            : `${plural(target.length)} will receive requests again: ${target.map((a) => a.label).join(", ")}.`
         }
-        confirmText={confirm === "off" ? `Pause ${target.length}` : `Resume ${target.length}`}
+        confirmText={confirm === "off" ? "Pause accounts" : "Resume accounts"}
         onConfirm={async () => {
-          if (!target.length) return setConfirm(null);
           setBusy(true);
           try {
             await actions.setActive(
@@ -948,6 +958,9 @@ function CapacitySkeleton() {
   );
 }
 
+const plural = (n: number) => (n === 1 ? "1 account" : `${n} accounts`);
+
+/** Disabled (with the reason as its hint) when no account applies. */
 function BulkItem({
   icon,
   title,
@@ -965,7 +978,8 @@ function BulkItem({
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full items-start gap-2.5 px-3 py-2 text-left hover:bg-surface-2"
+      disabled={count === 0}
+      className="flex w-full items-start gap-2.5 px-3 py-2 text-left hover:bg-surface-2 disabled:cursor-default disabled:opacity-55 disabled:hover:bg-transparent"
     >
       <Icon name={icon} size={18} className="mt-px text-text-muted" />
       <span className="min-w-0 flex-1">
