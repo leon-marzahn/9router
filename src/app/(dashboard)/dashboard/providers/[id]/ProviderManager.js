@@ -70,6 +70,7 @@ export default function ProviderManager({ providerId, embedded = false, liveVers
   const [modelsTestError, setModelsTestError] = useState("");
   const [testingModelIds, setTestingModelIds] = useState(() => new Set());
   const [showAddCustomModel, setShowAddCustomModel] = useState(false);
+  const [editingCustomModel, setEditingCustomModel] = useState(null);
   const [selectedConnectionIds, setSelectedConnectionIds] = useState([]);
   const [bulkProxyPoolId, setBulkProxyPoolId] = useState("__none__");
   const [bulkUpdatingProxy, setBulkUpdatingProxy] = useState(false);
@@ -591,6 +592,27 @@ export default function ProviderManager({ providerId, embedded = false, liveVers
       }
     } catch (error) {
       console.log("Error adding custom model:", error);
+    }
+  };
+
+  const closeCustomModelDialog = () => { setShowAddCustomModel(false); setEditingCustomModel(null); };
+
+  const handleUpdateCustomModel = async (modelId, type, caps, transport) => {
+    try {
+      const res = await fetch("/api/models/custom", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ providerAlias: providerStorageAlias, id: modelId, type, caps, transport }),
+      });
+      if (res.ok) {
+        await fetchCustomModels();
+        if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("customModelChanged"));
+      } else {
+        const data = await res.json();
+        alert(data.error || "Failed to update custom model");
+      }
+    } catch (error) {
+      console.log("Error updating custom model:", error);
     }
   };
 
@@ -1224,6 +1246,7 @@ export default function ProviderManager({ providerId, embedded = false, liveVers
             copied={copied}
             onCopy={copy}
             onSetAlias={() => {}}
+            onEdit={model.source === "custom" ? () => setEditingCustomModel(customModels.find((entry) => entry.providerAlias === providerStorageAlias && entry.id === model.id && (entry.kind || entry.type || "llm") === model.type)) : undefined}
             onDeleteAlias={() => {
               if (model.source === "custom") {
                 handleDeleteCustomModel(model.id, "llm", providerStorageAlias);
@@ -1765,16 +1788,21 @@ export default function ProviderManager({ providerId, embedded = false, liveVers
       )}
       {!isCompatible && (
         <AddCustomModelModal
-          isOpen={showAddCustomModel}
+          isOpen={showAddCustomModel || !!editingCustomModel}
           providerAlias={providerStorageAlias}
           providerDisplayAlias={providerDisplayAlias}
+          model={editingCustomModel}
           onSave={async (modelId, caps, transport) => {
-            // caps.stt is a UI-only flag; the API accepts transports only on
-            // type "stt" records, so the save derives the type from it.
-            await handleAddCustomModel(modelId, caps?.stt ? "stt" : "llm", providerStorageAlias, caps, transport);
-            setShowAddCustomModel(false);
+            if (editingCustomModel) {
+              await handleUpdateCustomModel(modelId, editingCustomModel.kind || editingCustomModel.type || "llm", caps, transport);
+            } else {
+              // caps.stt is a UI-only flag; the API accepts transports only on
+              // type "stt" records, so the save derives the type from it.
+              await handleAddCustomModel(modelId, caps?.stt ? "stt" : "llm", providerStorageAlias, caps, transport);
+            }
+            closeCustomModelDialog();
           }}
-          onClose={() => setShowAddCustomModel(false)}
+          onClose={closeCustomModelDialog}
         />
       )}
 

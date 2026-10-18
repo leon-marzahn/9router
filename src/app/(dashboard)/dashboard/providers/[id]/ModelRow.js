@@ -2,7 +2,7 @@ import PropTypes from "prop-types";
 import { CapacityBadges } from "@/shared/components";
 import { IconButton, StatusDot, Tag } from "@/ui";
 
-export default function ModelRow({ model, fullModel, alias, copied, onCopy, testStatus, isCustom, isFree, onDeleteAlias, onTest, isTesting, onDisable, caps, thinkingSuffix }) {
+export default function ModelRow({ model, fullModel, alias, copied, onCopy, testStatus, isCustom, isFree, onDeleteAlias, onEdit, onTest, isTesting, onDisable, caps, thinkingSuffix }) {
   const displayModel = thinkingSuffix ? `${fullModel}(${thinkingSuffix})` : fullModel;
   const status = testStatus === "ok" ? "ok" : testStatus === "error" ? "error" : isTesting ? "pending" : "none";
   const copyKey = `model-${model.id}`;
@@ -40,6 +40,7 @@ export default function ModelRow({ model, fullModel, alias, copied, onCopy, test
           onClick={() => onCopy(displayModel, copyKey)}
           className={copied === copyKey ? "text-success-text" : undefined}
         />
+        {isCustom && onEdit && <IconButton icon="edit" label="Edit custom model" onClick={onEdit} />}
         {isCustom ? (
           <IconButton icon="close" label="Remove custom model" onClick={onDeleteAlias} className="hover:bg-danger-soft hover:text-danger-text" />
         ) : onDisable ? (
@@ -62,6 +63,7 @@ ModelRow.propTypes = {
   isCustom: PropTypes.bool,
   isFree: PropTypes.bool,
   onDeleteAlias: PropTypes.func,
+  onEdit: PropTypes.func,
   onTest: PropTypes.func,
   isTesting: PropTypes.bool,
   onDisable: PropTypes.func,

@@ -7,7 +7,10 @@ import { CAPACITY_META, STT_TRANSPORT_META, STT_TRANSPORTS } from "@/shared/cons
 
 const defaultCaps = () => Object.fromEntries(Object.keys(CAPACITY_META).map((key) => [key, false]));
 
-export default function AddCustomModelModal({ isOpen, providerAlias, providerDisplayAlias, onSave, onClose }) {
+// `model` (a stored custom model record) switches the dialog to edit mode: the id
+// and STT type are the record's key so they stay locked; caps/transport are editable.
+export default function AddCustomModelModal({ isOpen, providerAlias, providerDisplayAlias, model, onSave, onClose }) {
+  const isEdit = !!model;
   const [modelId, setModelId] = useState("");
   const [caps, setCaps] = useState(defaultCaps);
   const [testStatus, setTestStatus] = useState(null); // null | "testing" | "ok" | "error"
@@ -18,8 +21,13 @@ export default function AddCustomModelModal({ isOpen, providerAlias, providerDis
 
   // Reset state when modal opens
   useEffect(() => {
-    if (isOpen) { setModelId(""); setCaps(defaultCaps()); setTransport(""); setTestStatus(null); setTestError(""); }
-  }, [isOpen]);
+    if (!isOpen) return;
+    setModelId(model?.id || "");
+    setCaps({ ...defaultCaps(), ...(model?.caps || {}), ...(model && (model.kind || model.type) === "stt" ? { stt: true } : {}) });
+    setTransport(model?.transport || "");
+    setTestStatus(null);
+    setTestError("");
+  }, [isOpen, model]);
 
   // Strip provider's own alias prefix (e.g. "cc/model" -> "model" for cc provider)
   const stripAlias = (id) => {
@@ -65,7 +73,7 @@ export default function AddCustomModelModal({ isOpen, providerAlias, providerDis
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Add Custom Model">
+    <Modal isOpen={isOpen} onClose={onClose} title={isEdit ? "Edit Custom Model" : "Add Custom Model"}>
       <div className="flex flex-col gap-4">
         <div>
           <label className="text-sm font-medium mb-1.5 block">Model ID</label>
@@ -77,7 +85,8 @@ export default function AddCustomModelModal({ isOpen, providerAlias, providerDis
               onKeyDown={handleKeyDown}
               placeholder="e.g. claude-opus-4-5"
               className="min-w-0 flex-1 px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:border-primary"
-              autoFocus
+              readOnly={isEdit}
+              autoFocus={!isEdit}
             />
             <Button
               variant="secondary"
@@ -121,6 +130,7 @@ export default function AddCustomModelModal({ isOpen, providerAlias, providerDis
             label="Speech to text"
             description="Transcribes audio via /v1/audio/transcriptions"
             size="sm"
+            disabled={isEdit}
           />
           {caps.stt && (
             <div className="mt-3">
@@ -158,7 +168,7 @@ export default function AddCustomModelModal({ isOpen, providerAlias, providerDis
             className="min-w-0 flex-1"
             disabled={!modelId.trim() || saving}
           >
-            {saving ? "Adding..." : "Add Model"}
+            {saving ? (isEdit ? "Saving..." : "Adding...") : (isEdit ? "Save" : "Add Model")}
           </Button>
         </div>
       </div>
@@ -170,6 +180,7 @@ AddCustomModelModal.propTypes = {
   isOpen: PropTypes.bool.isRequired,
   providerAlias: PropTypes.string.isRequired,
   providerDisplayAlias: PropTypes.string.isRequired,
+  model: PropTypes.object,
   onSave: PropTypes.func.isRequired,
   onClose: PropTypes.func.isRequired,
 };
