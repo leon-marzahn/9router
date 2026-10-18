@@ -45,6 +45,9 @@ export default defineConfig({
     ignorePatterns: [
       "/*",
       "!/vite.config.ts",
+      "!/scripts",
+      "/scripts/*",
+      "!/scripts/release.mjs",
       "!/src",
       "/src/*",
       "!/src/ui",
