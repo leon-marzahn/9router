@@ -89,17 +89,66 @@ Sort problem-first with `STATUS_ORDER`. Show it with `StatusDot` / `StatusLabel`
 
 ## Patterns
 
+Each pattern below names its canonical form. Where a page does something else, it's a known divergence, tracked in the design-audit follow-ups; don't copy it.
+
+### Page layout
+- **Workbench pages** (list → detail) are full-bleed: add the route to `isFullBleed` in `nav.ts` and own both panes.
+- **Single-pane pages** sit in the padded frame with `mx-auto` and one of two widths: `max-w-3xl` for settings-style forms (Settings, Token Saver, Skills) and `max-w-7xl` for dashboards and tools (Usage, Console Log, Translator, Endpoint).
+- **Page header** for single-pane pages: `h1` `font-display text-3xl tracking-tight`, then `p mt-1 text-sm text-text-muted` with one sentence. Workbench pages skip it; their title is the TopBar.
+- Page-wide actions (Clear, Copy all, Health check) go in `TopBarActions`; live/connection state goes in `TopBarContent` as `<StatusDot live />` + "Live" / "Reconnecting".
+
 ### Workbench (list → detail)
-Fixed-width list pane (`w-[330px]`, `bg-pane`) with `SearchInput` + `Segmented` scope, `ListGroup`s ("Needs attention" first, `tone="danger"`), `ListRow`s. Detail pane scrolls independently. With nothing selected, the detail pane shows the page's **overview** (`StatGrid` + attention cards + live cards). Esc returns to it.
+- **List pane:** `md:w-[330px] shrink-0 border-r border-border bg-pane`, full width below `md`.
+- **List header:** `SearchInput` (shortcut `/`), then an optional `Segmented` scope (e.g. In use / All, All / Needs attention). A "New" action is a `Button size="sm"` beside the search.
+- **List body:** `ListGroup`s, with "Needs attention" first and `tone="danger"`, holding `ListRow`s. Don't hand-roll row buttons or uppercase group headers: `ListRow` already gives the selected fill/ring and the live flash. A dashed "Add …" row at the end of a group is fine.
+- **Loading:** `ListSkeleton` from `src/ui`.
+- **Keyboard:** ↑/↓ and j/k move the selection, `/` focuses search, Esc clears the selection and returns to the overview.
+- **Mobile (< md):** list *or* detail, never stacked. When something is selected the list gets `hidden md:flex`, and the detail starts with a ghost back button: `← All <things>`, 13px with a 16px `arrow_back` icon, at `px-4 pt-4`.
+- **Detail header:** a logo tile (`ProviderLogo`, 56px) or icon, the name in `font-display text-3xl` (mono only for ids users type, e.g. combo names, at the same size), and a meta row (`StatusLabel`, kind, `Tag`s, mono id). Controls (routing `Switch`, `IconButton`s, More `Popover`) sit on the right. Headers scroll with the content; none are sticky.
+- **Nothing selected:** the page's **Overview** (below). If a page has no overview yet, show `EmptyState`, not a custom icon + sentence block.
+
+### Kind switch
+- Use `Segmented` when the options fit in one row (≤ 5 short labels).
+- Media Providers' `KindSwitch` (a 3-column grid of radio tiles, for 10 kinds) is the sanctioned exception for many kinds; it sits above the search in the list header.
+- Never build tab bars from `Panel` + buttons (Translator's step picker is a known divergence).
 
 ### Overview
-`font-display` headline + one-sentence summary ("**10 providers** and **39 healthy accounts** in rotation · 2 need attention"), then `StatGrid`, then "Needs attention" (danger-tinted panels with *Re-test* / *Inspect*), then everything healthy.
+`font-display` headline + one-sentence summary ("**10 providers** and **39 healthy accounts** in rotation · 2 need attention"), then `StatGrid`, then "Needs attention" (danger-tinted panels with *Re-test* / *Inspect*), then everything healthy. Pages whose overview is a different kind of thing keep the headline + summary and swap the body: Quota (reset timeline + capacity cards), Request Pipelines (an "applies to" routing table).
+
+### Sections
+- Inside a page, group content as `SettingsSection` (an `h2` `font-display text-xl` with an icon, over a `Panel divide-y px-5`) when the section is a list of rows.
+- Use `SectionTitle` above free-form `Panel`s.
+- Don't add a third heading style.
+
+### Settings rows
+`SettingRow` (title, hint, control on the right; `stack` puts the control below), with `SettingRowSkeleton` while loading and `Note` (success/warning/danger with an icon) for the result of an action. Used by Settings and Token Saver.
+
+### Status chips
+- Health goes through `StatusDot` / `StatusLabel` with a `Status` value; don't keep a local `DOT` map of color classes.
+- `Tag` is for facts (kind, apiType, error codes, counts); use `tone` only for status meaning.
+
+### Copy
+- `CopyButton` (an icon that turns into a check for 1.2s) is the only copy control. Put it after the value it copies; the value goes in `font-mono`.
+- For a copyable command or URL line: `flex items-center gap-1 rounded-lg bg-bg-alt px-3 py-1.5 font-mono text-[12px]` with the value, then a `CopyButton`.
+
+### Code blocks
+`<pre>` in a `Panel overflow-hidden`, with an optional header strip (`border-b px-4 py-1.5 text-[12px] text-text-muted`: language on the left, `CopyButton` on the right), and a body of `overflow-x-auto p-4 font-mono text-[12px] leading-relaxed`. Sunken code inside a panel uses `bg-bg-alt`, not `bg-surface-2`.
+
+### Drawers & dialogs
+- **Drawer:** Usage's `RequestDrawer` is the reference: a right-side `aside role="dialog"`, `top-12` under the TopBar, `w-[min(560px,100vw)] border-l shadow-elev`, full-screen below `md`. Its header has prev (k) / next (j) / close (Esc) `IconButton`s.
+- **Dialogs:** there's no `src/ui` dialog yet. Pages still use the legacy `Modal` / `ConfirmModal` / `ModelSelectModal` from `@/shared/components`. Use those rather than building a new overlay; the scrim is `bg-black/50` until a token exists.
 
 ### Forms
-`Field` + `Input`/`Segmented`. Primary action left-most, `variant="primary"`; a secondary "Test first" where an action can be verified. Inline in the detail pane rather than in modals where possible.
+- `Field` + `Input`/`Segmented`. Inline in the detail pane rather than in modals where possible.
+- The primary action goes left-most, `variant="primary"`. Add a secondary "Test first" where an action can be verified.
+- Button icons render **after** the label whatever prop you pass (`icon` or `trailingIcon`).
 
 ### Empty states
-`EmptyState` with an icon, one sentence that says what to do, and the action.
+- `EmptyState` with an icon, one sentence that says what to do, and the action.
+- An empty *filtered list* may be a single muted line (`px-2.5 py-6 text-center text-[12px] text-text-muted`).
+
+### Type sizes in practice
+Use the scale from *Type* above: 13px base, `text-xs`, and 11px meta. The `text-[11px]` / `text-[12px]` / `text-[13px]` literals are accepted spellings of it. Other one-off pixel values (`mt-[22px]`, `h-[19px]`) are not: align with flex/grid instead.
 
 ## Live data
 
@@ -112,6 +161,6 @@ Fixed-width list pane (`w-[330px]`, `bg-pane`) with `SearchInput` + `Segmented` 
 
 ## Components (`src/ui/index.ts`)
 
-`Button` / `IconButton` (primary · secondary · ghost · inverse · danger), `Switch`, `Field` / `Input` / `SearchInput` / `Kbd`, `Segmented`, `StatusDot` / `StatusLabel`, `Tag`, `Panel` / `SectionTitle` / `Eyebrow` / `EmptyState`, `StatGrid` / `InlineStat`, `ListRow` / `ListGroup`, `Popover` / `MenuItem`, `ProviderLogo`, `LiveNumber`, `useFlashOnChange`, `cn` (tailwind-merge).
+`Button` / `IconButton` (primary · secondary · ghost · inverse · danger), `Switch`, `Field` / `Input` / `SearchInput` / `Kbd`, `Segmented`, `StatusDot` / `StatusLabel`, `Tag`, `Panel` / `SectionTitle` / `Eyebrow` / `EmptyState`, `SettingsSection` / `SettingRow` / `SettingRowSkeleton` / `Note`, `StatGrid` / `InlineStat`, `ListRow` / `ListGroup`, `Skeleton` / `ListSkeleton`, `CopyButton`, `Popover` / `MenuItem`, `ProviderLogo`, `LiveNumber`, `useFlashOnChange`, `cn` (tailwind-merge).
 
 Rules: icon-only buttons always get a `label`; switches always get a `label`; don't nest panels; one primary button per view.

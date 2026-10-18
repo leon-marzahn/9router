@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { IconButton, Panel, Switch, Tag } from "@/ui";
+import { CopyButton, IconButton, Panel, Switch, Tag } from "@/ui";
 import { cn } from "@/ui/cn";
 import { ModelSelectModal } from "@/shared/components";
 import type { ApiKey, KeyAccess } from "./useEndpoint";
@@ -9,21 +9,6 @@ import type { ApiKey, KeyAccess } from "./useEndpoint";
 const ModelPicker = ModelSelectModal as unknown as React.ComponentType<Record<string, unknown>>;
 
 const mask = (k: string) => (k.length <= 10 ? k : `${k.slice(0, 6)}••••••••${k.slice(-4)}`);
-
-export function CopyButton({ value, label }: { value: string; label: string }) {
-  const [done, setDone] = useState(false);
-  return (
-    <IconButton
-      icon={done ? "check" : "content_copy"}
-      label={label}
-      onClick={() => {
-        void navigator.clipboard?.writeText(value);
-        setDone(true);
-        setTimeout(() => setDone(false), 1200);
-      }}
-    />
-  );
-}
 
 /** One API key: name, masked value, on/off, and which combos/models it may call. */
 export function KeyCard({

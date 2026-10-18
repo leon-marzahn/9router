@@ -18,6 +18,7 @@ import {
   TopBarContent,
   needsAttention,
   cn,
+  ListSkeleton,
 } from "@/ui";
 import { KIND_LABEL, cooldownsOf, versionOf, type ProviderEntry } from "../model";
 import { useProviders } from "../useProviders";
@@ -373,18 +374,3 @@ function ProviderRow({
   );
 }
 
-function ListSkeleton() {
-  return (
-    <div className="space-y-1 pt-2">
-      {Array.from({ length: 8 }, (_, i) => (
-        <div key={i} className="flex items-center gap-3 px-2.5 py-2">
-          <div className="size-[22px] animate-pulse rounded-md bg-surface-2" />
-          <div className="flex-1 space-y-1.5">
-            <div className="h-3 w-32 animate-pulse rounded bg-surface-2" />
-            <div className="h-2.5 w-20 animate-pulse rounded bg-surface-2" />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}

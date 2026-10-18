@@ -3,7 +3,7 @@
 import { useRef, useState, useSyncExternalStore } from "react";
 import { Button, Field, IconButton, Input, Segmented } from "@/ui";
 import { inputClass } from "@/ui";
-import { Note, Row, RowSkeleton, SectionCard } from "./parts";
+import { Note, SettingRow, SettingRowSkeleton, SettingsSection } from "@/ui";
 import { notify, type Settings, type SettingsApi } from "./useSettings";
 
 type Mode = "password" | "both" | "sso";
@@ -51,13 +51,13 @@ function parseIdpMetadata(xml: string) {
 export function Sso({ api }: { api: SettingsApi }) {
   const s = api.settings;
   return (
-    <SectionCard id="sso" icon="badge" title="Single sign-on">
+    <SettingsSection id="sso" icon="badge" title="Single sign-on">
       {!s ? (
-        <RowSkeleton />
+        <SettingRowSkeleton />
       ) : (
         <SsoForm key={String(s.ssoType) + String(s.authMode)} s={s} api={api} />
       )}
-    </SectionCard>
+    </SettingsSection>
   );
 }
 
@@ -167,7 +167,7 @@ function SsoForm({ s, api }: { s: Settings; api: SettingsApi }) {
 
   return (
     <>
-      <Row
+      <SettingRow
         title="How people sign in"
         hint={
           mode === "password"
@@ -186,8 +186,8 @@ function SsoForm({ s, api }: { s: Settings; api: SettingsApi }) {
             { value: "sso", label: "SSO only" },
           ]}
         />
-      </Row>
-      <Row
+      </SettingRow>
+      <SettingRow
         title="Provider type"
         hint="OpenID Connect for Google, Microsoft, Authentik and most others. SAML for enterprise setups like Okta or AWS IAM Identity Center."
       >
@@ -202,10 +202,10 @@ function SsoForm({ s, api }: { s: Settings; api: SettingsApi }) {
             { value: "saml", label: "SAML" },
           ]}
         />
-      </Row>
+      </SettingRow>
 
       {kind === "oidc" ? (
-        <Row
+        <SettingRow
           stack
           title="OpenID Connect"
           hint="Register an app with your provider using the redirect URL below."
@@ -252,9 +252,9 @@ function SsoForm({ s, api }: { s: Settings; api: SettingsApi }) {
               </Field>
             </div>
           </div>
-        </Row>
+        </SettingRow>
       ) : (
-        <Row
+        <SettingRow
           stack
           title="SAML"
           hint="Give your identity provider these two values, then paste its login URL and certificate, or load its metadata file."
@@ -345,7 +345,7 @@ function SsoForm({ s, api }: { s: Settings; api: SettingsApi }) {
               </Field>
             </div>
           </div>
-        </Row>
+        </SettingRow>
       )}
 
       <div className="flex flex-wrap items-center gap-2 py-4">

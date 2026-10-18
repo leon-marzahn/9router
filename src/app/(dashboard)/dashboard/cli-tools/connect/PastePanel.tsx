@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Button, Field, IconButton, Panel } from "@/ui";
+import { Button, CopyButton, Field, Panel } from "@/ui";
 import { ModelSelectModal } from "@/shared/components";
 import { CLI_TOOLS } from "@/shared/constants/cliTools.js";
 import { withV1 } from "./specs";
@@ -24,10 +24,6 @@ interface GuideTool {
   notes?: (string | { text: string })[];
   guideSteps?: Step[];
   codeBlock?: { language?: string; code: string };
-}
-
-function Copy({ value }: { value: string }) {
-  return <IconButton icon="content_copy" label="Copy" onClick={() => void navigator.clipboard?.writeText(value)} />;
 }
 
 /** Tools regent can't configure itself: pick endpoint, key and model, get the exact values to paste. */
@@ -95,7 +91,7 @@ export function PastePanel({ toolId }: { toolId: string }) {
             <div key={k} className="contents">
               <dt className="text-text-muted">{k}</dt>
               <dd className="break-all font-mono">{shown}</dd>
-              <dd>{real ? <Copy value={real} /> : null}</dd>
+              <dd>{real ? <CopyButton value={real} /> : null}</dd>
             </div>
           ))}
         </dl>
@@ -115,7 +111,7 @@ export function PastePanel({ toolId }: { toolId: string }) {
                     {s.value && (
                       <div className="flex items-center gap-1 rounded-lg bg-bg-alt px-3 py-1.5 font-mono text-[12px]">
                         <span className="min-w-0 flex-1 break-all">{fill(s.value)}</span>
-                        {s.copyable && <Copy value={fill(s.value, true)} />}
+                        {s.copyable && <CopyButton value={fill(s.value, true)} />}
                       </div>
                     )}
                   </div>
@@ -129,7 +125,7 @@ export function PastePanel({ toolId }: { toolId: string }) {
         <Panel className="overflow-hidden">
           <div className="flex items-center justify-between border-b border-border px-4 py-1.5 text-[12px] text-text-muted">
             <span>{tool.codeBlock.language ?? "config"}</span>
-            <Copy value={fill(tool.codeBlock.code, true)} />
+            <CopyButton value={fill(tool.codeBlock.code, true)} />
           </div>
           <pre className="overflow-x-auto p-4 font-mono text-[12px] leading-relaxed">{fill(tool.codeBlock.code)}</pre>
         </Panel>

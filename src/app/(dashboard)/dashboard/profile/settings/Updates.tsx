@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Button, Field, Input, Segmented } from "@/ui";
 import { useUpdate, type HookResult, type UpdateInfo } from "@/ui/frame/useUpdate";
-import { Note, Row, RowSkeleton, SectionCard } from "./parts";
+import { Note, SettingRow, SettingRowSkeleton, SettingsSection } from "@/ui";
 import { notify } from "./useSettings";
 
 async function send(path: string, init: RequestInit) {
@@ -59,12 +59,12 @@ export function Updates() {
   };
 
   return (
-    <SectionCard id="updates" icon="update" title="Updates">
+    <SettingsSection id="updates" icon="update" title="Updates">
       {!info || !hook ? (
-        <RowSkeleton />
+        <SettingRowSkeleton />
       ) : (
         <>
-          <Row
+          <SettingRow
             stack
             title="Redeploy hook"
             hint="Optional. Paste the deploy webhook from your hosting platform (Coolify, Portainer, CapRover, Dokploy…). When a newer release comes out, it's called once so the platform pulls the new image. Nothing else is sent."
@@ -158,8 +158,8 @@ export function Updates() {
                 </Note>
               )}
             </div>
-          </Row>
-          <Row
+          </SettingRow>
+          <SettingRow
             title="Follow"
             hint={
               hook.channel === "major"
@@ -175,7 +175,7 @@ export function Updates() {
                 { value: "any", label: "Any newer" },
               ]}
             />
-          </Row>
+          </SettingRow>
           {!info.checkEnabled && (
             <div className="py-3">
               <Note tone="warning">
@@ -186,6 +186,6 @@ export function Updates() {
           )}
         </>
       )}
-    </SectionCard>
+    </SettingsSection>
   );
 }
