@@ -60,12 +60,14 @@ export function StepCard({
           <div className="truncate text-[12px] text-text-muted">{describe(s)}</div>
         </div>
         {on && stat && (
-          <Tag
-            tone={stat.replaced ? "success" : "neutral"}
-            title={`${stat.matches} matched, ${stat.preserved} kept`}
-          >
-            {stat.replaced} in sample
-          </Tag>
+          <span className="hidden sm:block">
+            <Tag
+              tone={stat.replaced ? "success" : "neutral"}
+              title={`${stat.matches} matched, ${stat.preserved} kept`}
+            >
+              {stat.replaced} in sample
+            </Tag>
+          </span>
         )}
         <Switch
           checked={on}
