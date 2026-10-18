@@ -7,7 +7,7 @@
  *   - a finished session survives /poll-status until /exchange consumes it
  *   - a failed session is cleaned up by /poll-status itself
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vite-plus/test";
 
 vi.mock("next/server", () => ({
   NextResponse: {

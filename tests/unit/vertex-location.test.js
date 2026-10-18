@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 // Isolate URL construction from token minting and network dependencies.
 vi.mock("../../open-sse/executors/base.js", () => ({

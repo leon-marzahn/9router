@@ -6,7 +6,7 @@
 //
 //   RUN_REAL=1 npx vitest run --config tests/vitest.config.js tests/translator/real/vision-capability-survey.real.test.js
 //   RUN_REAL=1 REAL_PROVIDERS=mistral,nvidia npx vitest run ... (optional filter)
-import { describe, it, expect, afterAll } from "vitest";
+import { describe, it, expect, afterAll } from "vite-plus/test";
 import { getProviderCredentials } from "../../../src/sse/services/auth.js";
 import { checkAndRefreshToken } from "../../../src/sse/services/tokenRefresh.js";
 import { handleChatCore } from "../../../open-sse/handlers/chatCore.js";

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { openaiToClaudeResponse } from "../../open-sse/translator/response/openai-to-claude.js";
 
 function createState() {

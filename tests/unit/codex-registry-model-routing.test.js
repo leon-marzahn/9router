@@ -12,14 +12,14 @@
  *   to MODEL_PREFIX_PROVIDERS before the generic gpt-* → openai rule.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import fs from "fs";
 import path from "path";
 
 // ── #4202 Registry checks ────────────────────────────────────────────────────
 
 const codexSrc = fs.readFileSync(
-  path.resolve("../open-sse/providers/registry/codex.js"),
+  path.resolve(import.meta.dirname, "../../open-sse/providers/registry/codex.js"),
   "utf-8"
 );
 

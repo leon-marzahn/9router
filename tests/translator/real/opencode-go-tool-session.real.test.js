@@ -7,7 +7,7 @@
 // non-streaming code paths, and the chat-only-model fallback route.
 //
 //   RUN_REAL=1 npx vitest run --config tests/vitest.config.js tests/translator/real/opencode-go-tool-session.real.test.js
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import { getProviderCredentials } from "../../../src/sse/services/auth.js";
 import { checkAndRefreshToken } from "../../../src/sse/services/tokenRefresh.js";
 import { handleChatCore } from "../../../open-sse/handlers/chatCore.js";

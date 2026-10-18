@@ -1,6 +1,6 @@
 // Tier 1 — Structural coverage: every model in PROVIDER_MODELS must translate
 // without throwing, correct upstreamId, strip applied. Data-driven → new providers auto-covered.
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import "./registerAll.js";
 import { translateRequest } from "../../open-sse/translator/index.js";
 import { FORMATS } from "../../open-sse/translator/formats.js";

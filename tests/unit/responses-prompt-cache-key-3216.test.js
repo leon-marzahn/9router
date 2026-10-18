@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 const { openaiToOpenAIResponsesRequest, openaiResponsesToOpenAIRequest } =
   await import("../../open-sse/translator/request/openai-responses.js");

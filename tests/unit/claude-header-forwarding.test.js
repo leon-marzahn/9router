@@ -8,7 +8,7 @@
  *  - proxyFetch.js: api.anthropic.com routes through anthropicFetch path
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vite-plus/test";
 
 // ─── DefaultExecutor.buildHeaders() ──────────────────────────────────────────
 

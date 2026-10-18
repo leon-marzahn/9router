@@ -17,7 +17,7 @@
 //
 // (OPENCODE_ZEN_KEY overrides credential lookup; otherwise an opencode-zen
 // connection must be configured in 9router.)
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import { getProviderCredentials } from "../../../src/sse/services/auth.js";
 import { checkAndRefreshToken } from "../../../src/sse/services/tokenRefresh.js";
 import { handleChatCore } from "../../../open-sse/handlers/chatCore.js";

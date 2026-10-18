@@ -7,7 +7,7 @@
  * (or returns "" if none exist — never the placeholder).
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import fs from "fs";
 import path from "path";
 

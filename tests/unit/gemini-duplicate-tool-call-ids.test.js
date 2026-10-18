@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 import { openaiToGeminiRequest } from "../../open-sse/translator/request/openai-to-gemini.js";
 

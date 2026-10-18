@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import { parseClaudeResetGrants } from "../../open-sse/services/usage/claude.js";
 
 describe("parseClaudeResetGrants", () => {

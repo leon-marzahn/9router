@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import { setCatalogSource } from "../../open-sse/providers/capabilities.js";
 
 const db = vi.hoisted(() => ({

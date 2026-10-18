@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import { parseModel } from "../../open-sse/services/model.js";
 
 describe("HuggingFace model alias parsing", () => {

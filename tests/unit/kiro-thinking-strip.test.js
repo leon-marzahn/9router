@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import { KiroExecutor } from "../../open-sse/executors/kiro.js";
 import "../translator/registerAll.js";
 

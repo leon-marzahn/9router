@@ -2,7 +2,7 @@
 // Bonus packs ("Bonus Pack N") must surface recurring:false so the dashboard
 // shows "Expires in" instead of implying a monthly refill. The usage handler
 // tags the flag and parseQuotaData must forward it.
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import { parseQuotaData } from "@/app/(dashboard)/dashboard/usage/components/ProviderLimits/utils.js";
 
 describe("parseQuotaData codebuddy-cn recurring flag", () => {

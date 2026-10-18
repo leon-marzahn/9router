@@ -6,7 +6,7 @@
 // top level, so enveloped choices are invisible ("Provider returned no
 // completion choices for this model"). These tests pin the unwrap behavior.
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vite-plus/test";
 
 // Mock the heavy Next.js-dependent imports BEFORE importing ping.js
 // (same pattern as tests/unit/ping-reasoning-models-3010.test.js).

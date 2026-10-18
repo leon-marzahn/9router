@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi } from "vite-plus/test";
 import { __test__ } from "../../open-sse/executors/qoder.js";
 
 const { wrapQoderSSE } = __test__;

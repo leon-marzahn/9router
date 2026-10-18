@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import { detectRequiredCapabilities } from "../../open-sse/services/combo.js";
 import { augmentModelsWithCapacityAdapter } from "../../open-sse/services/capacityAdapter.js";
 import { stripUnsupportedModalities } from "../../open-sse/translator/concerns/modality.js";

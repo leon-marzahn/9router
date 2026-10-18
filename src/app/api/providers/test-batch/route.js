@@ -91,6 +91,7 @@ export async function POST(request) {
           connectionName: conn.name || conn.email || conn.provider,
           authType: conn.authType || getAuthGroup(conn.provider, conn),
           valid: data.valid,
+          unsupported: !!data.unsupported,
           latencyMs: data.latencyMs || 0,
           error: data.error || null,
           diagnosis: data.diagnosis || null,
@@ -120,8 +121,9 @@ export async function POST(request) {
       testedAt: new Date().toISOString(),
       summary: {
         total: results.length,
-        passed: results.filter((r) => r.valid).length,
-        failed: results.filter((r) => !r.valid).length,
+        passed: results.filter((r) => r.valid === true).length,
+        failed: results.filter((r) => !r.valid && !r.unsupported).length,
+        unsupported: results.filter((r) => r.unsupported).length,
       },
     });
   } catch (error) {

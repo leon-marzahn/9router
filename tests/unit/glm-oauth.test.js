@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vite-plus/test";
 
 // proxyAwareFetch captures globalThis.fetch at import time — mock the module
 // (like kimi-usage.test.js) instead of stubbing global fetch for usage tests.

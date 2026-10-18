@@ -3,7 +3,7 @@
 // and the Zed Gemini path must not carry the shared translator's
 // safetySettings (Zed's hosted Gemini backend speaks the Vertex safety
 // vocabulary, not the public-Gemini enums).
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vite-plus/test";
 
 vi.mock("open-sse/shared/zedAuth.js", async (importOriginal) => {
   const actual = await importOriginal();

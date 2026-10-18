@@ -7,7 +7,7 @@
 //
 // resolveCaps is exported for this test; the hook itself is client code and is
 // not exercised here.
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import { resolveCaps } from "@/shared/hooks/useModelCaps.js";
 
 describe("useModelCaps resolveCaps — alias → provider id in the fallback", () => {

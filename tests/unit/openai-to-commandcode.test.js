@@ -8,7 +8,7 @@
  *  - tools[*]: Anthropic plain {name, description, input_schema}
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import { openaiToCommandCodeRequest } from "../../open-sse/translator/request/openai-to-commandcode.js";
 
 const MODEL = "moonshotai/Kimi-K2.6";

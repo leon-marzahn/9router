@@ -1,5 +1,5 @@
 // Locks edge cases flagged in docs 11 §1/§4 that were only covered indirectly.
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import { normalizeClaudePassthrough } from "../../open-sse/translator/formats/claude.js";
 import { parseDataUri, encodeDataUri } from "../../open-sse/translator/concerns/image.js";
 

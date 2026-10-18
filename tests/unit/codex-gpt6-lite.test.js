@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { CodexExecutor } from "../../open-sse/executors/codex.js";
 import { getModelsByProviderId } from "../../open-sse/config/providerModels.js";

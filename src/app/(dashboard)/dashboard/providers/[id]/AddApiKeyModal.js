@@ -254,11 +254,11 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
                 ✓ {bulkResult.success} added{bulkResult.failed > 0 ? `, ✗ ${bulkResult.failed} failed` : ""}
               </div>
             )}
-            <div className="flex gap-2">
-              <Button onClick={handleBulkSubmit} fullWidth disabled={saving || !bulkText.trim()}>
+            <div className="mt-2 flex justify-end gap-2">
+              <Button onClick={onClose} variant="secondary">Cancel</Button>
+              <Button onClick={handleBulkSubmit} disabled={saving || !bulkText.trim()}>
                 {saving ? "Adding..." : "Add All Keys"}
               </Button>
-              <Button onClick={onClose} variant="ghost" fullWidth>Cancel</Button>
             </div>
           </div>
         )}
@@ -472,12 +472,12 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
           Legacy manual proxy fields are still accepted by API for backward compatibility.
         </p>
 
-        <div className="flex gap-2">
-          <Button onClick={handleSubmit} fullWidth disabled={saving || (!isOllamaLocal && (!formData.name || !apiKeySatisfied())) || (isCompatible && !formData.defaultModel.trim()) || (isAzure && (!azureData.azureEndpoint || !azureData.deployment || !azureData.organization)) || (isCloudflareAi && !cloudflareData.accountId)}>
-            {saving ? "Saving..." : "Save"}
-          </Button>
-          <Button onClick={onClose} variant="ghost" fullWidth>
+        <div className="mt-2 flex justify-end gap-2">
+          <Button onClick={onClose} variant="secondary">
             Cancel
+          </Button>
+          <Button onClick={handleSubmit} disabled={saving || (!isOllamaLocal && (!formData.name || !apiKeySatisfied())) || (isCompatible && !formData.defaultModel.trim()) || (isAzure && (!azureData.azureEndpoint || !azureData.deployment || !azureData.organization)) || (isCloudflareAi && !cloudflareData.accountId)}>
+            {saving ? "Saving..." : "Save"}
           </Button>
         </div>
         </>)}

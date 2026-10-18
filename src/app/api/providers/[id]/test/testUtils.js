@@ -1,4 +1,7 @@
 import { getProviderConnectionById, updateProviderConnection } from "@/lib/localDb";
+
+// Returned by the test switch when a provider has no connection test.
+export const UNSUPPORTED_TEST_ERROR = "Provider test not supported";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
 import { testProxyUrl } from "@/lib/network/proxyTest";
 import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider, AI_PROVIDERS } from "@/shared/constants/providers";
@@ -364,7 +367,7 @@ function isTokenExpired(connection) {
 
 async function testOAuthConnection(connection, effectiveProxy = null) {
   const config = OAUTH_TEST_CONFIG[connection.provider];
-  if (!config) return { valid: false, error: "Provider test not supported", refreshed: false };
+  if (!config) return { valid: false, error: UNSUPPORTED_TEST_ERROR, refreshed: false };
   if (!connection.accessToken) return { valid: false, error: "No access token", refreshed: false };
 
   // Cursor uses protobuf API - can only verify token exists, not test endpoint
@@ -909,7 +912,7 @@ case "llm7": {
         return { valid: res.ok, error: res.ok ? null : "Invalid API key", refreshed: false };
       }
       default:
-        return { valid: false, error: "Provider test not supported" };
+        return { valid: false, error: UNSUPPORTED_TEST_ERROR };
     }
   } catch (err) {
     return { valid: false, error: err.message };
@@ -948,6 +951,12 @@ export async function testSingleConnection(id) {
   }
 
   const latencyMs = Date.now() - start;
+
+  // No test exists for this provider: say so, but leave the account's stored
+  // health alone — otherwise a "test all" marks every working account failed.
+  if (!result.valid && result.error === UNSUPPORTED_TEST_ERROR) {
+    return { valid: null, unsupported: true, error: result.error, latencyMs, testedAt: new Date().toISOString() };
+  }
 
   // Soft success (e.g. Grok CLI 402 spending-limit): credentials are good, account is
   // out of credits. Keep testStatus active; surface the message as lastError so the

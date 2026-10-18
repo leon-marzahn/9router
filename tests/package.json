@@ -2,16 +2,6 @@
   "name": "9router-tests",
   "version": "1.0.0",
   "private": true,
-  "type": "module",
-  "description": "Unit tests for 9router embeddings endpoint",
-  "scripts": {
-    "test": "vitest run --reporter=verbose",
-    "test:watch": "vitest --reporter=verbose"
-  },
-  "devDependencies": {
-    "vitest": "^4.0.0"
-  },
-  "engines": {
-    "node": ">=18"
-  }
+  "description": "Unit tests for 9router. Run from the repo root with `vp test` (config in ../vite.config.ts).",
+  "type": "module"
 }

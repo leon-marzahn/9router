@@ -5,7 +5,7 @@
  * fail with a misleading 400 "does not support Responses API".
  */
 
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi } from "vite-plus/test";
 import { GithubExecutor } from "../../open-sse/executors/github.js";
 
 describe("GithubExecutor.supportsResponsesEndpoint", () => {

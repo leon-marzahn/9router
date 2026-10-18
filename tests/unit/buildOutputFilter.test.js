@@ -1,6 +1,6 @@
 // Tests for PR #1175: build output filter + porcelain regex fix
 // Covers edge cases: porcelain workdir-only, cargo misdetection, false positives, compression
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import { autoDetectFilter } from "../../open-sse/rtk/autodetect.js";
 import { buildOutput } from "../../open-sse/rtk/filters/buildOutput.js";
 import { gitStatus } from "../../open-sse/rtk/filters/gitStatus.js";

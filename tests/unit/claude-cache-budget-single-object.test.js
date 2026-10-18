@@ -1,6 +1,6 @@
 // #3795 — a proxy must not dispatch more cache_control blocks than Anthropic
 // accepts, and must not lose turns that use single-object content (#3567 interplay).
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import {
   anchorClaudeCache,
   normalizeClaudePassthrough,

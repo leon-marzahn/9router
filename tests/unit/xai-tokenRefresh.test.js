@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi } from "vite-plus/test";
 
 // We can't easily import the open-sse switch logic without real PROVIDERS config,
 // so verify the wrapper function shape directly via dynamic import.

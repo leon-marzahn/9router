@@ -14,7 +14,7 @@
  *   Fix: add "zed" to the list (and wire up the corresponding state/hook/ternary).
  */
 
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll } from "vite-plus/test";
 import { getCapabilitiesForModel } from "../../open-sse/providers/capabilities.js";
 
 // ── #4293 deepseek-v4-1-flash vision capability ───────────────────────────

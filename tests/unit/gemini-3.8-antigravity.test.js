@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import { getCapabilitiesForModel } from "../../open-sse/providers/capabilities.js";
 import antigravityRegistry from "../../open-sse/providers/registry/antigravity.js";
 import geminiRegistry from "../../open-sse/providers/registry/gemini.js";

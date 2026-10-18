@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vite-plus/test";
 import { XiaomiMimoExecutor, __test__ } from "../../open-sse/executors/xiaomi-mimo.js";
 import { getExecutor } from "../../open-sse/executors/index.js";
 import * as mimoAccount from "../../open-sse/shared/mimoAccount.js";

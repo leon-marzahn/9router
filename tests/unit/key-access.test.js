@@ -1,7 +1,7 @@
 // Per-API-key access control: engine + helpers.
 // Real model resolution (src/sse/services/model.js) over a mocked DB fixture, so
 // alias / provider-alias / node-prefix resolution is exercised for real.
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vite-plus/test";
 
 const fx = vi.hoisted(() => ({
   combos: [

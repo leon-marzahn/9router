@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import { validatePipelines } from "../../src/lib/request-pipelines/config.js";
 import { transformRequest } from "../../src/lib/request-pipelines/engine.js";
 import { runRequestPipeline } from "../../src/lib/request-pipelines/run.js";

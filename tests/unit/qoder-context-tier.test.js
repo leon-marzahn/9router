@@ -5,7 +5,7 @@
  * requests (what 9router sends) only carry the default max_input_tokens. These
  * tests pin the escalation policy and the payload fields the IDE writes.
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 
 import {
   parseTierTokenCount,

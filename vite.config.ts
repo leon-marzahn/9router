@@ -1,0 +1,180 @@
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { defineConfig } from "vite-plus";
+
+const r = (p: string) => fileURLToPath(new URL(p, import.meta.url));
+
+// Tests must never touch the real ~/.9router (DB, usage, logs). Each run gets a
+// throwaway home: DATA_DIR for the DB layer, HOME/APPDATA for modules that
+// resolve ~/.9router (or ~/.codex etc.) via os.homedir() directly.
+const testHome = mkdtempSync(join(tmpdir(), "9router-test-"));
+
+export default defineConfig({
+  // Unit tests live in tests/ (ESM via tests/package.json "type": "module").
+  test: {
+    dir: "tests",
+    env: { DATA_DIR: join(testHome, ".9router"), HOME: testHome, USERPROFILE: testHome, APPDATA: testHome },
+    environment: "node",
+    globals: true,
+    include: ["**/*.test.js"],
+    // Don't scan into git worktrees nested under .claude/ — they carry their
+    // own copies of the test files but lack an installed node_modules (open-sse,
+    // etc.), which makes provider imports fail during collection.
+    exclude: ["**/node_modules/**", "**/.claude/**", "**/dist/**"],
+    // Allow many it.concurrent cases (real provider smoke runs ~50 providers in parallel)
+    maxConcurrency: 60,
+    // Suppress noisy console output from handlers under test
+    silent: false,
+  },
+  resolve: {
+    // Array form so subpath aliases (e.g. "@/lib/db/index.js") resolve correctly.
+    alias: [
+      { find: /^open-sse\//, replacement: r("./open-sse/") },
+      { find: "open-sse", replacement: r("./open-sse") },
+      { find: /^@\//, replacement: r("./src/") },
+    ],
+  },
+  // Format only fork-owned code: upstream files keep their own style so merges
+  // from decolua/master stay conflict-free. Extend the allow-list as pages are
+  // rewritten.
+  fmt: {
+    // gitignore semantics: a file can only be re-included if its parent
+    // directory is, hence the "/dir/*" + "!/dir/child" ladder.
+    ignorePatterns: [
+      "/*",
+      "!/vite.config.ts",
+      "!/src",
+      "/src/*",
+      "!/src/ui",
+      "!/src/lib",
+      "/src/lib/*",
+      "!/src/lib/liveEvents.js",
+      "!/src/app",
+      "/src/app/*",
+      "!/src/app/api",
+      "/src/app/api/*",
+      "!/src/app/api/providers",
+      "/src/app/api/providers/*",
+      "!/src/app/api/providers/stream",
+      "!/src/app/(dashboard)",
+      "/src/app/(dashboard)/*",
+      "!/src/app/(dashboard)/dashboard",
+      "/src/app/(dashboard)/dashboard/*",
+      "!/src/app/(dashboard)/dashboard/providers",
+      "/src/app/(dashboard)/dashboard/providers/*",
+      "!/src/app/(dashboard)/dashboard/providers/*.ts",
+      "!/src/app/(dashboard)/dashboard/providers/page.tsx",
+      "!/src/app/(dashboard)/dashboard/providers/workbench",
+      "!/tests",
+      "/tests/*",
+      "!/tests/unit",
+      "/tests/unit/*",
+      "!/tests/unit/providers-live-stream.test.js",
+    ],
+  },
+  lint: {
+    plugins: ["oxc", "typescript", "unicorn", "nextjs"],
+    categories: {
+      correctness: "warn",
+    },
+    env: {
+      builtin: true,
+    },
+    ignorePatterns: [".next/**", "out/**", "build/**", "next-env.d.ts"],
+    rules: {
+      "nextjs/no-html-link-for-pages": "error",
+      "nextjs/no-sync-scripts": "error",
+      "nextjs/inline-script-id": "error",
+      "nextjs/no-assign-module-variable": "error",
+      "nextjs/no-document-import-in-page": "error",
+      "nextjs/no-duplicate-head": "error",
+      "nextjs/no-head-import-in-document": "error",
+      "nextjs/no-script-component-in-head": "error",
+      "vite-plus/prefer-vite-plus-imports": "error",
+    },
+    overrides: [
+      {
+        files: ["**/*.{js,jsx,mjs,ts,tsx,mts,cts}"],
+        rules: {
+          "react/display-name": "error",
+          "react/jsx-key": "error",
+          "react/jsx-no-comment-textnodes": "error",
+          "react/jsx-no-duplicate-props": "error",
+          "react/jsx-no-target-blank": "off",
+          "react/jsx-no-undef": "error",
+          "react/no-children-prop": "error",
+          "react/no-danger-with-children": "error",
+          "react/no-direct-mutation-state": "error",
+          "react/no-find-dom-node": "error",
+          "react/no-is-mounted": "error",
+          "react/no-render-return-value": "error",
+          "react/no-string-refs": "error",
+          "react/no-unescaped-entities": "error",
+          "react/no-unknown-property": "off",
+          "react/no-unsafe": "off",
+          "react/react-in-jsx-scope": "off",
+          "react/require-render-return": "error",
+          "import/no-anonymous-default-export": "warn",
+          "jsx-a11y/alt-text": [
+            "warn",
+            {
+              elements: ["img"],
+              img: ["Image"],
+            },
+          ],
+          "jsx-a11y/aria-props": "warn",
+          "jsx-a11y/aria-proptypes": "warn",
+          "jsx-a11y/aria-unsupported-elements": "warn",
+          "jsx-a11y/role-has-required-aria-props": "warn",
+          "jsx-a11y/role-supports-aria-props": "warn",
+          "nextjs/google-font-display": "warn",
+          "nextjs/google-font-preconnect": "warn",
+          "nextjs/next-script-for-ga": "warn",
+          "nextjs/no-async-client-component": "warn",
+          "nextjs/no-before-interactive-script-outside-document": "warn",
+          "nextjs/no-css-tags": "warn",
+          "nextjs/no-head-element": "warn",
+          "nextjs/no-html-link-for-pages": "warn",
+          "nextjs/no-img-element": "warn",
+          "nextjs/no-page-custom-font": "warn",
+          "nextjs/no-styled-jsx-in-document": "warn",
+          "nextjs/no-sync-scripts": "warn",
+          "nextjs/no-title-in-document-head": "warn",
+          "nextjs/no-typos": "warn",
+          "nextjs/no-unwanted-polyfillio": "warn",
+          "react/rules-of-hooks": "error",
+          "react/exhaustive-deps": "warn",
+          "react/static-components": "error",
+          "react/use-memo": "error",
+          "react/preserve-manual-memoization": "error",
+          "react/incompatible-library": "warn",
+          "react/immutability": "error",
+          "react/globals": "error",
+          "react/refs": "error",
+          "react/set-state-in-effect": "error",
+          "react/error-boundaries": "error",
+          "react/purity": "error",
+          "react/set-state-in-render": "error",
+          "react/unsupported-syntax": "warn",
+        },
+        plugins: ["react", "import", "jsx-a11y"],
+        env: {
+          browser: true,
+          node: true,
+        },
+      },
+    ],
+    options: {
+      typeAware: true,
+      typeCheck: true,
+    },
+    jsPlugins: [
+      {
+        name: "vite-plus",
+        specifier: "vite-plus/oxlint-plugin",
+      },
+    ],
+  },
+});

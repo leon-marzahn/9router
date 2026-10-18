@@ -1,4 +1,4 @@
-import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import {
   NOUS_CHAT_COMPLETIONS_URL,

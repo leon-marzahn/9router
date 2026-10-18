@@ -5,7 +5,7 @@
 // Regression for: editing a node's apiType to "responses" had no effect because
 // runtime derived chat/responses from the immutable node ID string
 // (`openai-compatible-<chat|responses>-<uuid>`) instead of the stored value.
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import { resolveOpenAICompatibleApiType, getTargetFormat } from "open-sse/services/provider.js";
 import { DefaultExecutor } from "open-sse/executors/default.js";
 import { BaseExecutor } from "open-sse/executors/base.js";

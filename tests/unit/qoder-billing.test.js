@@ -6,7 +6,7 @@
  * mark the connection unavailable and trigger combo failover.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import { __test__ as qoderExecutorInternals } from "../../open-sse/executors/qoder.js";
 
 describe("isBillingBlock", () => {

@@ -15,7 +15,7 @@
  *   whitelist and prepareClaudeRequest honours it.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import { prepareClaudeRequest } from "../../open-sse/translator/formats/claude.js";
 import { PROVIDERS } from "../../open-sse/providers/index.js";
 

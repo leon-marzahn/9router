@@ -1,7 +1,7 @@
 // P0 GOLDEN: lock OUTPUT của translateResponse (stream) cho các concern đặc biệt.
 // Feed chuỗi chunk THẬT (shape provider) → snapshot mảng chunk openai emit.
 // Sau refactor chạy lại phải khớp y hệt (chunk/usage/thinking/tool/finish).
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import "./registerAll.js";
 import { translateResponse, initState } from "../../open-sse/translator/index.js";
 import { FORMATS } from "../../open-sse/translator/formats.js";

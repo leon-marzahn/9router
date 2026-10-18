@@ -21,7 +21,7 @@
  * See: #2435, follow-up to PR #2463.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import { openaiToClaudeRequest } from "../../open-sse/translator/request/openai-to-claude.js";
 
 const baseBody = (extra = {}) => ({

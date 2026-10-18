@@ -1,5 +1,5 @@
 // Locks BaseExecutor.execute retry/fallback behavior (docs 04 GAP #1, docs 11 §7).
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vite-plus/test";
 
 // Mock the network layer so we can script upstream responses.
 const fetchMock = vi.fn();

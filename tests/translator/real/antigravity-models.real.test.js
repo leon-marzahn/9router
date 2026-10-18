@@ -4,7 +4,7 @@
 //   RUN_REAL=1 npx vitest run --config tests/vitest.config.js tests/translator/real/antigravity-models.real.test.js
 //   RUN_REAL=1 AG_URL=http://localhost:20128/v1 AG_KEY=sk-xxx npx vitest run ...
 //
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 
 const RUN_REAL = process.env.RUN_REAL === "1";
 const BASE_URL = process.env.AG_URL || "http://localhost:20128/v1";

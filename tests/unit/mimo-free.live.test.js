@@ -3,7 +3,7 @@
  * Root cause: upstream gates on Chrome-like User-Agent. Without UA → 403 "Illegal access".
  * Hits real endpoints — no mocks. Free provider, safe to call.
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import { proxyAwareFetch } from "../../open-sse/utils/proxyFetch.js";
 import { __test__ } from "../../open-sse/executors/mimo-free.js";
 

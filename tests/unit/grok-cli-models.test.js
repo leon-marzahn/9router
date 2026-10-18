@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 vi.mock("../../open-sse/services/oauthCredentialManager.js", () => ({
   refreshProviderCredentials: vi.fn(),

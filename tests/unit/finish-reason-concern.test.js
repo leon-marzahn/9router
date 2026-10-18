@@ -1,5 +1,5 @@
 // A1: locks toOpenAIFinish/fromOpenAIFinish behavior changes vs open-sse.old.
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import { toOpenAIFinish, fromOpenAIFinish } from "../../open-sse/translator/concerns/finishReason.js";
 import { OPENAI_FINISH, CLAUDE_STOP, GEMINI_FINISH } from "../../open-sse/translator/schema/finishReasons.js";
 

@@ -1,5 +1,5 @@
 // Kiro reasoning signatures: response -> signature_delta, request history -> reasoningContent.
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import "../translator/registerAll.js";
 import { translateRequest, translateResponse, initState } from "../../open-sse/translator/index.js";
 import { FORMATS } from "../../open-sse/translator/formats.js";

@@ -4,7 +4,7 @@
 // target formats match; the same-format fast path in translateResponse() used
 // to return chunks untouched, leaking the suffixed name (e.g. "run_code_ide")
 // to the client, which then rejected the call as an unknown tool.
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import "./registerAll.js";
 import { translateResponse } from "../../open-sse/translator/index.js";
 import { FORMATS } from "../../open-sse/translator/formats.js";

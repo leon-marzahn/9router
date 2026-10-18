@@ -7,7 +7,7 @@
 //
 // Skips (console.warn + pass) when: no credential/model, auth/quota status (401/402/403/429),
 // or the model rejects a capability (e.g. image on a non-vision model).
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import { getProviderCredentials } from "../../../src/sse/services/auth.js";
 import { checkAndRefreshToken } from "../../../src/sse/services/tokenRefresh.js";
 import { handleChatCore } from "../../../open-sse/handlers/chatCore.js";

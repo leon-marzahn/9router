@@ -3,7 +3,7 @@
 //   - alims-intl:   standard DashScope API keys (sk-...) → dashscope-intl.aliyuncs.com/compatible-mode
 // The two key types are NOT interchangeable across hosts. Split into two providers
 // so each key type reaches its own host.
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import alicodeIntl from "../../open-sse/providers/registry/alicode-intl.js";
 import alimsIntl from "../../open-sse/providers/registry/alims-intl.js";
 

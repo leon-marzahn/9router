@@ -1,7 +1,7 @@
 // Anthropic rejects a body ending on an assistant turn ("This model does not support
 // assistant message prefill"). Cleanup passes delete emptied messages, so an emptied
 // trailing user turn used to leave the previous assistant turn last.
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import { normalizeClaudePassthrough, prepareClaudeRequest } from "../../open-sse/translator/formats/claude.js";
 import { translateRequest } from "../../open-sse/translator/index.js";
 

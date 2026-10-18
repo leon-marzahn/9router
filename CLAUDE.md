@@ -23,7 +23,9 @@ npm run build && PORT=20128 HOSTNAME=0.0.0.0 npm run start           # productio
 ```
 - Bun variants: `npm run dev:bun` / `build:bun` / `start:bun`.
 - Default runtime port is **20128** (dashboard at `/dashboard`, API at `/v1`).
-- Lint: `npx eslint .` (config `eslint.config.mjs`, extends `eslint-config-next`).
+- Toolchain is **Vite+** (`vp`, global install; it manages Node — pinned in `.node-version`). Config lives in `vite.config.ts` (`test`, `lint`, `fmt` blocks). Next.js still owns dev/build (`npm run dev` / `npm run build`), not `vp dev`/`vp build`.
+- `vp check` = format + lint (Oxlint, type-aware via tsgolint) + type-check. ~150 pre-existing React Compiler lint errors in upstream pages make it exit non-zero; judge your change by not adding new ones (`vp lint <paths>`).
+- Formatting (`vp fmt`) is scoped by an allow-list in `vite.config.ts` `fmt.ignorePatterns` to fork-owned files only, so upstream files keep their style and merges stay clean. Add new fork-owned files/dirs there.
 
 CLI package (`cli/`):
 ```bash
@@ -31,16 +33,16 @@ npm run cli:pack       # build + npm pack from root
 cd cli && npm run dev  # nodemon watch
 ```
 
-Tests (vitest, in `tests/`, an **independent** ESM package — not wired into root `npm test`):
+Tests (Vitest 5 via Vite+, files in `tests/`; config is the `test` block of the root `vite.config.ts`):
 ```bash
-npm install                             # ROOT deps first — tests import from src/ which needs `open`, `undici`, etc.
-cd tests && npm install                 # then tests' own deps (vitest) → tests/node_modules (allowed by tests/.gitignore)
-npx vitest run                          # all tests; auto-discovers tests/vitest.config.js
-npx vitest run unit/capabilities.test.js   # single file (path relative to tests/)
+vp install                              # root deps (tests import from src/ and open-sse/)
+vp test                                 # all tests, run from the repo root
+vp test run tests/unit/capabilities.test.js   # single file
 ```
-> The committed `tests/package.json` `test` script hardcodes Unix paths (`NODE_PATH=/tmp/node_modules …`) — a shared-install workaround from upstream. On Windows (or anywhere), ignore it and use the `npx vitest` form above; `vitest.config.js` resolves the `open-sse`/`@/` aliases from the repo root regardless of where vitest lives.
+> Test runs are isolated from your real data: `vite.config.ts` points `DATA_DIR`, `HOME`, `USERPROFILE` and `APPDATA` at a fresh temp dir per run, so nothing reaches `~/.9router`.
+> `tests/package.json` only exists for `"type": "module"`; it has no deps of its own. Tests run with the repo root as cwd — resolve file paths with `import.meta.dirname`, not `path.resolve("../…")`.
 >
-> **The suite is NOT expected to be all-green on a plain checkout.** ~938 pass, ~64 fail. Judge regressions with `tests/__baseline__/verify-no-regression.mjs`, not a raw run. Expected red:
+> **The suite is NOT expected to be all-green on a plain checkout.** ~3780 pass, ~50 fail. Judge regressions by diffing failing test names against the base branch (`tests/__baseline__/verify-no-regression.mjs` assumes Docker `/app/` paths and misreports locally). Expected red:
 > - 26 catalogued in `tests/__baseline__/known-fails.txt` (rtk, oauth-cursor-auto-import, translator-request-normalization, …).
 > - `unit/embeddings.cloud.test.js` imports `cloud/src/handlers/embeddings.js` — the `cloud/` worker dir is **not in this repo**, so it always fails here.
 > - `unit/xai-oauth-service.test.js` times out (5s) when the xAI endpoint-discovery fetch isn't reachable/mocked.
@@ -84,7 +86,8 @@ Pre-translate hooks that compress `tool_result` content in-place to cut tokens. 
 
 ## Conventions & gotchas
 
-- Plain JavaScript (ESM), no TypeScript. `@/*` path alias → `src/*` (`jsconfig.json`).
+- JavaScript (ESM) everywhere except the redesigned UI: **new UI code is TypeScript** in `src/ui/` (design system + app frame) following `docs/DESIGN.md`. Backend, `open-sse/`, and not-yet-migrated pages stay JS. `@/*` → `src/*` (`tsconfig.json`, `allowJs`). TypeScript is **7 (tsgo)**, plain `typescript@7` (no bridge needed since ESLint was replaced by Oxlint). Typecheck with `npm run typecheck`; `next build` also type-checks, including Next's route-export rules (route files may only export handlers/config).
+- UI redesign: the fork is rewriting the dashboard UI (diverges from upstream UI on purpose). Build pages from `src/ui` components and tokens; don't hard-code colors.
 - `custom-server.js` wraps the Next standalone server to derive client IP from the TCP socket and strip attacker-controlled `X-Forwarded-For` — trusting forwarding headers only from a loopback reverse proxy. Preserve this when touching request/IP/rate-limit code.
 - Security-sensitive env: `JWT_SECRET` (session cookie), `INITIAL_PASSWORD` (default `123456` — must override), `API_KEY_SECRET`, `MACHINE_ID_SALT`. Full env contract in `.env.example` and ARCHITECTURE.md's env matrix.
 - Binary/protobuf upstreams (kiro EventStream, cursor protobuf, commandcode NDJSON) don't round-trip through OpenAI — they're handled inside their own executor, not the translator.

@@ -16,7 +16,7 @@
 //
 // Requires an active opencode-go credential in the local DB (add via 9router dashboard).
 // Skips (pass) only on credential/quota/plan rejections, mirroring the other .real tests.
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import { getProviderCredentials } from "../../../src/sse/services/auth.js";
 import { checkAndRefreshToken } from "../../../src/sse/services/tokenRefresh.js";
 import { handleChatCore } from "../../../open-sse/handlers/chatCore.js";

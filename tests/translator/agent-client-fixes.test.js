@@ -2,7 +2,7 @@
 // - tool-result images survive the Claude → OpenAI / Kiro request translation
 // - Kiro tool calls stream back under the client's own (unsanitized) names
 // - the client's thinking `display` is kept on Claude-format upstreams
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import "./registerAll.js";
 import { translateRequest, translateResponse, initState } from "../../open-sse/translator/index.js";
 import { FORMATS } from "../../open-sse/translator/formats.js";

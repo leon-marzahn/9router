@@ -2,7 +2,7 @@
 // Windows absolute paths ("C:\Users\me\src\a.js") carry a drive-letter
 // separator that the Unix-only colon check used to reject, so no compaction
 // happened for Windows `find`-style dumps. See fix(rtk/find).
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import { autoDetectFilter } from "../../open-sse/rtk/autodetect.js";
 import { find } from "../../open-sse/rtk/filters/find.js";
 import { grep } from "../../open-sse/rtk/filters/grep.js";

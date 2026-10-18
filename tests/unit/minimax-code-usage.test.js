@@ -1,6 +1,6 @@
 // MiniMax Code usage (P2) — signed account API, membership/plan-window parsing,
 // the usage handler's dashboard shape, and the suggested-models live filter.
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 import {
   signedAccountRequest,

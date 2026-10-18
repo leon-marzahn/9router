@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { KiroExecutor } from "../../open-sse/executors/kiro.js";
 
 const RUNTIME = "https://runtime.us-east-1.kiro.dev/generateAssistantResponse";

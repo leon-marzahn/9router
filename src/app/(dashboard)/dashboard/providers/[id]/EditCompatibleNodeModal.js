@@ -133,12 +133,12 @@ export default function EditCompatibleNodeModal({ isOpen, node, onSave, onClose,
             {validationResult === "success" ? "Valid" : "Invalid"}
           </Badge>
         )}
-        <div className="flex gap-2">
-          <Button onClick={handleSubmit} fullWidth disabled={!formData.name.trim() || !formData.prefix.trim() || !formData.baseUrl.trim() || saving}>
-            {saving ? "Saving..." : "Save"}
-          </Button>
-          <Button onClick={onClose} variant="ghost" fullWidth>
+        <div className="mt-2 flex justify-end gap-2">
+          <Button onClick={onClose} variant="secondary">
             Cancel
+          </Button>
+          <Button onClick={handleSubmit} disabled={!formData.name.trim() || !formData.prefix.trim() || !formData.baseUrl.trim() || saving}>
+            {saving ? "Saving..." : "Save"}
           </Button>
         </div>
       </div>

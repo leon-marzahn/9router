@@ -1,6 +1,6 @@
 // custom-server.js decides whose X-Forwarded-For is believed. The login limiter and the Kiro
 // session hash both key on the result, so a forged header must never pick the client IP.
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "vite-plus/test";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);

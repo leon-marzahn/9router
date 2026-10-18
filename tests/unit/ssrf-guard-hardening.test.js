@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vite-plus/test";
 
 // Regression coverage for #3714: the SSRF guard's literal-hostname/IP checks
 // matched specific textual representations rather than the underlying address,

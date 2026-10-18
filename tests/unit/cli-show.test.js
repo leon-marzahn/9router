@@ -1,5 +1,5 @@
 // `9router show` — reads each tool's local 9router config; offline, key always masked.
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vite-plus/test";
 import { createRequire } from "node:module";
 import fs from "node:fs";
 import os from "node:os";

@@ -295,12 +295,12 @@ export default function XiaomiMimoAuthModal({ isOpen, onSuccess, onClose }) {
               </div>
             )}
 
-            <div className="flex gap-2">
-              <Button onClick={handleImportLocal} variant={existingConnection ? "outline" : "default"} fullWidth>
-                {existingConnection ? "Re-sync local credentials" : "Connect with local credentials"}
-              </Button>
-              <Button onClick={onClose} variant="ghost" fullWidth>
+            <div className="mt-2 flex justify-end gap-2">
+              <Button onClick={onClose} variant="secondary">
                 {existingConnection ? "Close" : "Cancel"}
+              </Button>
+              <Button onClick={handleImportLocal} variant={existingConnection ? "outline" : "default"}>
+                {existingConnection ? "Re-sync local credentials" : "Connect with local credentials"}
               </Button>
             </div>
 

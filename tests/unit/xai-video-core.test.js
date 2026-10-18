@@ -11,7 +11,7 @@
  *  - abort/cancellation
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vite-plus/test";
 
 vi.mock("open-sse/services/tokenRefresh.js", () => ({
   refreshTokenByProvider: vi.fn(),

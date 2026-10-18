@@ -16,7 +16,7 @@
  * so tests run without Cloudflare Workers runtime.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vite-plus/test";
 
 // ─── Module mocks (hoisted before imports) ───────────────────────────────────
 

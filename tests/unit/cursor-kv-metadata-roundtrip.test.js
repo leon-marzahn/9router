@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { encodeKvClientMessage } from "../../open-sse/executors/cursor.js";
 import {
   decodeMessage,

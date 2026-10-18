@@ -3,7 +3,7 @@
 // endpoints that only accept the legacy typeless tool shape — e.g. DeepSeek's
 // Anthropic-compatible endpoint, which answers HTTP 400 "unknown variant `custom`" —
 // must never receive tools[].type = "custom".
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import { PROVIDERS } from "../../open-sse/providers/index.js";
 import { FORMATS } from "../../open-sse/translator/formats.js";
 import { shouldDefaultClaudeToolType } from "../../open-sse/translator/concerns/toolCall.js";

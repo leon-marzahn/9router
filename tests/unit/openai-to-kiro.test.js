@@ -6,7 +6,7 @@
  *  - Image forwarding fix: images in currentMessage must be included in payload
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import { openaiToKiroRequest } from "../../open-sse/translator/request/openai-to-kiro.js";
 
 const contentOf = (result) =>

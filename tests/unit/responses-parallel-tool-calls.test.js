@@ -3,7 +3,7 @@
 // every arguments delta to the positional toolCallIndex (advanced only on
 // output_item.done), so all-added-then-deltas ordering concatenated N JSON
 // payloads into index 0 and clients failed with InputValidationError.
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import "../translator/registerAll.js";
 import { openaiResponsesToOpenAIResponse } from "../../open-sse/translator/response/openai-responses.js";
 import { clampResponsesCallId, coerceResponsesOutput, MAX_RESPONSES_CALL_ID_LEN } from "../../open-sse/translator/formats/responsesApi.js";

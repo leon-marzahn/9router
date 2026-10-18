@@ -1,5 +1,5 @@
 // Guards the refactored REFRESH_HANDLERS dispatch: null-guards + the two different defaults.
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 
 const load = () => import("../../open-sse/services/tokenRefresh.js");
 

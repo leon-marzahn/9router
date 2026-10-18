@@ -3,7 +3,7 @@
  * Each element must become its own OpenAI tool_call (index, derived id
  * `<wrapperId>#<n>`); any invalid element drops the whole payload.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 const fetchMock = vi.fn();
 

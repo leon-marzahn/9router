@@ -1,6 +1,6 @@
 "use client";
 
-import { cn } from "@/shared/utils/cn";
+import { cn } from "@/ui/cn";
 
 export default function Toggle({
   checked = false,
@@ -12,9 +12,9 @@ export default function Toggle({
   className,
 }) {
   const sizes = {
-    sm: { track: "w-8 h-4", thumb: "size-3", translate: "translate-x-4" },
-    md: { track: "w-11 h-6", thumb: "size-5", translate: "translate-x-5" },
-    lg: { track: "w-14 h-7", thumb: "size-6", translate: "translate-x-7" },
+    sm: { track: "w-8 h-[18px]", thumb: "size-3.5", translate: "translate-x-[15px]" },
+    md: { track: "w-10 h-[22px]", thumb: "size-[18px]", translate: "translate-x-[19px]" },
+    lg: { track: "w-12 h-[26px]", thumb: "size-[22px]", translate: "translate-x-[23px]" },
   };
 
   const handleClick = () => {
@@ -33,13 +33,14 @@ export default function Toggle({
         type="button"
         role="switch"
         aria-checked={checked}
+        aria-label={label || undefined}
         disabled={disabled}
         onClick={handleClick}
         className={cn(
-          "relative inline-flex shrink-0 cursor-pointer rounded-full",
+          "relative inline-flex shrink-0 cursor-pointer items-center rounded-full",
           "transition-colors duration-200 ease-in-out",
-          "focus:outline-none focus:ring-2 focus:ring-brand-500/30",
-          checked ? "bg-brand-500" : "bg-surface-3",
+          "focus-visible:outline-none focus-visible:shadow-focus",
+          checked ? "bg-success" : "bg-surface-3",
           sizes[size].track,
           disabled && "cursor-not-allowed"
         )}
@@ -50,14 +51,13 @@ export default function Toggle({
             "transform transition duration-200 ease-in-out",
             checked ? sizes[size].translate : "translate-x-0.5",
             sizes[size].thumb,
-            "mt-0.5"
           )}
         />
       </button>
       {(label || description) && (
         <div className="flex flex-col">
           {label && (
-            <span className="text-sm font-medium text-text-main">{label}</span>
+            <span className="text-[13px] font-medium text-text">{label}</span>
           )}
           {description && (
             <span className="text-xs text-text-muted">{description}</span>

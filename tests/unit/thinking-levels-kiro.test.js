@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import { getThinkingLevels } from "../../open-sse/providers/thinkingLevels.js";
 import { buildKiroAdditionalModelRequestFieldsForModel } from "../../open-sse/config/kiroConstants.js";
 import { applyThinking } from "../../open-sse/translator/concerns/thinkingUnified.js";

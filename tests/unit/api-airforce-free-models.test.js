@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import airforce from "../../open-sse/providers/registry/api-airforce.js";
 import { PROVIDERS, PROVIDER_MODELS } from "../../open-sse/providers/index.js";
 import { getCapabilitiesForModel } from "../../open-sse/providers/capabilities.js";

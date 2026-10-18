@@ -1,6 +1,6 @@
 // Expose bugs caused by OpenAI being the intermediate format: data lost/wrong on source → openai → target.
 // Each test describes the EXPECTED-correct behavior. A FAIL is evidence of the bug (with source file:line).
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import "./registerAll.js";
 import { translateRequest } from "../../open-sse/translator/index.js";
 import { FORMATS } from "../../open-sse/translator/formats.js";

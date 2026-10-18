@@ -6,7 +6,7 @@
  * the real repro: `codex exec -m cbcn/kimi-k3` answered only "cod" instead
  * of "codex-ok".
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import { openaiToOpenAIResponsesResponse } from "../../open-sse/translator/response/openai-responses.js";
 import { initState } from "../../open-sse/translator/index.js";
 import { FORMATS } from "../../open-sse/translator/formats.js";

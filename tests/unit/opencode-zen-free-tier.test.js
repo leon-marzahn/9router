@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { OpenCodeZenExecutor } from "../../open-sse/executors/opencode-zen.js";
 import { OPENCODE_SESSION_RE } from "../../open-sse/executors/opencode-zen.js";
 import { isOpencodeFreeTierModel } from "../../open-sse/providers/models/helpers.js";

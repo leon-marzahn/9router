@@ -1,4 +1,4 @@
-import { beforeEach, describe, it, expect, vi } from "vitest";
+import { beforeEach, describe, it, expect, vi } from "vite-plus/test";
 import { getRequestDetails } from "@/lib/usageDb";
 import { GET } from "@/app/api/usage/request-details/route.js";
 
