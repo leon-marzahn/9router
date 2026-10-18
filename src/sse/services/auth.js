@@ -1,3 +1,4 @@
+import { pickByAffinity } from "./cacheAffinity.js";
 import { getProviderConnections, validateApiKey, updateProviderConnection, getSettings, getProxyPools } from "@/lib/localDb";
 import { resolveConnectionProxyConfig, pickProxyPoolId } from "@/lib/network/connectionProxy";
 import { formatRetryAfter, checkFallbackError, isModelLockActive, buildModelLockUpdate, getEarliestModelLockUntil } from "open-sse/services/accountFallback.js";
@@ -155,6 +156,10 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
     }
     if (connection) {
       // skip strategy
+    } else if (strategy === "cache-affinity" && options?.affinityKey) {
+      // Same conversation → same account (keeps its prompt cache warm). Unavailable
+      // accounts are already filtered out, so the next account in this key's order wins.
+      connection = pickByAffinity(options.affinityKey, availableConnections);
     } else if (strategy === "round-robin") {
       const stickyLimit = providerOverride.stickyRoundRobinLimit || settings.stickyRoundRobinLimit || 3;
 
