@@ -466,6 +466,11 @@ export async function buildModelsList(kindFilter, options = {}) {
       );
       let liveModelKindById = new Map();
       let liveCapabilitiesById = new Map();
+      // Display names for `name` (OpenRouter-style "Provider: Model"), so clients
+      // like Tavo show something readable instead of the raw `alias/id`.
+      const modelNameById = new Map(
+        providerModels.filter((m) => m?.id && m.name).map((m) => [m.id, m.name])
+      );
 
       let rawModelIds = hasExplicitEnabledModels
         ? Array.from(
@@ -500,6 +505,9 @@ export async function buildModelsList(kindFilter, options = {}) {
                 .filter((m) => m?.id && m.capabilities)
                 .map((m) => [m.id, m.capabilities])
             );
+            for (const m of live.models) {
+              if (m?.id && typeof m.name === "string" && m.name) modelNameById.set(m.id, m.name);
+            }
           }
         } catch (err) {
           console.log(`Live model fetch failed for ${providerId}: ${err?.message || err}`);
@@ -562,6 +570,7 @@ export async function buildModelsList(kindFilter, options = {}) {
         })
         .filter((modelId) => typeof modelId === "string" && modelId.trim() !== "");
 
+      const providerDisplayName = AI_PROVIDERS[providerId]?.name || outputAlias;
       const mergedModelIds = Array.from(new Set([...modelIds, ...customModelIds, ...aliasModelIds]));
 
       for (const modelId of mergedModelIds) {
@@ -578,6 +587,7 @@ export async function buildModelsList(kindFilter, options = {}) {
           id: `${outputAlias}/${modelId}`,
           object: "model",
           owned_by: outputAlias,
+          name: `${providerDisplayName}: ${modelNameById.get(modelId) || modelId}`,
         };
         // Live-catalog resolvers (kiro/qoder/github/clinepass) mostly only return
         // { id, name } — no per-model capability data. Fall back to the same
