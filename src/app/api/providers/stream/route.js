@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 const MAX_STREAMS = 16;
 const COALESCE_MS = 400;
 const KEEPALIVE_MS = 25_000;
-const KEY = Symbol.for("9router.providerStreams");
+const KEY = Symbol.for("regent.providerStreams");
 const open = (globalThis[KEY] ??= { count: 0 });
 
 export async function GET(request) {

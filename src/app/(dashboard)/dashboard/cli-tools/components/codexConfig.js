@@ -1,3 +1,5 @@
+import { PROVIDER_KEY } from "@/shared/constants/brand.js";
+
 const parseTomlString = (line, key) => {
   const match = line.match(new RegExp(`^\\s*${key}\\s*=\\s*(["'])([^\\n]*?)\\1\\s*(?:#.*)?$`));
   return match ? match[2] : "";
@@ -75,7 +77,7 @@ export function deriveProfileNameFromModel(modelId, existingNames = []) {
 }
 
 export function buildCodexProfileToml({ name, model }) {
-  return `# codex -p ${name}\nmodel = "${model}"\nmodel_provider = "9router"\n`;
+  return `# codex -p ${name}\nmodel = "${model}"\nmodel_provider = "${PROVIDER_KEY}"\n`;
 }
 
 export function parseCodexProfileModel(content) {

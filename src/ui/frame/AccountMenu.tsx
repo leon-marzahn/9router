@@ -2,8 +2,6 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
-import ChangelogModal from "@/shared/components/ChangelogModal";
-import DonateModal from "@/shared/components/DonateModal";
 import LanguageSwitcher from "@/shared/components/LanguageSwitcher";
 import { ConfirmModal } from "@/shared/components/Modal";
 import { APP_CONFIG } from "@/shared/constants/config";
@@ -14,7 +12,7 @@ import { RailTooltip } from "./Tooltip";
 import { EXTERNAL_LINKS, SETTINGS_HREF } from "./nav";
 import { logout, type AuthInfo } from "./useFrameData";
 
-type Modal = null | "changelog" | "donate" | "language" | "shutdown";
+type Modal = null | "language" | "shutdown";
 
 /** Everything that used to live in the header's right side, behind one rail button. */
 export function AccountMenu({
@@ -90,12 +88,6 @@ export function AccountMenu({
         <MenuItem icon="language" onClick={() => openModal("language")}>
           Language
         </MenuItem>
-        <MenuItem icon="history" onClick={() => openModal("changelog")}>
-          Changelog
-        </MenuItem>
-        <MenuItem icon="volunteer_activism" onClick={() => openModal("donate")}>
-          Donate
-        </MenuItem>
         <MenuSeparator />
         {EXTERNAL_LINKS.map((l) => (
           <MenuItem
@@ -124,8 +116,6 @@ export function AccountMenu({
         </MenuItem>
       </Popover>
 
-      <ChangelogModal isOpen={modal === "changelog"} onClose={() => setModal(null)} />
-      <DonateModal isOpen={modal === "donate"} onClose={() => setModal(null)} />
       <LanguageSwitcher hideTrigger isOpen={modal === "language"} onClose={() => setModal(null)} />
       <ConfirmModal
         isOpen={modal === "shutdown"}
@@ -138,7 +128,7 @@ export function AccountMenu({
           setModal(null);
         }}
         title="Shut down server"
-        message="Stop the 9Router server? Routing stops until you start it again."
+        message="Stop the Elizabeth's Proxy server? Routing stops until you start it again."
         confirmText="Shut down"
         cancelText="Cancel"
         variant="danger"

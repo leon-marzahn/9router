@@ -4,6 +4,14 @@ const { showStatus } = require("../utils/display");
 const { selectModelFromList } = require("../utils/modelSelector");
 const { showMenuWithBack } = require("../utils/menuHelper");
 const { getEndpoint } = require("../utils/endpoint");
+const {
+  DISPLAY_NAME,
+  LEGACY_DISPLAY_NAME,
+  PROVIDER_KEY,
+  pickProvider,
+  hasProviderPrefix,
+  stripProviderPrefix,
+} = require("../utils/brand");
 
 const COLORS = {
   reset: "\x1b[0m",
@@ -277,8 +285,10 @@ async function buildDroidHeader() {
     ].join("\n");
   }
 
-  // Extract 9Router custom model config
-  const custom = settings?.customModels?.find(m => m.id === "custom:9Router-0");
+  // Extract our custom model config (current `custom:regent-0`, legacy `custom:9Router-0`)
+  const custom =
+    settings?.customModels?.find((m) => m.id === `custom:${PROVIDER_KEY}-0`) ||
+    settings?.customModels?.find((m) => m.id === `custom:${LEGACY_DISPLAY_NAME}-0`);
   const lines = [`Status:   ${COLORS.green}✓ Configured${COLORS.reset}`];
   if (custom?.baseUrl) lines.push(`Endpoint: ${COLORS.cyan}${custom.baseUrl}${COLORS.reset}`);
   if (custom?.model)   lines.push(`Model:    ${COLORS.dim}${custom.model}${COLORS.reset}`);
@@ -360,10 +370,10 @@ async function buildOpenClawHeader() {
     ].join("\n");
   }
 
-  // Extract 9Router provider config
-  const provider = settings?.models?.providers?.["9router"];
+  // Extract our provider config (current `regent` key first, then legacy `9router`)
+  const provider = pickProvider(settings?.models?.providers);
   const primary = settings?.agents?.defaults?.model?.primary || "";
-  const model = primary.startsWith("9router/") ? primary.replace("9router/", "") : (provider?.models?.[0]?.id || "");
+  const model = hasProviderPrefix(primary) ? stripProviderPrefix(primary) : (provider?.models?.[0]?.id || "");
   const lines = [`Status:   ${COLORS.green}✓ Configured${COLORS.reset}`];
   if (provider?.baseUrl) lines.push(`Endpoint: ${COLORS.cyan}${provider.baseUrl}${COLORS.reset}`);
   if (model)             lines.push(`Model:    ${COLORS.dim}${model}${COLORS.reset}`);
@@ -528,7 +538,7 @@ async function fetchHermesProfiles() {
 const hermesProfileLine = (p) => {
   const name = p.displayName && !p.isDefault ? `${p.name} (${p.displayName})` : p.name;
   const state = p.has9Router
-    ? `${COLORS.green}✓ 9router${COLORS.reset}`
+    ? `${COLORS.green}✓ ${PROVIDER_KEY}${COLORS.reset}`
     : p.baseUrl
       ? `${COLORS.red}other: ${p.baseUrl}${COLORS.reset}`
       : `${COLORS.red}✗ not configured${COLORS.reset}`;
@@ -607,7 +617,7 @@ async function hermesQuickSetup(port) {
 }
 
 // Endpoint + API key across every profile. Each profile keeps its own model — profiles
-// already routed through 9router are refreshed, anything else is reported as skipped.
+// already routed through us are refreshed, anything else is reported as skipped.
 async function hermesApplyAll(port) {
   const { endpoint } = await getEndpoint(port);
   const apiKey = await getFirstApiKey();
@@ -684,7 +694,7 @@ async function showCliToolsMenu(port, breadcrumb = []) {
   await showMenuWithBack({
     title: "🔧 CLI Tools",
     breadcrumb,
-    headerContent: `Configure CLI tools to use 9Router\nEndpoint: ${endpoint}`,
+    headerContent: `Configure CLI tools to use ${DISPLAY_NAME}\nEndpoint: ${endpoint}`,
     items: [
       {
         label: "Claude Code",

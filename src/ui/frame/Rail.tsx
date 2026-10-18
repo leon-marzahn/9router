@@ -5,11 +5,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTheme } from "@/shared/hooks/useTheme";
 import { Icon } from "../Icon";
+import { Logo } from "../Logo";
 import { Popover } from "../Popover";
 import { cn } from "../cn";
 import { RailTooltip } from "./Tooltip";
 import { AccountMenu } from "./AccountMenu";
-import { UpdateFlow } from "./UpdateFlow";
 import { MEDIA_ITEMS, MEDIA_ROOT, NAV, SETTINGS_HREF, isActive, type NavItem } from "./nav";
 import type { AuthInfo } from "./useFrameData";
 
@@ -34,10 +34,10 @@ export function Rail({ flags, auth }: { flags: { enableTranslator?: boolean }; a
     >
       <Link
         href="/dashboard"
-        aria-label="9Router home"
-        className="mb-3 grid size-8 shrink-0 place-items-center rounded-lg bg-accent text-sm font-bold text-accent-fg shadow-warm"
+        aria-label="Elizabeth's Proxy home"
+        className="mb-3 shrink-0 rounded-lg shadow-warm"
       >
-        9
+        <Logo size={32} />
       </Link>
       <div className="flex min-h-0 w-full flex-1 flex-col items-center gap-1 overflow-y-auto">
         {NAV.map((g, gi) => (
@@ -62,7 +62,6 @@ export function Rail({ flags, auth }: { flags: { enableTranslator?: boolean }; a
         ))}
       </div>
       <div className="mt-2 flex shrink-0 flex-col items-center gap-1">
-        <UpdateFlow />
         <RailTooltip label={isDark ? "Light mode" : "Dark mode"}>
           <button
             type="button"

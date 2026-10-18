@@ -32,7 +32,7 @@ const LEGACY_SYSTRAY_PKG = "systray";
 // cgo compiles AppKit against the runner's SDK, so this value tracks that image:
 // when GitHub updates it the sha changes, the workflow refuses to publish, and
 // this constant must be bumped in the same change as the re-upload.
-const ARM64_TRAY_URL = "https://github.com/decolua/9router/releases/download/tray-binaries/tray_darwin_arm64";
+const ARM64_TRAY_URL = "https://github.com/leon-marzahn/9router/releases/download/tray-binaries/tray_darwin_arm64";
 const ARM64_TRAY_SHA256 = "487e3c365aaa1eb6ad295bf3989711e975b52cee07505bf641c8559954881c81";
 const ARM64_RETRY_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
@@ -44,8 +44,8 @@ function hasSystray() {
 // On Windows it was an AV false-positive risk; on macOS/Linux its bundled
 // binary is broken on modern OS versions.
 function cleanupLegacySystray({ silent = false } = {}) {
-  // 1) Runtime dir: ~/.9router/runtime/node_modules/systray (or %APPDATA% on Win)
-  // 2) npm global nested: <npm_prefix>/node_modules/9router/node_modules/systray
+  // 1) Runtime dir: ~/.regent/runtime/node_modules/systray (or %APPDATA% on Win)
+  // 2) npm global nested: <npm_prefix>/node_modules/regent/node_modules/systray
   //    __dirname here = <pkg root>/hooks → up 1 = pkg root
   const targets = [
     path.join(getRuntimeNodeModules(), LEGACY_SYSTRAY_PKG),
@@ -55,9 +55,9 @@ function cleanupLegacySystray({ silent = false } = {}) {
     if (fs.existsSync(dir)) {
       try {
         fs.rmSync(dir, { recursive: true, force: true });
-        if (!silent) console.log(`[9router][runtime] removed legacy systray: ${dir}`);
+        if (!silent) console.log(`[regent][runtime] removed legacy systray: ${dir}`);
       } catch (e) {
-        if (!silent) console.warn(`[9router][runtime] failed to remove ${dir}: ${e.message}`);
+        if (!silent) console.warn(`[regent][runtime] failed to remove ${dir}: ${e.message}`);
       }
     }
   }
@@ -74,7 +74,7 @@ function chmodSystrayBin({ silent = false } = {}) {
   try {
     fs.chmodSync(binPath, 0o755);
   } catch (e) {
-    if (!silent) console.warn(`[9router][runtime] chmod tray bin failed: ${e.message}`);
+    if (!silent) console.warn(`[regent][runtime] chmod tray bin failed: ${e.message}`);
   }
 }
 
@@ -84,7 +84,7 @@ function ensureRuntimeDir() {
   const pkgPath = path.join(dir, "package.json");
   if (!fs.existsSync(pkgPath)) {
     fs.writeFileSync(pkgPath, JSON.stringify({
-      name: "9router-runtime",
+      name: "regent-runtime",
       version: "1.0.0",
       private: true
     }, null, 2));
@@ -126,7 +126,7 @@ function arm64AttemptMarker() {
   return path.join(getRuntimeDir(), ".tray-arm64-attempt");
 }
 
-// ensureTrayRuntime runs synchronously on every `9router` start (cli.js), so a
+// ensureTrayRuntime runs synchronously on every `regent` start (cli.js), so a
 // failed download must not re-block the next launch. Retry at most daily.
 function recentlyAttemptedArm64() {
   try {
@@ -144,7 +144,7 @@ function markArm64Attempt() {
 // Cleared on success so the cooldown only ever throttles *failures*. Without
 // this, anything that restores systray2's x86_64 binary later — notably a
 // globally installed 9router older than this change, which shares the same
-// ~/.9router/runtime — would leave the user waiting out the cooldown.
+// ~/.regent/runtime — would leave the user waiting out the cooldown.
 function clearArm64Attempt() {
   try { fs.rmSync(arm64AttemptMarker(), { force: true }); } catch {}
 }

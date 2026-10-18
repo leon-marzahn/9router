@@ -1,6 +1,7 @@
 "use server";
 
 import { NextResponse } from "next/server";
+import { DISPLAY_NAME } from "@/shared/constants/brand.js";
 import { exec } from "child_process";
 import { promisify } from "util";
 import fs from "fs/promises";
@@ -31,7 +32,7 @@ import { resolveHermesHome, listProfiles, dirExists } from "./hermesProfiles.js"
 
 const execAsync = promisify(exec);
 
-const PROVIDER_NAME = "9router";
+const PROVIDER_NAME = DISPLAY_NAME;
 const API_KEY_ENV = "OPENAI_API_KEY";
 
 // Profile comes from ?profile= on GET (all-statuses calls GET() with no argument at all,

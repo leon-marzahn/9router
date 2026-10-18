@@ -7,6 +7,7 @@ import path from "path";
 import os from "os";
 import { exec } from "child_process";
 import { promisify } from "util";
+import { DISPLAY_NAME, PROVIDER_KEY, LEGACY_PROVIDER_KEY, pickProvider, deleteProviderKeys } from "@/shared/constants/brand.js";
 
 const execAsync = promisify(exec);
 
@@ -40,7 +41,7 @@ const checkPiInstalled = async () => {
 
 const has9RouterConfig = (settings) => {
   if (!settings || !settings.providers) return false;
-  const p = settings.providers["9router"];
+  const p = pickProvider(settings.providers);
   if (p && p.baseUrl) return true;
   for (const prov of Object.values(settings.providers)) {
     if (prov.baseUrl && prov.baseUrl.includes("20128")) return true;
@@ -125,6 +126,8 @@ export async function POST(request) {
     }
 
     if (!existing.providers) existing.providers = {};
+    // Carry over an existing (possibly legacy `9router`) entry's apiKey/api settings
+    const existingProvider = pickProvider(existing.providers) || {};
 
     const normalizedBaseUrl = baseUrl.endsWith("/v1") ? baseUrl : `${baseUrl}/v1`;
     let modelList = [];
@@ -145,7 +148,8 @@ export async function POST(request) {
       modelList = [{ id: modelId, name: modelId, contextWindow: 128000, maxTokens: 16384 }];
     }
 
-    existing.providers["9router"] = {
+    delete existing.providers[LEGACY_PROVIDER_KEY];
+    existing.providers[PROVIDER_KEY] = {
       ...existingProvider,
       baseUrl: normalizedBaseUrl,
       apiKey: apiKey || existingProvider.apiKey || await resolveCliApiKey(null),
@@ -157,7 +161,7 @@ export async function POST(request) {
 
     return NextResponse.json({
       success: true,
-      message: "Pi settings applied! Use /model in Pi to select the 9Router model.",
+      message: `Pi settings applied! Use /model in Pi to select the ${DISPLAY_NAME} model.`,
       configPath,
     });
   } catch (err) {
@@ -176,13 +180,13 @@ export async function DELETE() {
       return NextResponse.json({ success: true, message: "No config file to reset" });
     }
 
-    if (existing.providers && existing.providers["9router"]) {
-      delete existing.providers["9router"];
+    if (pickProvider(existing.providers)) {
+      deleteProviderKeys(existing.providers);
       if (Object.keys(existing.providers).length === 0) delete existing.providers;
       await fs.writeFile(configPath, JSON.stringify(existing, null, 2), "utf-8");
     }
 
-    return NextResponse.json({ success: true, message: "9Router removed from Pi" });
+    return NextResponse.json({ success: true, message: `${DISPLAY_NAME} removed from Pi` });
   } catch (err) {
     return NextResponse.json({ error: { message: err.message } }, { status: 500 });
   }

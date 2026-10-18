@@ -1,4 +1,4 @@
-// `9router show` — reads each tool's local 9router config; offline, key always masked.
+// `regent show` — reads each tool's local 9router config; offline, key always masked.
 import { describe, it, expect, beforeEach, afterEach, vi } from "vite-plus/test";
 import { createRequire } from "node:module";
 import fs from "node:fs";
@@ -17,7 +17,7 @@ const CTX = {
   claudeModels: { ANTHROPIC_DEFAULT_OPUS_MODEL: "srv/opus", ANTHROPIC_DEFAULT_SONNET_MODEL: "srv/sonnet" },
 };
 
-describe("9router show", () => {
+describe("regent show", () => {
   let home;
   let out;
   beforeEach(() => {
@@ -36,7 +36,7 @@ describe("9router show", () => {
   it("reports every tool as not configured on an empty home", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     expect(await show.run([])).toBe(0);
-    expect(out.filter((l) => l.includes("not configured for 9router"))).toHaveLength(tools.TOOLS.length);
+    expect(out.filter((l) => l.includes("not configured for Elizabeth's Proxy"))).toHaveLength(tools.TOOLS.length);
     expect(fetchSpy).not.toHaveBeenCalled(); // offline
   });
 

@@ -34,9 +34,9 @@ import { getComboModels } from "../../src/sse/services/model.js";
 import { isValidApiKey } from "../../src/sse/services/auth.js";
 import { handleChat } from "../../src/sse/handlers/chat.js";
 
-const request = (selector = "agentic") => new Request("http://localhost/v1/chat/completions", {
+const request = (selector = "agentic", header = "X-9Router-Pipeline") => new Request("http://localhost/v1/chat/completions", {
   method: "POST",
-  headers: selector === null ? {} : { "X-9Router-Pipeline": selector },
+  headers: selector === null ? {} : { [header]: selector },
   body: JSON.stringify({ model: "openai/test", messages: [{ role: "user", content: "aaa" }] }),
 });
 
@@ -54,6 +54,13 @@ it("processes before provider execution, retaining original logs and stripping t
   expect(sent.body.messages[0].content).toBe("aaaaa");
   expect(sent.clientRawRequest.body.messages[0].content).toBe("aaa");
   expect(sent.clientRawRequest.headers).not.toHaveProperty("x-9router-pipeline");
+});
+
+it("accepts the renamed X-Regent-Pipeline header and strips it", async () => {
+  expect((await handleChat(request("agentic", "X-Regent-Pipeline"))).status).toBe(200);
+  const sent = handleChatCore.mock.calls[0][0];
+  expect(sent.body.messages[0].content).toBe("aaaaa");
+  expect(sent.clientRawRequest.headers).not.toHaveProperty("x-regent-pipeline");
 });
 
 it("does not reapply processing during combo routing", async () => {

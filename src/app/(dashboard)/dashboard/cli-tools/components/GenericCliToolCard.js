@@ -8,6 +8,7 @@ import { rememberEndpoint } from "./cliEndpointPresets";
 import ApiKeySelect from "./ApiKeySelect";
 import { matchKnownEndpoint } from "./cliEndpointMatch";
 import { getModelsByProviderId, PROVIDER_ID_TO_ALIAS } from "@/shared/constants/models";
+import { DISPLAY_NAME, PROVIDER_KEY, pickProvider } from "@/shared/constants/brand.js";
 
 export default function GenericCliToolCard({
   tool,
@@ -32,11 +33,11 @@ export default function GenericCliToolCard({
   const [selectedApiKey, setSelectedApiKey] = useState(() => apiKeys?.[0]?.key || "");
   const [selectedModel, setSelectedModel] = useState(() => {
     const cfg = initialStatus?.config;
-    return cfg?.model || cfg?.openai?.model || cfg?.providers?.["9router"]?.models?.[0]?.id || "";
+    return cfg?.model || cfg?.openai?.model || pickProvider(cfg?.providers)?.models?.[0]?.id || "";
   });
   const [selectedModels, setSelectedModels] = useState(() => {
     const cfg = initialStatus?.config;
-    const list = cfg?.providers?.["9router"]?.models;
+    const list = pickProvider(cfg?.providers)?.models;
     if (Array.isArray(list) && list.length > 0) {
       return list.map((m) => (typeof m === "string" ? m : m.id));
     }
@@ -58,13 +59,13 @@ export default function GenericCliToolCard({
             setStatus(data);
             const cfg = data?.config;
             if (tool.id === "pi") {
-              const list = cfg?.providers?.["9router"]?.models;
+              const list = pickProvider(cfg?.providers)?.models;
               if (Array.isArray(list) && list.length > 0) {
                 const ids = list.map((m) => (typeof m === "string" ? m : m.id));
                 setSelectedModels(ids);
               }
             } else {
-              const mod = cfg?.model || cfg?.openai?.model || cfg?.providers?.["9router"]?.models?.[0]?.id;
+              const mod = cfg?.model || cfg?.openai?.model || pickProvider(cfg?.providers)?.models?.[0]?.id;
               if (mod) setSelectedModel((prev) => prev || mod);
             }
           }
@@ -86,13 +87,13 @@ export default function GenericCliToolCard({
       setStatus(data);
       const cfg = data?.config;
       if (tool.id === "pi") {
-        const list = cfg?.providers?.["9router"]?.models;
+        const list = pickProvider(cfg?.providers)?.models;
         if (Array.isArray(list) && list.length > 0) {
           const ids = list.map((m) => (typeof m === "string" ? m : m.id));
           setSelectedModels(ids);
         }
       } else {
-        const mod = cfg?.model || cfg?.openai?.model || cfg?.providers?.["9router"]?.models?.[0]?.id;
+        const mod = cfg?.model || cfg?.openai?.model || pickProvider(cfg?.providers)?.models?.[0]?.id;
         if (mod && !selectedModel) setSelectedModel(mod);
       }
     } catch (error) {
@@ -112,8 +113,8 @@ export default function GenericCliToolCard({
     const cfg = status.config;
     if (typeof cfg.baseUrl === "string") return cfg.baseUrl;
     if (typeof cfg.openai?.base_url === "string") return cfg.openai.base_url;
-    if (typeof cfg.providers?.["9router"]?.base_url === "string") return cfg.providers["9router"].base_url;
-    if (typeof cfg.providers?.["9router"]?.baseUrl === "string") return cfg.providers["9router"].baseUrl;
+    if (typeof pickProvider(cfg.providers)?.base_url === "string") return pickProvider(cfg.providers).base_url;
+    if (typeof pickProvider(cfg.providers)?.baseUrl === "string") return pickProvider(cfg.providers).baseUrl;
     return "";
   };
 
@@ -251,7 +252,7 @@ export default function GenericCliToolCard({
             content: JSON.stringify(
               {
                 providers: {
-                  "9router": {
+                  [PROVIDER_KEY]: {
                     baseUrl: effectiveUrl,
                     apiKey: key,
                     api: "openai-completions",
@@ -274,7 +275,7 @@ export default function GenericCliToolCard({
         return [
           {
             filename: "~/.omp/agent/models.yml",
-            content: `providers:\n  9router:\n    baseUrl: ${effectiveUrl}\n    apiKey: ${key}\n    api: openai-completions\n    authHeader: true\n    disableStrictTools: true\n    discovery:\n      type: proxy`,
+            content: `providers:\n  ${PROVIDER_KEY}:\n    baseUrl: ${effectiveUrl}\n    apiKey: ${key}\n    api: openai-completions\n    authHeader: true\n    disableStrictTools: true\n    discovery:\n      type: proxy`,
           },
         ];
       case "crush":
@@ -284,7 +285,7 @@ export default function GenericCliToolCard({
             content: JSON.stringify(
               {
                 providers: {
-                  "9router": {
+                  [PROVIDER_KEY]: {
                     type: "openai-compat",
                     base_url: effectiveUrl,
                     api_key: key,
@@ -301,21 +302,21 @@ export default function GenericCliToolCard({
         return [
           {
             filename: "~/.forge/config.toml",
-            content: `# Forge config — managed by 9Router\n\n[openai]\napi_key = "${key}"\nbase_url = "${effectiveUrl}"\nmodel = "${mod}"`,
+            content: `# Forge config — managed by ${DISPLAY_NAME}\n\n[openai]\napi_key = "${key}"\nbase_url = "${effectiveUrl}"\nmodel = "${mod}"`,
           },
         ];
       case "smelt":
         return [
           {
             filename: "~/.smelt/config.json",
-            content: JSON.stringify({ baseUrl: effectiveUrl, apiKey: key, model: mod, _managedBy: "9router" }, null, 2),
+            content: JSON.stringify({ baseUrl: effectiveUrl, apiKey: key, model: mod, _managedBy: PROVIDER_KEY }, null, 2),
           },
         ];
       case "codewhale":
         return [
           {
             filename: "~/.codewhale/config.toml",
-            content: `# CodeWhale config — managed by 9Router\n\n[openai]\nbase_url = "${effectiveUrl}"\napi_key = "${key}"\nmodel = "${mod}"`,
+            content: `# CodeWhale config — managed by ${DISPLAY_NAME}\n\n[openai]\nbase_url = "${effectiveUrl}"\napi_key = "${key}"\nmodel = "${mod}"`,
           },
         ];
       default:
@@ -392,7 +393,7 @@ export default function GenericCliToolCard({
                   <span className="material-symbols-outlined text-yellow-500">warning</span>
                   <div className="flex-1">
                     <p className="font-medium text-yellow-600 dark:text-yellow-400">{tool.name} not detected locally</p>
-                    <p className="text-sm text-text-muted">Manual configuration is still available if 9router is deployed on a remote server.</p>
+                    <p className="text-sm text-text-muted">Manual configuration is still available if {DISPLAY_NAME} is deployed on a remote server.</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 pl-9">

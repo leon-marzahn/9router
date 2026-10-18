@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
+import { PROVIDER_KEY } from "@/shared/constants/brand.js";
 
 export const dynamic = "force-dynamic";
 
@@ -78,7 +79,7 @@ export async function POST(request) {
     await fs.mkdir(codexDir, { recursive: true });
 
     const filePath = path.join(codexDir, `${cleanName}.config.toml`);
-    const content = `# codex -p ${cleanName}\nmodel = "${cleanModel}"\nmodel_provider = "9router"\n`;
+    const content = `# codex -p ${cleanName}\nmodel = "${cleanModel}"\nmodel_provider = "${PROVIDER_KEY}"\n`;
     await fs.writeFile(filePath, content, "utf-8");
 
     return NextResponse.json({

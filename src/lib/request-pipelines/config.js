@@ -1,4 +1,6 @@
-export const PIPELINE_HEADER = "x-9router-pipeline";
+export const PIPELINE_HEADER = "x-regent-pipeline";
+/** Pre-rename name, still honoured. */
+export const LEGACY_PIPELINE_HEADER = "x-9router-pipeline";
 
 export function compilePattern(pattern) {
   if (typeof pattern !== "string" || !pattern || pattern.length > 4096) {

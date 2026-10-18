@@ -9,6 +9,7 @@ import ApiKeySelect from "./ApiKeySelect";
 import { matchKnownEndpoint } from "./cliEndpointMatch";
 import { rememberEndpoint } from "./cliEndpointPresets";
 import { getCurrentCodexProviderSettings, deriveProfileNameFromModel } from "./codexConfig";
+import { DISPLAY_NAME, PROVIDER_KEY } from "@/shared/constants/brand.js";
 
 export default function CodexToolCard({ tool, isExpanded, onToggle, baseUrl, apiKeys, activeProviders, cloudEnabled, initialStatus, tunnelEnabled, tunnelPublicUrl, tailscaleEnabled, tailscaleUrl }) {
   const [codexStatus, setCodexStatus] = useState(initialStatus || null);
@@ -262,16 +263,16 @@ export default function CodexToolCard({ tool, isExpanded, onToggle, baseUrl, api
 
     const effectiveSubagentModel = subagentModel || selectedModel;
 
-    const configContent = `# 9Router Configuration for Codex CLI
+    const configContent = `# ${DISPLAY_NAME} Configuration for Codex CLI
 model = "${selectedModel}"
-model_provider = "9router"
+model_provider = "${PROVIDER_KEY}"
 
-[model_providers.9router]
-name = "9Router"
+[model_providers.${PROVIDER_KEY}]
+name = "${DISPLAY_NAME}"
 base_url = "${getEffectiveBaseUrl()}"
 wire_api = "responses"
 
-[model_providers.9router.http_headers]
+[model_providers.${PROVIDER_KEY}.http_headers]
 Authorization = "Bearer ${keyToUse}"
 
 [agents]
@@ -322,7 +323,7 @@ default_subagent_model = "${effectiveSubagentModel}"
                   <span className="material-symbols-outlined text-yellow-500">warning</span>
                   <div className="flex-1">
                     <p className="font-medium text-yellow-600 dark:text-yellow-400">Codex CLI not detected locally</p>
-                    <p className="text-sm text-text-muted">Manual configuration is still available if 9router is deployed on a remote server.</p>
+                    <p className="text-sm text-text-muted">Manual configuration is still available if {DISPLAY_NAME} is deployed on a remote server.</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 pl-9">

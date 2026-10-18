@@ -1,4 +1,4 @@
-// `9router connect` — arg parsing, URL/cookie helpers and per-tool config writers.
+// `regent connect` — arg parsing, URL/cookie helpers and per-tool config writers.
 import { describe, it, expect, beforeEach, afterEach, vi } from "vite-plus/test";
 import { createRequire } from "node:module";
 import fs from "node:fs";
@@ -93,7 +93,7 @@ describe("connect tool writers", () => {
     }
   });
 
-  it("claude merges env and keeps unrelated settings; reset removes only 9router keys", async () => {
+  it("claude merges env and keeps unrelated settings; reset removes only our keys", async () => {
     const f = path.join(home, ".claude", "settings.json");
     fs.mkdirSync(path.dirname(f), { recursive: true });
     fs.writeFileSync(f, JSON.stringify({ theme: "dark", env: { KEEP: "1" } }));
@@ -101,7 +101,7 @@ describe("connect tool writers", () => {
     const cfg = readJson(f);
     expect(cfg.theme).toBe("dark");
     expect(cfg.env).toMatchObject({ KEEP: "1", ANTHROPIC_BASE_URL: "http://gw.test:20128/v1", ANTHROPIC_AUTH_TOKEN: CTX.apiKey });
-    expect(fs.existsSync(`${f}.bak-9router`)).toBe(true);
+    expect(fs.existsSync(`${f}.bak-regent`)).toBe(true);
     await tool("claude").reset();
     expect(readJson(f)).toEqual({ theme: "dark", hasCompletedOnboarding: true, env: { KEEP: "1" } });
   });
@@ -112,20 +112,20 @@ describe("connect tool writers", () => {
     fs.writeFileSync(f, '[mcp_servers.x]\ncommand = "foo"\n');
     await tool("codex").apply(CTX);
     const text = fs.readFileSync(f, "utf8");
-    expect(text).toContain('model_provider = "9router"');
+    expect(text).toContain('model_provider = "regent"');
     expect(text).toContain("[mcp_servers.x]");
     await tool("codex").reset();
     const after = fs.readFileSync(f, "utf8");
     expect(after).toContain("[mcp_servers.x]");
-    expect(after).not.toMatch(/9router|model_providers|\[agents\]/);
+    expect(after).not.toMatch(/regent|9router|model_providers|\[agents\]/);
   });
 
-  it("droid keeps user models and puts 9router first", async () => {
+  it("droid keeps user models and puts ours first", async () => {
     const f = path.join(home, ".factory", "settings.json");
     fs.mkdirSync(path.dirname(f), { recursive: true });
     fs.writeFileSync(f, JSON.stringify({ customModels: [{ id: "mine", model: "m" }] }));
     await tool("droid").apply(CTX);
-    expect(readJson(f).customModels.map((m) => m.id)).toEqual(["custom:9Router-0", "mine"]);
+    expect(readJson(f).customModels.map((m) => m.id)).toEqual(["custom:regent-0", "mine"]);
     await tool("droid").reset();
     expect(readJson(f).customModels.map((m) => m.id)).toEqual(["mine"]);
   });
@@ -145,15 +145,15 @@ describe("connect tool writers", () => {
     expect(tool("pi").serverModel({ config: { providers: { other: { models: [{ id: "f" }] } } } })).toBeNull();
   });
 
-  it("pi keeps other providers and writes the 9router model list", async () => {
+  it("pi keeps other providers and writes our model list", async () => {
     const f = path.join(home, ".pi", "agent", "models.json");
     fs.mkdirSync(path.dirname(f), { recursive: true });
     fs.writeFileSync(f, JSON.stringify({ providers: { mine: { baseUrl: "http://x" } } }));
     await tool("pi").apply(CTX);
     const p = readJson(f).providers;
     expect(p.mine).toEqual({ baseUrl: "http://x" });
-    expect(p["9router"]).toMatchObject({ baseUrl: "http://gw.test:20128/v1", apiKey: CTX.apiKey, api: "openai-completions" });
-    expect(p["9router"].models.map((m) => m.id)).toEqual([CTX.model]);
+    expect(p.regent).toMatchObject({ baseUrl: "http://gw.test:20128/v1", apiKey: CTX.apiKey, api: "openai-completions" });
+    expect(p.regent.models.map((m) => m.id)).toEqual([CTX.model]);
     await tool("pi").reset();
     expect(readJson(f)).toEqual({ providers: { mine: { baseUrl: "http://x" } } });
   });
@@ -172,11 +172,11 @@ describe("connect tool writers", () => {
     await tool("omp").apply(CTX);
     const text = fs.readFileSync(f, "utf8");
     expect(text).toContain("theme: dark");
-    expect(text).toMatch(/9router:\n\s+baseUrl: http:\/\/gw\.test:20128\/v1/);
+    expect(text).toMatch(/regent:\n\s+baseUrl: http:\/\/gw\.test:20128\/v1/);
     expect(text).toMatch(/discovery:\n\s+type: proxy/);
     await tool("omp").reset();
     const after = fs.readFileSync(f, "utf8");
-    expect(after).not.toContain("9router");
+    expect(after).not.toMatch(/regent|9router/);
     expect(after).toContain("mine:");
     expect(after).toContain("theme: dark");
   });
@@ -245,7 +245,7 @@ describe("connect run()", () => {
     // Tiers the server leaves unset stay unset — no invented model id.
     expect(env).not.toHaveProperty("ANTHROPIC_DEFAULT_HAIKU_MODEL");
     expect(env).not.toHaveProperty("ANTHROPIC_DEFAULT_FABLE_MODEL");
-    expect(readJson(path.join(home, ".config", "opencode", "opencode.json")).model).toBe("9router/srv/default");
+    expect(readJson(path.join(home, ".config", "opencode", "opencode.json")).model).toBe("regent/srv/default");
 
     // The server's own key and loopback base URL must not leak into our config.
     const written = fs.readFileSync(path.join(home, ".claude", "settings.json"), "utf8");
@@ -295,7 +295,7 @@ describe("connect run()", () => {
     expect(readJson(path.join(home, ".factory", "settings.json")).customModels[0].model).toBe("srv/droid");
     expect(readJson(path.join(home, ".cline", "data", "globalState.json")).openAiModelId).toBe("srv/cline");
     // crush (not installed on server) and kilo (no model exposed) fall back to OpenCode's model.
-    expect(readJson(path.join(home, ".config", "crush", "crush.json")).providers["9router"].models[0].id).toBe("srv/default");
+    expect(readJson(path.join(home, ".config", "crush", "crush.json")).providers.regent.models[0].id).toBe("srv/default");
     expect(readJson(path.join(home, ".local", "share", "kilo", "auth.json"))["openai-compatible"].model).toBe("srv/default");
 
     for (const f of [
@@ -320,7 +320,7 @@ describe("connect run()", () => {
   it("--model overrides every non-Claude tool's server value", async () => {
     mockServer();
     await connect.run(["http://gw.test", "--password", "x", "--tools", "opencode,kilo", "--model", "mine/all"]);
-    expect(readJson(path.join(home, ".config", "opencode", "opencode.json")).model).toBe("9router/mine/all");
+    expect(readJson(path.join(home, ".config", "opencode", "opencode.json")).model).toBe("regent/mine/all");
     expect(readJson(path.join(home, ".local", "share", "kilo", "auth.json"))["openai-compatible"].model).toBe("mine/all");
   });
 
@@ -361,7 +361,7 @@ describe("connect run()", () => {
     expect(console.log.mock.calls.map((c) => c[0]).some((l) => String(l).includes("skipped"))).toBe(true);
     // ...unless the user says which model to use.
     expect(await connect.run(["http://gw.test", "--password", "x", "--tools", "opencode", "--model", "mine/m"])).toBe(0);
-    expect(readJson(path.join(home, ".config", "opencode", "opencode.json")).model).toBe("9router/mine/m");
+    expect(readJson(path.join(home, ".config", "opencode", "opencode.json")).model).toBe("regent/mine/m");
   });
 
   // savedEnvPath() reads %APPDATA% on Windows, not homedir(), so point both at
@@ -371,8 +371,8 @@ describe("connect run()", () => {
     vi.stubEnv("APPDATA", path.join(home, "AppData", "Roaming"));
   };
   const expectedEnvPath = () => (process.platform === "win32"
-    ? path.join(home, "AppData", "Roaming", "9router", "connect.env")
-    : path.join(home, ".9router", "connect.env"));
+    ? path.join(home, "AppData", "Roaming", "regent", "connect.env")
+    : path.join(home, ".regent", "connect.env"));
 
   it("--save stores the password (mode 600) bound to the server, and later runs reuse it", async () => {
     isolateDataDir();

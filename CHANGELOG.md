@@ -1,3 +1,13 @@
+# Unreleased — Elizabeth's Proxy
+
+This fork is now **Elizabeth's Proxy** (machine name `regent`) and is developed independently of 9Router. Entries below this one are 9Router's history up to the split.
+
+## Changes
+- **Rename**: CLI command, packages and data folder are now `regent`. On first start `~/.9router` (`%APPDATA%\9router`) is moved to `~/.regent`; old `X-9Router-*` headers, `9router` entries in tool configs and old auto-start entries are still recognised.
+- **Design**: warm-workbench dashboard with a dusty-rose accent, pill primary buttons and a crowned-E logo.
+- **Removed**: 9Remote, donate, in-app changelog, landing page, npm self-update, the 9router.com cloud default, and the upstream docs site and README translations.
+- **Skills**: renamed to `regent-*` and served from this repository.
+
 # v0.5.104 (2026-10-15)
 
 ## Features

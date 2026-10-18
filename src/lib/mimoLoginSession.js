@@ -31,7 +31,7 @@ const BROWSER_UA =
 // allowlist rots fast. (Edge-safe: plain strings only.)
 const APP_PREFIXES = [
   "/_next/", "/api/", "/dashboard", "/v1/", "/v1beta/",
-  "/login", "/landing", "/__mimo_login/", "/i18n/", "/icons/", "/providers/",
+  "/login", "/__mimo_login/", "/i18n/", "/icons/", "/providers/",
 ];
 const APP_FILES = new Set([
   "/favicon.svg", "/favicon.ico", "/file.svg", "/globe.svg", "/next.svg",

@@ -16,3 +16,4 @@ export { Popover, MenuItem, MenuSeparator, MenuLabel } from "./Popover";
 export { AppFrame } from "./frame/AppFrame";
 export { TopBarContent, TopBarActions } from "./frame/slots";
 export { ProviderLogo } from "./ProviderLogo";
+export { Logo } from "./Logo";

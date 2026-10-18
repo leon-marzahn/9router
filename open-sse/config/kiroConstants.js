@@ -20,7 +20,9 @@ import { effortToBudget } from "../translator/concerns/thinking.js";
 
 export const KIRO_AGENTIC_SUFFIX = "-agentic";
 export const KIRO_THINKING_SUFFIX = "-thinking";
-export const KIRO_TIME_HEADER = "x-9router-kiro-time";
+export const KIRO_TIME_HEADER = "x-regent-kiro-time";
+/** Pre-rename name, still honoured. */
+export const LEGACY_KIRO_TIME_HEADER = "x-9router-kiro-time";
 export const KIRO_TOOL_NAME_MAX_LENGTH = 64;
 export const KIRO_TOOL_DESCRIPTION_MAX_LENGTH = 10237;
 export const KIRO_TOOL_ID_MAX_LENGTH = 64;
@@ -52,7 +54,7 @@ const KIRO_TIME_OFF_VALUES = new Set(["off", "false", "0"]);
 
 /** Per-request opt-out of real-world time context, e.g. for roleplay. */
 export function buildKiroTimeContext(headers) {
-  const value = pickHeader(headers, KIRO_TIME_HEADER);
+  const value = pickHeader(headers, KIRO_TIME_HEADER) ?? pickHeader(headers, LEGACY_KIRO_TIME_HEADER);
   if (typeof value === "string" && KIRO_TIME_OFF_VALUES.has(value.trim().toLowerCase())) return "";
   return `[Context: Current time is ${new Date().toISOString()}]`;
 }

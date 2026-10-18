@@ -67,7 +67,7 @@ const { ensureSqliteRuntime, buildEnvWithRuntime } = require("./hooks/sqliteRunt
 const { ensureTrayRuntime } = require("./hooks/trayRuntime");
 const args = process.argv.slice(2);
 
-// Subcommands (`9router xai video …`) run against an already-running gateway
+// Subcommands (`regent xai video …`) run against an already-running gateway
 // and bypass the launcher flow (no runtime self-heal, no server spawn).
 if (args[0] === "xai" && args[1] === "video") {
   const { run } = require("./src/cli/commands/xaiVideo");
@@ -80,9 +80,9 @@ if (args[0] === "xai" && args[1] === "video") {
   return;
 }
 
-// `9router connect <url>` configures local CLI tools against a remote server, and
-// `9router show` prints what they're currently set to — no local server, no
-// runtime deps. Usable via `npx 9router …`.
+// `regent connect <url>` configures local CLI tools against a remote server, and
+// `regent show` prints what they're currently set to — no local server, no
+// runtime deps.
 if (args[0] === "connect" || args[0] === "show") {
   const { run } = require(args[0] === "show" ? "./src/cli/commands/show" : "./src/cli/commands/connect");
   run(args.slice(1))
@@ -94,7 +94,7 @@ if (args[0] === "connect" || args[0] === "show") {
   return;
 }
 
-// Self-heal SQLite runtime deps (sql.js + better-sqlite3) into ~/.9router/runtime
+// Self-heal SQLite runtime deps (sql.js + better-sqlite3) into ~/.regent/runtime
 // so the server can resolve them via NODE_PATH. Best-effort — sql.js is required,
 // better-sqlite3 is optional. Logs to stderr only on failure.
 try { ensureSqliteRuntime({ silent: true }); } catch {}
@@ -124,9 +124,11 @@ function getDisplayHost() {
   return host === DEFAULT_HOST ? "localhost" : host;
 }
 const MAX_PORT_ATTEMPTS = 10;
-// Identifiers for killAllAppProcesses - only kill 9router specifically
+// Identifiers for killAllAppProcesses - only kill our own processes.
+// "9router" is the pre-rename name (old installs, and this repo's folder name).
 const PROCESS_IDENTIFIERS = [
-  '9router'  // Only package name - avoid killing other apps
+  'regent',
+  '9router'
 ];
 
 // Parse arguments
@@ -163,15 +165,14 @@ Options:
   -n, --no-browser    Don't open browser automatically
   -l, --log           Show server logs (default: hidden)
   -t, --tray          Run in system tray mode (background)
-  --skip-update       Skip auto-update check
   -h, --help          Show this help message
   -v, --version       Show version
 
 Commands:
-  connect <server-url> Configure Claude Code for a remote 9router server
-                      (npx 9router connect http://host:20128 — no install needed)
-  show [tool…]        Show each CLI tool's current 9router config and models
-                      (e.g. 9router show claude)
+  connect <server-url> Configure Claude Code for a remote Elizabeth's Proxy server
+                      (${APP_NAME} connect http://host:20128)
+  show [tool…]        Show each CLI tool's current Elizabeth's Proxy config and models
+                      (e.g. ${APP_NAME} show claude)
   xai video --prompt "..." --output video.mp4
                       Generate a Grok Imagine video via the running gateway
                       (see: ${APP_NAME} xai video --help)
@@ -205,9 +206,7 @@ function compareVersions(a, b) {
 
 // Get app data dir (matches app/src/lib/dataDir.js convention)
 function getAppDataDir() {
-  return process.platform === "win32"
-    ? path.join(process.env.APPDATA || "", "9router")
-    : path.join(os.homedir(), ".9router");
+  return process.env.DATA_DIR || require("./src/cli/utils/appDir").defaultDataDir();
 }
 
 // Kill PID from file (best-effort, removes file after)
@@ -264,7 +263,7 @@ function killCloudflaredByAppPort(appPort) {
   return pids;
 }
 
-// Kill all 9router processes
+// Kill all app processes
 function killAllAppProcesses(appPort) {
   return new Promise((resolve) => {
     try {
@@ -291,11 +290,11 @@ function killAllAppProcesses(appPort) {
           });
           const lines = output.split("\n").slice(1).filter(l => l.trim());
           lines.forEach(line => {
-            // Whitelist: real node process running 9router/cli.js, or next-server.
-            // Avoids killing editors/grep/strace/cursor that just have "9router" in cmdline.
+            // Whitelist: real node process running regent (or legacy 9router) cli.js, or next-server.
+            // Avoids killing editors/grep/strace/cursor that just have the name in cmdline.
             const cmd = line.toLowerCase();
             const isAppProcess =
-              (cmd.includes("node") && cmd.includes("9router") && (cmd.includes("cli.js") || cmd.includes("\\9router") || cmd.includes("/9router")))
+              (cmd.includes("node") && PROCESS_IDENTIFIERS.some((id) => cmd.includes(id) && (cmd.includes("cli.js") || cmd.includes(`\\${id}`) || cmd.includes(`/${id}`))))
               || cmd.includes("next-server");
             if (isAppProcess) {
               const match = line.match(/^"(\d+)"/);
@@ -317,11 +316,11 @@ function killAllAppProcesses(appPort) {
           const lines = output.split('\n');
 
           lines.forEach(line => {
-            // Whitelist: real node process running 9router/cli.js, or next-server.
-            // Avoids killing grep/strace/editors/cursor that incidentally match "9router".
+            // Whitelist: real node process running regent (or legacy 9router) cli.js, or next-server.
+            // Avoids killing grep/strace/editors/cursor that incidentally match the name.
             const cmd = line.toLowerCase();
             const isAppProcess =
-              (cmd.includes("node") && cmd.includes("9router") && (cmd.includes("cli.js") || cmd.includes("/9router")))
+              (cmd.includes("node") && PROCESS_IDENTIFIERS.some((id) => cmd.includes(id) && (cmd.includes("cli.js") || cmd.includes(`/${id}`))))
               || cmd.includes("next-server");
             if (isAppProcess) {
               const parts = line.trim().split(/\s+/);
@@ -473,53 +472,11 @@ function isRestrictedEnvironment() {
   return null;
 }
 
-// Check if new version available, return latest version or null
+// Self-update is disabled: Elizabeth's Proxy isn't published to npm yet (the
+// `9router` package there is upstream's). Kept as a stub so the startup flow
+// below stays unchanged; `--skip-update` is still accepted for old autostart entries.
 function checkForUpdate() {
-  return new Promise((resolve) => {
-    if (skipUpdate) {
-      resolve(null);
-      return;
-    }
-
-    const spinner = createSpinner("Checking for updates...").start();
-    let resolved = false;
-
-    const safetyTimeout = setTimeout(() => {
-      if (!resolved) {
-        resolved = true;
-        spinner.stop();
-        resolve(null);
-      }
-    }, 8000);
-
-    const done = (version) => {
-      if (resolved) return;
-      resolved = true;
-      clearTimeout(safetyTimeout);
-      spinner.stop();
-      resolve(version);
-    };
-
-    const req = https.get(`https://registry.npmjs.org/${pkg.name}/latest`, { timeout: 3000 }, (res) => {
-      let data = "";
-      res.on("data", chunk => data += chunk);
-      res.on("end", () => {
-        try {
-          const latest = JSON.parse(data);
-          if (latest.version && compareVersions(latest.version, pkg.version) > 0) {
-            done(latest.version);
-          } else {
-            done(null);
-          }
-        } catch (e) {
-          done(null);
-        }
-      });
-    });
-
-    req.on("error", () => done(null));
-    req.on("timeout", () => { req.destroy(); done(null); });
-  });
+  return Promise.resolve(null);
 }
 
 // Open browser
@@ -792,7 +749,7 @@ function startServer(updatePromise) {
             process.on("SIGHUP", () => {});
 
             console.log(`\n⏳ Switching to tray mode... (icon already visible in menu bar)`);
-            console.log(`🔔 9Router is running in tray (PID: ${process.pid})`);
+            console.log(`🔔 Elizabeth's Proxy is running in tray (PID: ${process.pid})`);
             console.log(`   Server: http://${displayHost}:${port}`);
             console.log(`\n💡 You can close this terminal. Right-click tray icon to quit.\n`);
 
@@ -811,7 +768,7 @@ function startServer(updatePromise) {
           });
           bgProcess.unref();
 
-          console.log(`🔔 9Router is now running in background (PID: ${bgProcess.pid})`);
+          console.log(`🔔 Elizabeth's Proxy is now running in background (PID: ${bgProcess.pid})`);
           console.log(`   Server: http://${displayHost}:${port}`);
           console.log(`\n💡 You can close this terminal. Right-click tray icon to quit.\n`);
 
@@ -856,7 +813,7 @@ function startServer(updatePromise) {
     if (restartCount >= MAX_RESTARTS) {
       console.error(`\n⚠️  Server crashed ${MAX_RESTARTS} times. Disabling MIT and restarting...`);
       try {
-        const dbPath = path.join(os.homedir(), process.platform === "win32" ? path.join("AppData", "Roaming", "9router", "db.json") : path.join(".9router", "db.json"));
+        const dbPath = path.join(getAppDataDir(), "db.json");
         if (fs.existsSync(dbPath)) {
           const db = JSON.parse(fs.readFileSync(dbPath, "utf-8"));
           if (db.settings) db.settings.mitmEnabled = false;

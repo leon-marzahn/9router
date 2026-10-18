@@ -1,5 +1,5 @@
 /**
- * Per-tool config writers for `9router connect`. File layout and keys mirror
+ * Per-tool config writers for `regent connect`. File layout and keys mirror
  * the dashboard routes in src/app/api/cli-tools/<tool>-settings/route.js so a
  * tool configured here looks identical to one applied from the dashboard.
  *
@@ -12,6 +12,18 @@
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
+const {
+  DISPLAY_NAME,
+  LEGACY_DISPLAY_NAME,
+  PROVIDER_KEY,
+  LEGACY_PROVIDER_KEY,
+  PROVIDER_KEYS,
+  pickProvider,
+  deleteProviderKeys,
+  hasProviderPrefix,
+  stripProviderPrefix,
+  prefixModel,
+} = require("../utils/brand");
 
 const home = () => os.homedir();
 const v1 = (baseUrl) => (baseUrl.endsWith("/v1") ? baseUrl : `${baseUrl}/v1`);
@@ -39,11 +51,13 @@ function rewriteFile(file, content) {
   fs.writeFileSync(file, content, { mode: SECRET_MODE });
 }
 
-// One-time backup of the user's pre-9router file, then write.
+// One-time backup of the user's file before we first touched it, then write.
+// A backup taken under the legacy name (.bak-9router) counts as already done.
 function writeFile(file, content) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  const backup = `${file}.bak-9router`;
-  if (fs.existsSync(file) && !fs.existsSync(backup)) {
+  const backup = `${file}.bak-${PROVIDER_KEY}`;
+  const hasBackup = PROVIDER_KEYS.some((k) => fs.existsSync(`${file}.bak-${k}`));
+  if (fs.existsSync(file) && !hasBackup) {
     fs.copyFileSync(file, backup);
     fs.chmodSync(backup, SECRET_MODE);
   }
@@ -109,17 +123,37 @@ const claude = {
 // ── OpenAI Codex CLI ────────────────────────────────────────────────────────
 const codexPath = () => path.join(home(), ".codex", "config.toml");
 
+// `codex -p <name>` profiles (~/.codex/<name>.config.toml) pointing at the legacy
+// provider key would break once its section is dropped — repoint them. Returns files changed.
+function migrateCodexProfiles(dir) {
+  let files = [];
+  try { files = fs.readdirSync(dir); } catch { return []; }
+  const legacyLine = new RegExp(`^(\\s*model_provider\\s*=\\s*)(["'])${LEGACY_PROVIDER_KEY}\\2`, "m");
+  const changed = [];
+  for (const f of files) {
+    if (!f.endsWith(".config.toml") || f === "config.toml") continue;
+    const file = path.join(dir, f);
+    try {
+      const text = fs.readFileSync(file, "utf8");
+      if (!legacyLine.test(text)) continue;
+      fs.writeFileSync(file, text.replace(legacyLine, `$1"${PROVIDER_KEY}"`));
+      changed.push(file);
+    } catch { /* unreadable profile — leave it */ }
+  }
+  return changed;
+}
+
 const codex = {
   id: "codex",
   name: "OpenAI Codex CLI",
   paths: () => [codexPath()],
   route: "codex-settings",
-  // GET returns raw TOML text; only trust `model` when the provider is 9router.
+  // GET returns raw TOML text; only trust `model` when the provider is ours (current or legacy key).
   async serverModel(data) {
     if (!isStr(data?.config)) return null;
     const { parseTOML } = await toml();
     const cfg = parseTOML(data.config) || {};
-    return cfg.model_provider === "9router" && isStr(cfg.model) ? cfg.model : null;
+    return PROVIDER_KEYS.includes(cfg.model_provider) && isStr(cfg.model) ? cfg.model : null;
   },
   async apply({ baseUrl, apiKey, model }) {
     const { parseTOML, stringifyTOML } = await toml();
@@ -127,11 +161,12 @@ const codex = {
     let cfg = {};
     try { cfg = parseTOML(fs.readFileSync(file, "utf8")) || {}; } catch (err) { if (err.code !== "ENOENT") throw err; }
     cfg.model = model;
-    cfg.model_provider = "9router";
+    cfg.model_provider = PROVIDER_KEY;
     cfg.model_providers = cfg.model_providers || {};
+    delete cfg.model_providers[LEGACY_PROVIDER_KEY];
     // Custom providers ignore auth.json — key must travel as a static header.
-    cfg.model_providers["9router"] = {
-      name: "9Router",
+    cfg.model_providers[PROVIDER_KEY] = {
+      name: DISPLAY_NAME,
       base_url: v1(baseUrl),
       wire_api: "responses",
       http_headers: { Authorization: `Bearer ${apiKey}` },
@@ -140,7 +175,7 @@ const codex = {
     delete cfg.agents.subagent;
     cfg.agents.default_subagent_model = model;
     writeFile(file, stringifyTOML(cfg));
-    return [file];
+    return [file, ...migrateCodexProfiles(path.dirname(file))];
   },
   async show() {
     let cfg;
@@ -151,7 +186,7 @@ const codex = {
       if (err.code === "ENOENT") return {};
       throw new Error(`Cannot parse ${codexPath()}: ${err.message}`);
     }
-    const p = cfg.model_providers?.["9router"];
+    const p = pickProvider(cfg.model_providers);
     const auth = p?.http_headers?.Authorization;
     return {
       baseUrl: p?.base_url,
@@ -160,8 +195,8 @@ const codex = {
         ...(isStr(cfg.model) ? { main: cfg.model } : {}),
         ...(isStr(cfg.agents?.default_subagent_model) ? { subagent: cfg.agents.default_subagent_model } : {}),
       },
-      // Codex only routes through 9router when this provider is the active one.
-      active: cfg.model_provider === "9router",
+      // Codex only routes through us when this provider is the active one.
+      active: PROVIDER_KEYS.includes(cfg.model_provider),
     };
   },
   async reset() {
@@ -169,8 +204,8 @@ const codex = {
     const file = codexPath();
     let cfg;
     try { cfg = parseTOML(fs.readFileSync(file, "utf8")) || {}; } catch (err) { if (err.code === "ENOENT") return []; throw err; }
-    if (cfg.model_provider === "9router") { delete cfg.model; delete cfg.model_provider; }
-    if (cfg.model_providers) delete cfg.model_providers["9router"];
+    if (PROVIDER_KEYS.includes(cfg.model_provider)) { delete cfg.model; delete cfg.model_provider; }
+    deleteProviderKeys(cfg.model_providers);
     if (cfg.agents) { delete cfg.agents.default_subagent_model; delete cfg.agents.subagent; }
     for (const k of ["model_providers", "agents"]) {
       if (cfg[k] && Object.keys(cfg[k]).length === 0) delete cfg[k];
@@ -190,44 +225,46 @@ const opencode = {
   route: "opencode-settings",
   serverModel(data) {
     const m = data?.config?.model;
-    return isStr(m) && m.startsWith("9router/") ? m.slice("9router/".length) : null;
+    return isStr(m) && hasProviderPrefix(m) ? stripProviderPrefix(m) : null;
   },
   async apply({ baseUrl, apiKey, model }) {
     const file = opencodePath();
     const cfg = readJson(file) || {};
     cfg.provider = cfg.provider || {};
-    const p = cfg.provider["9router"] || { npm: "@ai-sdk/openai-compatible", options: {}, models: {} };
+    // A legacy `9router` entry is carried over to the `regent` key, then removed.
+    const p = pickProvider(cfg.provider) || { npm: "@ai-sdk/openai-compatible", options: {}, models: {} };
     p.options = { ...p.options, baseURL: v1(baseUrl), apiKey };
     p.models = p.models || {};
     p.models[model] = { name: model, modalities: { input: ["text", "image"], output: ["text"] } };
-    cfg.provider["9router"] = p;
-    cfg.model = `9router/${model}`;
+    delete cfg.provider[LEGACY_PROVIDER_KEY];
+    cfg.provider[PROVIDER_KEY] = p;
+    cfg.model = prefixModel(model);
     cfg.agent = cfg.agent || {};
     cfg.agent.explorer = {
       description: "Fast explorer subagent for codebase exploration",
       mode: "subagent",
-      model: `9router/${model}`,
+      model: prefixModel(model),
     };
     writeJson(file, cfg);
     return [file];
   },
   async show() {
     const cfg = readJson(opencodePath()) || {};
-    const p = cfg.provider?.["9router"];
+    const p = pickProvider(cfg.provider);
     const models = {};
     if (isStr(cfg.model)) models.main = cfg.model;
     if (isStr(cfg.agent?.explorer?.model)) models.explorer = cfg.agent.explorer.model;
     const listed = Object.keys(p?.models || {});
     if (listed.length) models.available = listed.join(", ");
-    return { baseUrl: p?.options?.baseURL, apiKey: p?.options?.apiKey, models, active: !!cfg.model?.startsWith("9router/") };
+    return { baseUrl: p?.options?.baseURL, apiKey: p?.options?.apiKey, models, active: hasProviderPrefix(cfg.model) };
   },
   async reset() {
     const file = opencodePath();
     const cfg = readJson(file);
     if (!cfg) return [];
-    if (cfg.provider) delete cfg.provider["9router"];
-    if (cfg.model?.startsWith("9router/")) delete cfg.model;
-    if (cfg.agent?.explorer?.model?.startsWith("9router/")) {
+    deleteProviderKeys(cfg.provider);
+    if (hasProviderPrefix(cfg.model)) delete cfg.model;
+    if (hasProviderPrefix(cfg.agent?.explorer?.model)) {
       delete cfg.agent.explorer;
       if (Object.keys(cfg.agent).length === 0) delete cfg.agent;
     }
@@ -238,7 +275,10 @@ const opencode = {
 
 // ── Factory Droid ───────────────────────────────────────────────────────────
 const droidPath = () => path.join(home(), ".factory", "settings.json");
-const isDroid9r = (m) => m.id?.startsWith("custom:9Router");
+// Our ids: `custom:regent-<i>` (current) or `custom:9Router-<i>` (legacy).
+const isDroid9r = (m) =>
+  typeof m?.id === "string" &&
+  (m.id.startsWith(`custom:${PROVIDER_KEY}-`) || m.id.startsWith(`custom:${LEGACY_DISPLAY_NAME}`));
 
 const droid = {
   id: "droid",
@@ -256,7 +296,7 @@ const droid = {
     cfg.customModels = [
       {
         model,
-        id: "custom:9Router-0",
+        id: `custom:${PROVIDER_KEY}-0`,
         index: 0,
         baseUrl: v1(baseUrl),
         apiKey,
@@ -301,14 +341,15 @@ const crush = {
   paths: () => [crushPath()],
   route: "crush-settings",
   serverModel(data) {
-    const m = data?.config?.providers?.["9router"]?.models?.[0]?.id;
+    const m = pickProvider(data?.config?.providers)?.models?.[0]?.id;
     return isStr(m) ? m : null;
   },
   async apply({ baseUrl, apiKey, model }) {
     const file = crushPath();
     const cfg = readJson(file) || {};
     cfg.providers = cfg.providers || {};
-    cfg.providers["9router"] = {
+    delete cfg.providers[LEGACY_PROVIDER_KEY];
+    cfg.providers[PROVIDER_KEY] = {
       type: "openai-compat",
       base_url: v1(baseUrl),
       api_key: apiKey,
@@ -318,15 +359,15 @@ const crush = {
     return [file];
   },
   async show() {
-    const p = readJson(crushPath())?.providers?.["9router"];
+    const p = pickProvider(readJson(crushPath())?.providers);
     const ids = (p?.models || []).map((m) => m.id).filter(isStr);
     return { baseUrl: p?.base_url, apiKey: p?.api_key, models: ids.length ? { main: ids[0] } : {} };
   },
   async reset() {
     const file = crushPath();
     const cfg = readJson(file);
-    if (!cfg?.providers?.["9router"]) return [];
-    delete cfg.providers["9router"];
+    if (!pickProvider(cfg?.providers)) return [];
+    deleteProviderKeys(cfg.providers);
     if (Object.keys(cfg.providers).length === 0) delete cfg.providers;
     rewriteFile(file, JSON.stringify(cfg, null, 2));
     return [file];
@@ -358,7 +399,7 @@ const kilo = {
     const auth = readJson(file);
     if (!auth) return [];
     delete auth["openai-compatible"];
-    delete auth["9router"];
+    deleteProviderKeys(auth);
     rewriteFile(file, JSON.stringify(auth, null, 2));
     return [file];
   },
@@ -439,7 +480,7 @@ const pi = {
   paths: () => [piPath()],
   route: "pi-settings",
   serverModel(data) {
-    const m = data?.config?.providers?.["9router"]?.models?.[0];
+    const m = pickProvider(data?.config?.providers)?.models?.[0];
     const id = typeof m === "string" ? m : m?.id;
     return isStr(id) ? id : null;
   },
@@ -447,8 +488,10 @@ const pi = {
     const file = piPath();
     const cfg = readJson(file) || {};
     cfg.providers = cfg.providers || {};
-    cfg.providers["9router"] = {
-      ...(cfg.providers["9router"] || {}),
+    const existing = pickProvider(cfg.providers) || {};
+    delete cfg.providers[LEGACY_PROVIDER_KEY];
+    cfg.providers[PROVIDER_KEY] = {
+      ...existing,
       baseUrl: v1(baseUrl),
       apiKey,
       api: "openai-completions",
@@ -458,7 +501,7 @@ const pi = {
     return [file];
   },
   async show() {
-    const p = readJson(piPath())?.providers?.["9router"];
+    const p = pickProvider(readJson(piPath())?.providers);
     const ids = (p?.models || []).map((m) => (typeof m === "string" ? m : m?.id)).filter(isStr);
     return {
       baseUrl: p?.baseUrl,
@@ -469,8 +512,8 @@ const pi = {
   async reset() {
     const file = piPath();
     const cfg = readJson(file);
-    if (!cfg?.providers?.["9router"]) return [];
-    delete cfg.providers["9router"];
+    if (!pickProvider(cfg?.providers)) return [];
+    deleteProviderKeys(cfg.providers);
     if (Object.keys(cfg.providers).length === 0) delete cfg.providers;
     rewriteFile(file, JSON.stringify(cfg, null, 2));
     return [file];
@@ -504,7 +547,8 @@ const omp = {
     const file = ompPath();
     const cfg = (await readYaml(file)) || {};
     cfg.providers = cfg.providers || {};
-    cfg.providers["9router"] = {
+    delete cfg.providers[LEGACY_PROVIDER_KEY];
+    cfg.providers[PROVIDER_KEY] = {
       baseUrl: v1(baseUrl),
       apiKey,
       api: "openai-completions",
@@ -516,7 +560,7 @@ const omp = {
     return [file];
   },
   async show() {
-    const p = (await readYaml(ompPath()))?.providers?.["9router"];
+    const p = pickProvider((await readYaml(ompPath()))?.providers);
     return {
       baseUrl: p?.baseUrl,
       apiKey: p?.apiKey,
@@ -527,8 +571,8 @@ const omp = {
     const { stringifyYAML } = await toml();
     const file = ompPath();
     const cfg = await readYaml(file);
-    if (!cfg?.providers?.["9router"]) return [];
-    delete cfg.providers["9router"];
+    if (!pickProvider(cfg?.providers)) return [];
+    deleteProviderKeys(cfg.providers);
     if (Object.keys(cfg.providers).length === 0) delete cfg.providers;
     rewriteFile(file, Object.keys(cfg).length ? stringifyYAML(cfg) : "");
     return [file];

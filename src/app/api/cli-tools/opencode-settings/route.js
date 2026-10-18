@@ -7,6 +7,17 @@ import { promisify } from "util";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
+import {
+  DISPLAY_NAME,
+  PROVIDER_KEY,
+  LEGACY_PROVIDER_KEY,
+  PROVIDER_KEYS,
+  pickProvider,
+  deleteProviderKeys,
+  hasProviderPrefix,
+  stripProviderPrefix,
+  prefixModel,
+} from "@/shared/constants/brand.js";
 
 const execAsync = promisify(exec);
 
@@ -51,7 +62,7 @@ const readConfig = async () => {
 
 const has9RouterConfig = (config) => {
   if (!config?.provider) return false;
-  return !!config.provider["9router"];
+  return !!pickProvider(config.provider);
 };
 
 // GET - Check opencode CLI and read current settings
@@ -68,7 +79,7 @@ export async function GET() {
     }
 
     const config = await readConfig();
-    const providerConfig = config?.provider?.["9router"];
+    const providerConfig = pickProvider(config?.provider);
     const modelMap = providerConfig?.models || {};
 
     return NextResponse.json({
@@ -78,7 +89,7 @@ export async function GET() {
       configPath: getConfigPath(),
         opencode: {
           models: Object.keys(modelMap),
-          activeModel: config?.model?.startsWith("9router/") ? config.model.replace(/^9router\//, "") : null,
+          activeModel: hasProviderPrefix(config?.model) ? stripProviderPrefix(config.model) : null,
           baseURL: providerConfig?.options?.baseURL || null,
         },
     });
@@ -88,7 +99,7 @@ export async function GET() {
   }
 }
 
-// POST - Apply 9Router as openai-compatible provider (multi-model support)
+// POST - Apply our gateway as openai-compatible provider (multi-model support)
 export async function POST(request) {
   try {
     const { baseUrl, apiKey, model, models, activeModel, subagentModel } = await request.json();
@@ -119,8 +130,9 @@ export async function POST(request) {
     // Ensure provider object
     if (!config.provider) config.provider = {};
 
-    // Preserve any existing 9router provider entry and its models
-    const existingProvider = config.provider["9router"] || { npm: "@ai-sdk/openai-compatible", options: {}, models: {} };
+    // Preserve any existing provider entry and its models — a legacy `9router` entry is
+    // carried over (and removed below) so the config migrates to the `regent` key
+    const existingProvider = pickProvider(config.provider) || { npm: "@ai-sdk/openai-compatible", options: {}, models: {} };
 
     // Merge options (overwrite baseURL/apiKey)
     existingProvider.options = {
@@ -139,7 +151,8 @@ export async function POST(request) {
     }
 
     // Save merged provider back
-    config.provider["9router"] = existingProvider;
+    delete config.provider[LEGACY_PROVIDER_KEY];
+    config.provider[PROVIDER_KEY] = existingProvider;
 
     // Set the active model: prefer explicit activeModel, else first of modelsArray
     // If activeModel is explicitly empty string, clear the model
@@ -148,7 +161,7 @@ export async function POST(request) {
     } else {
       const finalActive = activeModel || modelsArray[0];
       if (finalActive) {
-        config.model = `9router/${finalActive}`;
+        config.model = prefixModel(finalActive);
       }
     }
 
@@ -157,7 +170,7 @@ export async function POST(request) {
     config.agent.explorer = {
       description: "Fast explorer subagent for codebase exploration",
       mode: "subagent",
-      model: `9router/${effectiveSubagentModel}`,
+      model: prefixModel(effectiveSubagentModel),
     };
 
     await fs.writeFile(configPath, JSON.stringify(config, null, 2));
@@ -192,7 +205,7 @@ export async function PATCH(request) {
 
     if (clearActiveModel === true) {
       // Clear active model but keep models in the list
-      if (config.model?.startsWith("9router/")) {
+      if (hasProviderPrefix(config.model)) {
         config.model = "";
       }
     }
@@ -209,7 +222,7 @@ export async function PATCH(request) {
   }
 }
 
-// DELETE - Remove 9Router provider or specific models from config
+// DELETE - Remove our provider or specific models from config
 export async function DELETE(request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -228,26 +241,28 @@ export async function DELETE(request) {
     }
 
     // If specific model provided, remove just that model
-    if (modelToRemove && config.provider?.["9router"]?.models) {
-      delete config.provider["9router"].models[modelToRemove];
-      
+    const providerKey = PROVIDER_KEYS.find((k) => config.provider?.[k]?.models);
+    if (modelToRemove && providerKey) {
+      const providerModels = config.provider[providerKey].models;
+      delete providerModels[modelToRemove];
+
       // If no models left, remove the provider
-      if (Object.keys(config.provider["9router"].models).length === 0) {
-        delete config.provider["9router"];
-        if (config.model?.startsWith("9router/")) delete config.model;
-      } else if (config.model === `9router/${modelToRemove}`) {
+      if (Object.keys(providerModels).length === 0) {
+        delete config.provider[providerKey];
+        if (hasProviderPrefix(config.model)) delete config.model;
+      } else if (hasProviderPrefix(config.model) && stripProviderPrefix(config.model) === modelToRemove) {
         // If removed model was active, switch to first remaining model
-        const remainingModels = Object.keys(config.provider["9router"].models);
-        config.model = `9router/${remainingModels[0]}`;
+        const remainingModels = Object.keys(providerModels);
+        config.model = `${providerKey}/${remainingModels[0]}`;
       }
     } else {
-      // No specific model - remove entire 9router provider
-      if (config.provider) delete config.provider["9router"];
-      if (config.model?.startsWith("9router/")) delete config.model;
+      // No specific model - remove the entire provider (current and legacy keys)
+      deleteProviderKeys(config.provider);
+      if (hasProviderPrefix(config.model)) delete config.model;
     }
 
     // Remove subagent configuration
-    if (config.agent?.explorer?.model?.startsWith("9router/")) {
+    if (hasProviderPrefix(config.agent?.explorer?.model)) {
       delete config.agent.explorer;
       // Clean up empty agent object
       if (Object.keys(config.agent).length === 0) delete config.agent;
@@ -257,7 +272,7 @@ export async function DELETE(request) {
 
     return NextResponse.json({
       success: true,
-      message: modelToRemove ? `Model "${modelToRemove}" removed` : "9Router settings removed from OpenCode",
+      message: modelToRemove ? `Model "${modelToRemove}" removed` : `${DISPLAY_NAME} settings removed from OpenCode`,
     });
   } catch (error) {
     console.log("Error resetting opencode settings:", error);

@@ -1,5 +1,7 @@
 # Design system — "warm workbench"
 
+The dashboard of **Elizabeth's Proxy**. The mark is a crowned serif E on the accent tile (`Logo` in `src/ui/Logo.tsx`; `public/favicon.svg` and `public/icons/*` are generated from the same paths).
+
 The dashboard's look and interaction rules. New UI code lives in `src/ui/` (TypeScript) and follows this doc. Older pages under `src/app/(dashboard)/` still use `src/shared/components/` and are migrated page by page.
 
 ## Principles
@@ -7,7 +9,7 @@ The dashboard's look and interaction rules. New UI code lives in `src/ui/` (Type
 1. **Status first.** Every surface answers "is my routing healthy?" before anything else. Problems are pinned to the top and colored; healthy things are quiet.
 2. **Work in place.** Prefer a list → detail workbench over navigating to a new page. Selecting an item shows its detail beside the list; the full page is one Enter away.
 3. **Live by default.** Data that can change while the page is open updates itself (see *Live data*). Changes are announced with motion, never with layout jumps.
-4. **One accent.** `#E56A4A` marks the primary action and the current location. If two things on screen are orange, one of them is wrong.
+4. **One accent.** Dusty rose (`#A84D68`; `#E596AD` in dark) marks the primary action and the current location. If two things on screen are rose, one of them is wrong.
 5. **Keyboard reachable.** Every list supports ↑/↓ (or j/k), `/` for search, Enter to open, Esc to go back.
 
 ## Tokens
@@ -42,6 +44,7 @@ Dark mode is the `.dark` class on `<html>` (set by `useTheme`). Write `dark:` va
 ### Shape & depth
 
 - Radius: inputs/buttons/rows `rounded-lg`, panels `rounded-2xl`, tags `rounded`.
+- Buttons put their icon **after** the label, on every variant, so a row of buttons reads label-first and lines up. The primary button is a dusty-rose pill (`rounded-full`) whose icon sits in a round chip: the action's own icon (`add` to create, `play_arrow` to test, `save`, …), or `arrow_forward` when it moves you on. Secondary/ghost/danger stay `rounded-lg` with a plain trailing icon. Label contrast ≥ 4.5:1 in both themes (5.4:1 light, 8.4:1 dark).
 - Shadows: `shadow-soft` (resting panel), `shadow-elevated` (hover lift), `shadow-elev` (menus, toasts, dialogs), `shadow-warm` (primary button only), `shadow-focus` (focus ring).
 
 ## Status

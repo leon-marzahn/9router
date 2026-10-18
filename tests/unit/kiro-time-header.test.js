@@ -44,6 +44,7 @@ describe.each([
   });
 
   it.each([
+    { "x-regent-kiro-time": "off" },
     { "x-9router-kiro-time": "off" },
     { "X-9Router-Kiro-Time": " OFF " },
     new Headers({ "X-9Router-Kiro-Time": "off" }),
