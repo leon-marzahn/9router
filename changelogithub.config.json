@@ -1,0 +1,10 @@
+{
+  "types": {
+    "feat": { "title": "Features" },
+    "fix": { "title": "Fixes" },
+    "perf": { "title": "Performance" }
+  },
+  "capitalize": true,
+  "group": true,
+  "emoji": false
+}
