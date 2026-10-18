@@ -8,7 +8,12 @@ import { dbg } from "./debugLog.js";
 const NULL_BODY_STATUSES = new Set([101, 204, 205, 304]);
 const STALE_AFTER_DECODE = new Set(["content-encoding", "content-length"]);
 
-let loader = () => import("wreq-js");
+// Resolved only at runtime: a non-literal, bundler-ignored specifier keeps webpack/turbopack from
+// failing the build when the optional package isn't installed (it's in serverExternalPackages anyway).
+const WREQ_MODULE = "wreq-js";
+const importWreq = () => import(/* webpackIgnore: true */ /* turbopackIgnore: true */ WREQ_MODULE);
+
+let loader = importWreq;
 let wreqPromise = null;
 let loadFailureLogged = false;
 const loggedHosts = new Set();
@@ -96,7 +101,7 @@ export async function wreqFetch(url, options, impersonation, proxyUrl) {
 
 /** Test hook: swap the module loader and reset cached state. */
 export function __setWreqLoaderForTests(fn) {
-  loader = fn || (() => import("wreq-js"));
+  loader = fn || importWreq;
   wreqPromise = null;
   loadFailureLogged = false;
   loggedHosts.clear();

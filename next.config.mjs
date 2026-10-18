@@ -31,6 +31,11 @@ const nextConfig = {
     root: tracingRoot
   },
   outputFileTracingRoot: tracingRoot,
+  // tlsImpersonation.js imports wreq-js with a bundler-ignored specifier (so a missing optional
+  // package can't break the build), which also hides it from file tracing: ship it explicitly.
+  outputFileTracingIncludes: {
+    "/**": ["./node_modules/wreq-js/**/*", "./node_modules/@wreq-js/**/*"]
+  },
   images: {
     unoptimized: true
   },
