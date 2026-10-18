@@ -253,6 +253,16 @@ function getContentBlocksFromMessage(msg, toolNameMap = new Map()) {
       }
     }
   } else if (msg.role === ROLE.ASSISTANT) {
+    // OpenAI-style reasoning_content -> leading Claude thinking block
+    // (signature handling is done later by prepareClaudeRequest)
+    const hasThinkingPart = Array.isArray(msg.content) && msg.content.some((p) => p?.type === CLAUDE_BLOCK.THINKING);
+    if (typeof msg.reasoning_content === "string" && msg.reasoning_content && !hasThinkingPart) {
+      blocks.push({
+        type: CLAUDE_BLOCK.THINKING,
+        thinking: msg.reasoning_content,
+        ...(msg.reasoning_signature ? { signature: msg.reasoning_signature } : {})
+      });
+    }
     if (Array.isArray(msg.content)) {
       for (const part of msg.content) {
         if (part.type === OPENAI_BLOCK.TEXT && part.text) {
