@@ -1,12 +1,16 @@
 "use server";
 
 import { NextResponse } from "next/server";
+import { configWriter } from "../configFile.js";
+import { resolveCliApiKey } from "../resolveApiKey.js";
 import { DISPLAY_NAME, LEGACY_DISPLAY_NAME, PROVIDER_KEY } from "@/shared/constants/brand.js";
 import { exec } from "child_process";
 import { promisify } from "util";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
+
+const { writeConfigFile } = configWriter("droid");
 
 const execAsync = promisify(exec);
 
@@ -52,7 +56,7 @@ const MODEL_ID_PREFIXES = [`custom:${PROVIDER_KEY}-`, `custom:${LEGACY_DISPLAY_N
 const isOurModel = (m) => typeof m?.id === "string" && MODEL_ID_PREFIXES.some((p) => m.id.startsWith(p));
 
 // Check if settings has our customModels
-const has9RouterConfig = (settings) => {
+const hasRegentConfig = (settings) => {
   if (!settings || !settings.customModels) return false;
   return settings.customModels.some(isOurModel);
 };
@@ -75,7 +79,7 @@ export async function GET() {
     return NextResponse.json({
       installed: true,
       settings,
-      has9Router: has9RouterConfig(settings),
+      hasRegent: hasRegentConfig(settings),
       settingsPath: getDroidSettingsPath(),
     });
   } catch (error) {
@@ -89,7 +93,8 @@ export async function GET() {
 // Also accepts `activeModel` to set which model is active/primary
 export async function POST(request) {
   try {
-    const { baseUrl, apiKey, model, models, activeModel } = await request.json();
+    const { baseUrl, apiKey: callerKey, model, models, activeModel } = await request.json();
+    const apiKey = await resolveCliApiKey(callerKey);
     
     // Accept either `models` (array) or `model` (string, legacy)
     const modelsArray = Array.isArray(models) ? models.slice() : (typeof model === "string" ? [model] : []);
@@ -121,7 +126,7 @@ export async function POST(request) {
 
     // Normalize baseUrl to ensure /v1 suffix
     const normalizedBaseUrl = baseUrl.endsWith("/v1") ? baseUrl : `${baseUrl}/v1`;
-    const keyToUse = apiKey || "your_api_key";
+    const keyToUse = apiKey;
 
     // Determine active model: prefer explicit activeModel, else first of modelsArray
     // If activeModel is explicitly empty string, no model will be set as default
@@ -163,7 +168,7 @@ export async function POST(request) {
     }
 
     // Write settings
-    await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2));
+    await writeConfigFile(settingsPath, JSON.stringify(settings, null, 2));
 
     return NextResponse.json({
       success: true,
@@ -207,7 +212,7 @@ export async function DELETE() {
     }
 
     // Write updated settings
-    await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2));
+    await writeConfigFile(settingsPath, JSON.stringify(settings, null, 2));
 
     return NextResponse.json({
       success: true,

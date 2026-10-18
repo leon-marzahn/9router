@@ -1,12 +1,17 @@
 "use server";
 
 import { NextResponse } from "next/server";
+import { configWriter } from "../configFile.js";
+import { RESET_ENV_KEYS } from "./claudeEnv.js";
+import { resolveCliApiKey } from "../resolveApiKey.js";
 import { exec } from "child_process";
 import { promisify } from "util";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
 import { DEFAULT_PLUGINS } from "@/shared/constants/coworkPlugins";
+
+const { writeConfigFile } = configWriter("claude");
 
 const execAsync = promisify(exec);
 
@@ -49,7 +54,7 @@ const writeClaudeJsonMcp = async (mcpServers) => {
     delete data.mcpServers.exa;
     if (Object.keys(data.mcpServers).length === 0) delete data.mcpServers;
   }
-  await fs.writeFile(filePath, JSON.stringify(data, null, 2));
+  await writeConfigFile(filePath, JSON.stringify(data, null, 2));
 };
 
 
@@ -101,13 +106,13 @@ export async function GET() {
     }
 
     const settings = await readSettings();
-    const has9Router = !!(settings?.env?.ANTHROPIC_BASE_URL);
+    const hasRegent = !!(settings?.env?.ANTHROPIC_BASE_URL);
     const claudeJson = await readClaudeJson();
 
     return NextResponse.json({
       installed: true,
       settings: settings,
-      has9Router: has9Router,
+      hasRegent: hasRegent,
       exaMcpEnabled: !!claudeJson?.mcpServers?.exa,
       settingsPath: getClaudeSettingsPath(),
     });
@@ -156,9 +161,15 @@ export async function POST(request) {
         : `${env.ANTHROPIC_BASE_URL}/v1`;
     }
 
-    // Keep an existing token (real key or earlier config); only add when absent — Reset clears it.
-    if (currentSettings.env?.ANTHROPIC_AUTH_TOKEN) {
+    // Keep an existing real token; only add when absent (or the old placeholder) — Reset clears it.
+    const existingToken = currentSettings.env?.ANTHROPIC_AUTH_TOKEN;
+    if (existingToken && existingToken !== "sk_9router") {
       delete env.ANTHROPIC_AUTH_TOKEN;
+    } else {
+      const token = await resolveCliApiKey(env.ANTHROPIC_AUTH_TOKEN);
+      if (token) env.ANTHROPIC_AUTH_TOKEN = token;
+      else delete env.ANTHROPIC_AUTH_TOKEN;
+      if (!token && existingToken) delete currentSettings.env.ANTHROPIC_AUTH_TOKEN;
     }
 
     // Merge new env with existing settings
@@ -181,7 +192,7 @@ export async function POST(request) {
     }
 
     // Write new settings
-    await fs.writeFile(settingsPath, JSON.stringify(newSettings, null, 2));
+    await writeConfigFile(settingsPath, JSON.stringify(newSettings, null, 2));
 
     // Exa MCP toggle — write to ~/.claude.json (CLI reads mcpServers from here).
     if (EXA_PLUGIN) {
@@ -201,16 +212,6 @@ export async function POST(request) {
   }
 }
 
-// Fields to remove when resetting
-const RESET_ENV_KEYS = [
-  "ANTHROPIC_BASE_URL",
-  "ANTHROPIC_AUTH_TOKEN",
-  "ANTHROPIC_DEFAULT_OPUS_MODEL",
-  "ANTHROPIC_DEFAULT_SONNET_MODEL",
-  "ANTHROPIC_DEFAULT_HAIKU_MODEL",
-  "API_TIMEOUT_MS",
-  "CLAUDE_CODE_AUTO_COMPACT_WINDOW",
-];
 
 // DELETE - Reset settings (remove env fields)
 export async function DELETE() {
@@ -248,7 +249,7 @@ export async function DELETE() {
     await writeClaudeJsonMcp(null);
 
     // Write updated settings
-    await fs.writeFile(settingsPath, JSON.stringify(currentSettings, null, 2));
+    await writeConfigFile(settingsPath, JSON.stringify(currentSettings, null, 2));
 
     return NextResponse.json({
       success: true,

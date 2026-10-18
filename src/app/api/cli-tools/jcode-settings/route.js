@@ -1,6 +1,9 @@
 "use server";
 
 import { NextResponse } from "next/server";
+import { configWriter } from "../configFile.js";
+import { resolveCliApiKey } from "../resolveApiKey.js";
+import { dotenvString, configErrorStatus } from "../configText.js";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
@@ -8,6 +11,8 @@ import { exec } from "child_process";
 import { promisify } from "util";
 import { parseTOML, stringifyTOML } from "confbox";
 import { DISPLAY_NAME, PROVIDER_KEY, LEGACY_PROVIDER_KEY, PROVIDER_KEYS, pickProvider, deleteProviderKeys } from "@/shared/constants/brand.js";
+
+const { writeConfigFile, removeConfigFile } = configWriter("jcode");
 
 const execAsync = promisify(exec);
 
@@ -27,7 +32,7 @@ const getProviderEnvPath = (key = PROVIDER_KEY) => {
 // Remove the legacy env file (only our own key lived there); ignore if absent.
 const removeLegacyProviderEnv = async () => {
   try {
-    await fs.unlink(getProviderEnvPath(LEGACY_PROVIDER_KEY));
+    await removeConfigFile(getProviderEnvPath(LEGACY_PROVIDER_KEY));
   } catch { /* not present */ }
 };
 
@@ -57,7 +62,7 @@ const readConfig = async () => {
   }
 };
 
-const has9RouterConfig = (config) => {
+const hasRegentConfig = (config) => {
   if (!config || !config.providers) return false;
 
   const providers = config.providers;
@@ -76,7 +81,7 @@ const has9RouterConfig = (config) => {
 const writeConfig = async (config) => {
   const configPath = getConfigPath();
   const content = stringifyTOML(config);
-  await fs.writeFile(configPath, content, "utf-8");
+  await writeConfigFile(configPath, content, "utf-8");
 };
 
 const readProviderEnv = async () => {
@@ -114,10 +119,10 @@ const writeProviderEnv = async (env) => {
   let content = "# jcode provider environment variables\n";
 
   for (const [key, value] of Object.entries(env)) {
-    content += `${key}="${value}"\n`;
+    content += `${key}=${dotenvString(value, key)}\n`;
   }
 
-  await fs.writeFile(envPath, content, "utf-8");
+  await writeConfigFile(envPath, content, "utf-8");
 };
 
 export async function GET() {
@@ -131,23 +136,24 @@ export async function GET() {
   }
 
   const config = await readConfig();
-  const has9Router = has9RouterConfig(config);
+  const hasRegent = hasRegentConfig(config);
 
   return NextResponse.json({
     installed: true,
     config,
-    has9Router,
+    hasRegent,
     configPath: getConfigPath(),
   });
 }
 
 export async function POST(request) {
   try {
-    const { baseUrl, apiKey, models } = await request.json();
+    const { baseUrl, apiKey: callerKey, models } = await request.json();
+    const apiKey = await resolveCliApiKey(callerKey);
 
-    if (!baseUrl || !apiKey) {
+    if (!baseUrl) {
       return NextResponse.json(
-        { error: "baseUrl and apiKey are required" },
+        { error: "baseUrl is required" },
         { status: 400 }
       );
     }
@@ -197,7 +203,7 @@ export async function POST(request) {
     console.error("Error configuring jcode:", error);
     return NextResponse.json(
       { error: error.message },
-      { status: 500 }
+      { status: configErrorStatus(error) }
     );
   }
 }
@@ -227,7 +233,7 @@ export async function DELETE() {
     console.error("Error removing jcode configuration:", error);
     return NextResponse.json(
       { error: error.message },
-      { status: 500 }
+      { status: configErrorStatus(error) }
     );
   }
 }

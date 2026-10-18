@@ -365,7 +365,7 @@ async function deleteCombo(id) {
  * Get CLI tool settings
  * @param {string} tool - Tool name: claude | codex | droid | openclaw
  * @param {string} [profile] - Hermes profile name (defaults to the default profile)
- * @returns {Promise<Object>} { success, data: { installed, has9Router, ... } }
+ * @returns {Promise<Object>} { success, data: { installed, hasRegent, ... } }
  */
 async function getCliToolSettings(tool, profile) {
   const qs = profile ? `?profile=${encodeURIComponent(profile)}` : "";

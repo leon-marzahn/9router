@@ -1,4 +1,5 @@
 "use client";
+// oxlint-disable react/set-state-in-effect, react/immutability -- upstream data-loading effects, untouched here; the UI redesign rewrites this card.
 
 import { useState, useEffect, useRef } from "react";
 import { Card, Button, ModelSelectModal, ManualConfigModal } from "@/shared/components";
@@ -13,8 +14,6 @@ const ENDPOINT = "/api/cli-tools/deepseek-tui-settings";
 
 export default function DeepSeekTuiToolCard({
   tool,
-  isExpanded,
-  onToggle,
   baseUrl,
   hasActiveProviders,
   apiKeys,
@@ -62,11 +61,9 @@ export default function DeepSeekTuiToolCard({
   }, [initialStatus]);
 
   useEffect(() => {
-    if (isExpanded) {
-      if (!deepseekStatus) checkStatus();
-      fetchModelAliases();
-    }
-  }, [isExpanded]);
+    if (!deepseekStatus) checkStatus();
+    fetchModelAliases();
+  }, []);
 
   const fetchModelAliases = async () => {
     try {
@@ -119,7 +116,7 @@ export default function DeepSeekTuiToolCard({
     try {
       const keyToUse = selectedApiKey?.trim()
         || (apiKeys?.length > 0 ? apiKeys[0].key : null)
-        || (!cloudEnabled ? "sk_9router" : null);
+        || "";
 
       const res = await fetch(ENDPOINT, {
         method: "POST",
@@ -174,7 +171,7 @@ export default function DeepSeekTuiToolCard({
   const getManualConfigs = () => {
     const keyToUse = (selectedApiKey && selectedApiKey.trim())
       ? selectedApiKey
-      : (!cloudEnabled ? "sk_9router" : "<API_KEY_FROM_DASHBOARD>");
+      : "<API_KEY_FROM_DASHBOARD>";
 
     const tomlContent = `[providers.openai]
 base_url = "${getEffectiveBaseUrl()}"
@@ -189,7 +186,7 @@ model = "${selectedModel || "provider/model-id"}"
 
   return (
     <Card padding="xs" className="overflow-hidden">
-      <div className="flex items-start justify-between gap-3 hover:cursor-pointer sm:items-center" onClick={onToggle}>
+      <div className="flex items-start justify-between gap-3 sm:items-center">
         <div className="flex min-w-0 items-center gap-3">
           <div className="size-8 flex items-center justify-center shrink-0">
             <Image src={tool.image || "/providers/deepseek-tui.png"} alt={tool.name} width={32} height={32} className="size-8 object-contain rounded-lg" sizes="32px" onError={(e) => { e.target.style.display = "none"; }} loading="lazy" decoding="async" />
@@ -204,11 +201,9 @@ model = "${selectedModel || "provider/model-id"}"
             <p className="text-xs text-text-muted truncate">{tool.description}</p>
           </div>
         </div>
-        <span className={`material-symbols-outlined text-text-muted text-[20px] transition-transform ${isExpanded ? "rotate-180" : ""}`}>expand_more</span>
       </div>
 
-      {isExpanded && (
-        <div className="mt-4 pt-4 border-t border-border flex flex-col gap-4">
+              <div className="mt-4 pt-4 border-t border-border flex flex-col gap-4">
           {checking && (
             <div className="flex items-center gap-2 text-text-muted">
               <span className="material-symbols-outlined animate-spin">progress_activity</span>
@@ -311,7 +306,7 @@ model = "${selectedModel || "provider/model-id"}"
                 <Button variant="primary" size="sm" onClick={handleApply} disabled={!selectedModel} loading={applying}>
                   <span className="material-symbols-outlined text-[14px] mr-1">save</span>Apply
                 </Button>
-                <Button variant="outline" size="sm" onClick={handleReset} disabled={!deepseekStatus?.has9Router} loading={restoring}>
+                <Button variant="outline" size="sm" onClick={handleReset} disabled={!deepseekStatus?.hasRegent} loading={restoring}>
                   <span className="material-symbols-outlined text-[14px] mr-1">restore</span>Reset
                 </Button>
                 <Button variant="ghost" size="sm" onClick={() => setShowManualConfigModal(true)}>
@@ -321,7 +316,7 @@ model = "${selectedModel || "provider/model-id"}"
             </>
           )}
         </div>
-      )}
+      
 
       {modalOpen && (
         <ModelSelectModal

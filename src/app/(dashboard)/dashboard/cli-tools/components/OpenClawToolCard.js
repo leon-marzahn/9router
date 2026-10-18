@@ -1,4 +1,5 @@
 "use client";
+// oxlint-disable react/set-state-in-effect, react/immutability -- upstream data-loading effects, untouched here; the UI redesign rewrites this card.
 
 import { useState, useEffect, useRef } from "react";
 import { Card, Button, ModelSelectModal, ManualConfigModal } from "@/shared/components";
@@ -11,8 +12,6 @@ import { DISPLAY_NAME, PROVIDER_KEY, pickProvider, stripProviderPrefix, prefixMo
 
 export default function OpenClawToolCard({
   tool,
-  isExpanded,
-  onToggle,
   baseUrl,
   hasActiveProviders,
   apiKeys,
@@ -61,11 +60,9 @@ export default function OpenClawToolCard({
   }, [initialStatus]);
 
   useEffect(() => {
-    if (isExpanded) {
-      if (!openclawStatus) checkOpenclawStatus();
-      fetchModelAliases();
-    }
-  }, [isExpanded]);
+    if (!openclawStatus) checkOpenclawStatus();
+    fetchModelAliases();
+  }, []);
 
   const fetchModelAliases = async () => {
     try {
@@ -136,7 +133,7 @@ export default function OpenClawToolCard({
     try {
       const keyToUse = selectedApiKey?.trim()
         || (apiKeys?.length > 0 ? apiKeys[0].key : null)
-        || (!cloudEnabled ? "sk_9router" : null);
+        || "";
 
       const res = await fetch("/api/cli-tools/openclaw-settings", {
         method: "POST",
@@ -198,7 +195,7 @@ export default function OpenClawToolCard({
   const getManualConfigs = () => {
     const keyToUse = (selectedApiKey && selectedApiKey.trim())
       ? selectedApiKey
-      : (!cloudEnabled ? "sk_9router" : "<API_KEY_FROM_DASHBOARD>");
+      : "<API_KEY_FROM_DASHBOARD>";
 
     const settingsContent = {
       agents: {
@@ -235,7 +232,7 @@ export default function OpenClawToolCard({
 
   return (
     <Card padding="xs" className="overflow-hidden">
-      <div className="flex items-start justify-between gap-3 hover:cursor-pointer sm:items-center" onClick={onToggle}>
+      <div className="flex items-start justify-between gap-3 sm:items-center">
         <div className="flex min-w-0 items-center gap-3">
           <div className="size-8 flex items-center justify-center shrink-0">
             <Image src="/providers/openclaw.png" alt={tool.name} width={32} height={32} className="size-8 object-contain rounded-lg" sizes="32px" onError={(e) => { e.target.style.display = "none"; }} loading="lazy" decoding="async" />
@@ -250,11 +247,9 @@ export default function OpenClawToolCard({
             <p className="text-xs text-text-muted truncate">{tool.description}</p>
           </div>
         </div>
-        <span className={`material-symbols-outlined text-text-muted text-[20px] transition-transform ${isExpanded ? "rotate-180" : ""}`}>expand_more</span>
       </div>
 
-      {isExpanded && (
-        <div className="mt-4 pt-4 border-t border-border flex flex-col gap-4">
+              <div className="mt-4 pt-4 border-t border-border flex flex-col gap-4">
           {checkingOpenclaw && (
             <div className="flex items-center gap-2 text-text-muted">
               <span className="material-symbols-outlined animate-spin">progress_activity</span>
@@ -361,7 +356,7 @@ export default function OpenClawToolCard({
                 <Button variant="primary" size="sm" onClick={handleApplySettings} disabled={!selectedModel} loading={applying}>
                   <span className="material-symbols-outlined text-[14px] mr-1">save</span>Apply
                 </Button>
-                <Button variant="outline" size="sm" onClick={handleResetSettings} disabled={!openclawStatus?.has9Router} loading={restoring}>
+                <Button variant="outline" size="sm" onClick={handleResetSettings} disabled={!openclawStatus?.hasRegent} loading={restoring}>
                   <span className="material-symbols-outlined text-[14px] mr-1">restore</span>Reset
                 </Button>
                 <Button variant="ghost" size="sm" onClick={() => setShowManualConfigModal(true)}>
@@ -371,7 +366,7 @@ export default function OpenClawToolCard({
             </>
           )}
         </div>
-      )}
+      
 
       {modalOpen && (
         <ModelSelectModal

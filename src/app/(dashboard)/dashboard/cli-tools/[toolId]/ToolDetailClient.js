@@ -11,10 +11,11 @@ import {
   ClineToolCard, KiloToolCard, DeepSeekTuiToolCard,
   JcodeToolCard, GrokBuildToolCard, GenericCliToolCard,
 } from "../components";
+import RestoreBackupButton from "../components/RestoreBackupButton";
 
 const CLOUD_URL = process.env.NEXT_PUBLIC_CLOUD_URL;
 
-export default function ToolDetailClient({ toolId, machineId }) {
+export default function ToolDetailClient({ toolId }) {
   const tool = CLI_TOOLS[toolId];
   const [connections, setConnections] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -25,6 +26,10 @@ export default function ToolDetailClient({ toolId, machineId }) {
   const [tailscaleEnabled, setTailscaleEnabled] = useState(false);
   const [tailscaleUrl, setTailscaleUrl] = useState("");
   const [apiKeys, setApiKeys] = useState([]);
+  // Bumped after the card writes (any click inside it) so the restore button re-checks,
+  // and after a restore so the card remounts and re-reads the config.
+  const [writeSignal, setWriteSignal] = useState(0);
+  const [cardKey, setCardKey] = useState(0);
 
   useEffect(() => {
     let mounted = true;
@@ -131,8 +136,6 @@ export default function ToolDetailClient({ toolId, machineId }) {
     const hasActiveProviders = availableModels.length > 0;
     const commonProps = {
       tool,
-      isExpanded: true,
-      onToggle: () => {},
       baseUrl: getBaseUrl(),
       apiKeys,
       tunnelEnabled,
@@ -201,7 +204,14 @@ export default function ToolDetailClient({ toolId, machineId }) {
         <h1 className="text-xl font-semibold text-text-main sm:text-2xl">{tool.name}</h1>
         <p className="text-sm text-text-muted">{tool.description}</p>
       </div>
-      {loading ? <CardSkeleton /> : renderToolCard()}
+      {loading ? <CardSkeleton /> : (
+        <>
+          <div key={cardKey} onClickCapture={() => setTimeout(() => setWriteSignal((n) => n + 1), 1500)}>
+            {renderToolCard()}
+          </div>
+          <RestoreBackupButton toolId={toolId} refreshSignal={writeSignal} onRestored={() => setCardKey((n) => n + 1)} />
+        </>
+      )}
     </div>
   );
 }

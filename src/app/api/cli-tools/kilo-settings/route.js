@@ -1,18 +1,42 @@
 "use server";
 
 import { NextResponse } from "next/server";
+import { configWriter } from "../configFile.js";
+import { resolveCliApiKey } from "../resolveApiKey.js";
 import { DISPLAY_NAME, pickProvider, deleteProviderKeys, mentionsBrand } from "@/shared/constants/brand.js";
 import { exec } from "child_process";
 import { promisify } from "util";
 import fs from "fs/promises";
 import path from "path";
+import { parseJSONC } from "confbox";
+import { vscodeUserDir } from "./vscodePaths.js";
 import os from "os";
+
+const { writeConfigFile } = configWriter("kilo");
 
 const execAsync = promisify(exec);
 
 const getDataDir = () => path.join(os.homedir(), ".local", "share", "kilo");
 const getAuthPath = () => path.join(getDataDir(), "auth.json");
-const getVscodeSettingsPath = () => path.join(os.homedir(), ".config", "Code", "User", "settings.json");
+const getVscodeSettingsPath = () => path.join(vscodeUserDir(), "settings.json");
+
+// settings.json is JSONC. Missing → {}; present but unreadable → null, so we never
+// replace a file we could not parse with just our two keys.
+const readVscodeSettings = async () => {
+  let content;
+  try {
+    content = await fs.readFile(getVscodeSettingsPath(), "utf-8");
+  } catch (error) {
+    if (error.code === "ENOENT") return {};
+    return null;
+  }
+  try {
+    const parsed = parseJSONC(content);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+};
 
 const checkInstalled = async () => {
   try {
@@ -45,7 +69,7 @@ const readJson = async (filePath) => {
   }
 };
 
-const has9RouterConfig = (auth) => {
+const hasRegentConfig = (auth) => {
   if (!auth) return false;
   const entry = auth["openai-compatible"] || pickProvider(auth);
   if (!entry) return false;
@@ -63,7 +87,7 @@ export async function GET() {
     return NextResponse.json({
       installed: true,
       settings: { auth: auth ? Object.keys(auth) : [] },
-      has9Router: has9RouterConfig(auth),
+      hasRegent: hasRegentConfig(auth),
       authPath: getAuthPath(),
     });
   } catch (error) {
@@ -74,9 +98,10 @@ export async function GET() {
 
 export async function POST(request) {
   try {
-    const { baseUrl, apiKey, model } = await request.json();
-    if (!baseUrl || !apiKey || !model) {
-      return NextResponse.json({ error: "baseUrl, apiKey and model are required" }, { status: 400 });
+    const { baseUrl, apiKey: callerKey, model } = await request.json();
+    const apiKey = await resolveCliApiKey(callerKey);
+    if (!baseUrl || !model) {
+      return NextResponse.json({ error: "baseUrl and model are required" }, { status: 400 });
     }
 
     await fs.mkdir(getDataDir(), { recursive: true });
@@ -90,14 +115,17 @@ export async function POST(request) {
       baseUrl: normalizedBaseUrl,
       model,
     };
-    await fs.writeFile(getAuthPath(), JSON.stringify(auth, null, 2));
+    await writeConfigFile(getAuthPath(), JSON.stringify(auth, null, 2));
 
     // Best-effort: update VS Code extension settings
     try {
-      const vscode = (await readJson(getVscodeSettingsPath())) || {};
-      vscode["kilocode.customProvider"] = { name: DISPLAY_NAME, baseURL: normalizedBaseUrl, apiKey };
-      vscode["kilocode.defaultModel"] = model;
-      await fs.writeFile(getVscodeSettingsPath(), JSON.stringify(vscode, null, 2));
+      const vscode = await readVscodeSettings();
+      if (vscode) {
+        vscode["kilocode.customProvider"] = { name: DISPLAY_NAME, baseURL: normalizedBaseUrl, apiKey };
+        vscode["kilocode.defaultModel"] = model;
+        await fs.mkdir(vscodeUserDir(), { recursive: true });
+        await writeConfigFile(getVscodeSettingsPath(), JSON.stringify(vscode, null, 2));
+      }
     } catch { /* VS Code settings not writable */ }
 
     return NextResponse.json({ success: true, message: "Kilo Code settings applied successfully!", authPath: getAuthPath() });
@@ -115,14 +143,14 @@ export async function DELETE() {
     }
     delete auth["openai-compatible"];
     deleteProviderKeys(auth);
-    await fs.writeFile(getAuthPath(), JSON.stringify(auth, null, 2));
+    await writeConfigFile(getAuthPath(), JSON.stringify(auth, null, 2));
 
     try {
-      const vscode = await readJson(getVscodeSettingsPath());
-      if (vscode) {
+      const vscode = await readVscodeSettings();
+      if (vscode && ("kilocode.customProvider" in vscode || "kilocode.defaultModel" in vscode)) {
         delete vscode["kilocode.customProvider"];
         delete vscode["kilocode.defaultModel"];
-        await fs.writeFile(getVscodeSettingsPath(), JSON.stringify(vscode, null, 2));
+        await writeConfigFile(getVscodeSettingsPath(), JSON.stringify(vscode, null, 2));
       }
     } catch { /* ignore */ }
 

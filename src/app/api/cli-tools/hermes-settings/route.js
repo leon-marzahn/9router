@@ -1,6 +1,9 @@
 "use server";
 
 import { NextResponse } from "next/server";
+import { configWriter } from "../configFile.js";
+import { resolveCliApiKey } from "../resolveApiKey.js";
+import { ConfigValueError } from "../configText.js";
 import { DISPLAY_NAME } from "@/shared/constants/brand.js";
 import { exec } from "child_process";
 import { promisify } from "util";
@@ -21,14 +24,16 @@ import {
   removeDelegationBlock,
   removeAuxRole,
   upsertEnvVar,
-  has9RouterConfig,
+  hasRegentConfig,
   isCustomBlock,
   parseSttBlock,
-  is9RouterStt,
-  upsertStt9Router,
-  removeStt9Router,
+  isRegentStt,
+  upsertSttRegent,
+  removeSttRegent,
 } from "./hermesYaml.js";
 import { resolveHermesHome, listProfiles, dirExists } from "./hermesProfiles.js";
+
+const { writeConfigFile } = configWriter("hermes");
 
 const execAsync = promisify(exec);
 
@@ -76,7 +81,7 @@ const readEnvFile = (home) => readTextFile(home.envPath);
 // without identity files is not a profile, and we must not fabricate one.
 const writeHomeConfig = async (home, yaml) => {
   if (home.isDefault) await fs.mkdir(home.dir, { recursive: true });
-  await fs.writeFile(home.configPath, yaml);
+  await writeConfigFile(home.configPath, yaml);
 };
 
 // Only ever upserts the OPENAI_API_KEY line — per-profile .env files also carry bot tokens
@@ -85,7 +90,7 @@ const writeHomeEnv = async (home, apiKey) => {
   if (!apiKey) return;
   if (home.isDefault) await fs.mkdir(home.dir, { recursive: true });
   const env = upsertEnvVar(await readEnvFile(home), API_KEY_ENV, apiKey);
-  await fs.writeFile(home.envPath, env);
+  await writeConfigFile(home.envPath, env);
 };
 
 const checkHermesInstalled = async () => {
@@ -126,8 +131,8 @@ export async function GET(request) {
       installed: true,
       profile: { name: home.name, dir: home.dir, isDefault: home.isDefault },
       settings: { model, delegation, auxiliary, stt },
-      has9Router: has9RouterConfig(model) || has9RouterConfig(delegation) || Object.values(auxiliary).some(has9RouterConfig),
-      has9RouterStt: is9RouterStt(stt),
+      hasRegent: hasRegentConfig(model) || hasRegentConfig(delegation) || Object.values(auxiliary).some(hasRegentConfig),
+      hasRegentStt: isRegentStt(stt),
       configPath: home.configPath,
     });
   } catch (error) {
@@ -194,7 +199,8 @@ const applyToAllProfiles = async ({ normalizedBaseUrl, apiKey, model }) => {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { baseUrl, apiKey, model, selections, audio } = body;
+    const { baseUrl, apiKey: callerKey, model, selections, audio } = body;
+    const apiKey = await resolveCliApiKey(callerKey);
     // selections: [{role, model}] — "default" plus any auxiliary/delegation slots.
     // Legacy callers (CLI quick setup) send a bare `model` → treat as default role.
     const sel = Array.isArray(selections) && selections.some((s) => s?.role && s?.model)
@@ -243,11 +249,11 @@ export async function POST(request) {
     }
     if (audio) {
       if (audioEnabled) {
-        newYaml = upsertStt9Router(newYaml, audioModel, normalizedBaseUrl);
-      } else if (is9RouterStt(parseSttBlock(newYaml))) {
+        newYaml = upsertSttRegent(newYaml, audioModel, normalizedBaseUrl);
+      } else if (isRegentStt(parseSttBlock(newYaml))) {
         // Never remove stt wiring this endpoint did not write — a user's own STT
         // provider choice survives an audio-disabled Apply.
-        newYaml = removeStt9Router(newYaml);
+        newYaml = removeSttRegent(newYaml);
       }
     }
     await writeHomeConfig(home, newYaml);
@@ -259,11 +265,12 @@ export async function POST(request) {
       success: true,
       message: home.isDefault ? "Hermes settings applied successfully!" : `Hermes settings applied to profile "${home.name}"!`,
       profile: { name: home.name, dir: home.dir, isDefault: home.isDefault },
-      stt9Router: is9RouterStt(parseSttBlock(newYaml)),
+      sttRegent: isRegentStt(parseSttBlock(newYaml)),
       configPath: home.configPath,
     });
   } catch (error) {
     console.log("Error updating hermes settings:", error);
+    if (error instanceof ConfigValueError) return NextResponse.json({ error: error.message }, { status: 400 });
     return NextResponse.json({ error: "Failed to update hermes settings" }, { status: 500 });
   }
 }
@@ -324,8 +331,8 @@ export async function DELETE(request) {
     }
 
     const sttCfg = parseSttBlock(yaml);
-    if (sttCfg && is9RouterStt(sttCfg)) {
-      yaml = removeStt9Router(yaml);
+    if (sttCfg && isRegentStt(sttCfg)) {
+      yaml = removeSttRegent(yaml);
       removed.stt = true;
       // User settings living inside the block (language, local, ...) survive the key
       // removal — report the remainder as kept, like any other preserved section.

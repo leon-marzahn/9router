@@ -1,4 +1,5 @@
 "use client";
+// oxlint-disable react/set-state-in-effect, react/immutability -- upstream data-loading effects, untouched here; the UI redesign rewrites this card.
 
 import { useState, useEffect } from "react";
 import { Card, Button, ModelSelectModal, ManualConfigModal } from "@/shared/components";
@@ -11,7 +12,7 @@ import { rememberEndpoint } from "./cliEndpointPresets";
 import { getCurrentCodexProviderSettings, deriveProfileNameFromModel } from "./codexConfig";
 import { DISPLAY_NAME, PROVIDER_KEY } from "@/shared/constants/brand.js";
 
-export default function CodexToolCard({ tool, isExpanded, onToggle, baseUrl, apiKeys, activeProviders, cloudEnabled, initialStatus, tunnelEnabled, tunnelPublicUrl, tailscaleEnabled, tailscaleUrl }) {
+export default function CodexToolCard({ tool, baseUrl, apiKeys, activeProviders, cloudEnabled, initialStatus, tunnelEnabled, tunnelPublicUrl, tailscaleEnabled, tailscaleUrl }) {
   const [codexStatus, setCodexStatus] = useState(initialStatus || null);
   const [checkingCodex, setCheckingCodex] = useState(false);
   const [applying, setApplying] = useState(false);
@@ -49,12 +50,10 @@ export default function CodexToolCard({ tool, isExpanded, onToggle, baseUrl, api
   }, [initialStatus]);
 
   useEffect(() => {
-    if (isExpanded) {
-      if (!codexStatus) checkCodexStatus();
-      fetchModelAliases();
-      fetchProfiles();
-    }
-  }, [isExpanded]);
+    if (!codexStatus) checkCodexStatus();
+    fetchModelAliases();
+    fetchProfiles();
+  }, []);
 
   const fetchModelAliases = async () => {
     try {
@@ -195,10 +194,10 @@ export default function CodexToolCard({ tool, isExpanded, onToggle, baseUrl, api
     setApplying(true);
     setMessage(null);
     try {
-      // Use sk_9router for localhost if no key, otherwise use selected key
+      // Empty key: the route falls back to the first active dashboard key
       const keyToUse = (selectedApiKey && selectedApiKey.trim())
         ? selectedApiKey
-        : (!cloudEnabled ? "sk_9router" : selectedApiKey);
+        : "";
 
       const res = await fetch("/api/cli-tools/codex-settings", {
         method: "POST",
@@ -259,7 +258,7 @@ export default function CodexToolCard({ tool, isExpanded, onToggle, baseUrl, api
   const getManualConfigs = () => {
     const keyToUse = (selectedApiKey && selectedApiKey.trim())
       ? selectedApiKey
-      : (!cloudEnabled ? "sk_9router" : "<API_KEY_FROM_DASHBOARD>");
+      : "<API_KEY_FROM_DASHBOARD>";
 
     const effectiveSubagentModel = subagentModel || selectedModel;
 
@@ -289,7 +288,7 @@ default_subagent_model = "${effectiveSubagentModel}"
 
   return (
     <Card padding="xs" className="overflow-hidden">
-      <div className="flex items-start justify-between gap-3 hover:cursor-pointer sm:items-center" onClick={onToggle}>
+      <div className="flex items-start justify-between gap-3 sm:items-center">
         <div className="flex min-w-0 items-center gap-3">
           <div className="size-8 flex items-center justify-center shrink-0">
             <Image src="/providers/codex.png" alt={tool.name} width={32} height={32} className="size-8 object-contain rounded-lg" sizes="32px" onError={(e) => { e.target.style.display = "none"; }} loading="lazy" decoding="async" />
@@ -304,11 +303,9 @@ default_subagent_model = "${effectiveSubagentModel}"
             <p className="text-xs text-text-muted truncate">{tool.description}</p>
           </div>
         </div>
-        <span className={`material-symbols-outlined text-text-muted text-[20px] transition-transform ${isExpanded ? "rotate-180" : ""}`}>expand_more</span>
       </div>
 
-      {isExpanded && (
-        <div className="mt-4 pt-4 border-t border-border flex flex-col gap-4">
+              <div className="mt-4 pt-4 border-t border-border flex flex-col gap-4">
           {checkingCodex && (
             <div className="flex items-center gap-2 text-text-muted">
               <span className="material-symbols-outlined animate-spin">progress_activity</span>
@@ -603,7 +600,7 @@ default_subagent_model = "${effectiveSubagentModel}"
             </>
           )}
         </div>
-      )}
+      
 
       {modalOpen && (
         <ModelSelectModal

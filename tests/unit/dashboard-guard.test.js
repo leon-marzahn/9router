@@ -287,6 +287,50 @@ describe("dashboard guard local-only access", () => {
   });
 });
 
+describe("dashboard guard cli-tools routes are local-only", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.NINEROUTER_PEER_TOKEN = PEER_TOKEN;
+    mocks.getSettings.mockResolvedValue({ requireLogin: true });
+    mocks.getConsistentMachineId.mockResolvedValue("cli-token");
+    mocks.verifyDashboardAuthToken.mockResolvedValue(true);
+  });
+
+  const routes = [
+    "/api/cli-tools/claude-settings",
+    "/api/cli-tools/codex-profiles",
+    "/api/cli-tools/hermes-profiles",
+    "/api/cli-tools/cowork-mcp-tools",
+    "/api/cli-tools/cowork-mcp-registry",
+    "/api/cli-tools/restore",
+    "/api/cli-tools/deepseek-tui-settings",
+    "/api/cli-tools/all-statuses",
+  ];
+
+  for (const route of routes) {
+    it(`rejects ${route} from a logged-in remote (tunnel) user`, async () => {
+      const req = request(route, { host: "router.example.com" });
+      req.cookies.get = vi.fn(() => ({ value: "jwt" }));
+      const response = await proxy(req);
+      expect(response.status).toBe(403);
+    });
+
+    it(`allows ${route} on loopback with a session`, async () => {
+      const req = localRequest(route, { host: "localhost:20128", origin: "http://localhost:20128" });
+      req.cookies.get = vi.fn(() => ({ value: "jwt" }));
+      expect(await proxy(req)).toBe(mocks.nextResponse);
+    });
+  }
+
+  it("allows cli-tools remotely with the CLI token", async () => {
+    const response = await proxy(request("/api/cli-tools/claude-settings", {
+      host: "router.example.com",
+      "x-9r-cli-token": "cli-token",
+    }));
+    expect(response).toBe(mocks.nextResponse);
+  });
+});
+
 describe("dashboard guard request detail access", () => {
   beforeEach(() => {
     vi.clearAllMocks();

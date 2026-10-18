@@ -1,6 +1,8 @@
 "use server";
 
 import { NextResponse } from "next/server";
+import { configWriter } from "../configFile.js";
+import { resolveCliApiKey } from "../resolveApiKey.js";
 import {
   DISPLAY_NAME,
   PROVIDER_KEY,
@@ -15,6 +17,8 @@ import { promisify } from "util";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
+
+const { writeConfigFile } = configWriter("openclaw");
 
 const execAsync = promisify(exec);
 
@@ -66,7 +70,7 @@ const readSettings = async () => {
 };
 
 // Check if settings has our provider (current `regent` or legacy `9router` key)
-const has9RouterConfig = (settings) => {
+const hasRegentConfig = (settings) => {
   if (!settings || !settings.models || !settings.models.providers) return false;
   return !!pickProvider(settings.models.providers);
 };
@@ -114,7 +118,7 @@ export async function GET() {
       installed: true,
       settings,
       agents: enrichedAgents,
-      has9Router: has9RouterConfig(settings),
+      hasRegent: hasRegentConfig(settings),
       settingsPath: getOpenClawSettingsPath(),
     });
   } catch (error) {
@@ -137,18 +141,19 @@ const writeAgentModels = async (agentDir, model, baseUrl, apiKey) => {
   delete existing.providers[LEGACY_PROVIDER_KEY];
   existing.providers[PROVIDER_KEY] = {
     baseUrl,
-    apiKey: apiKey || "your_api_key",
+    apiKey: apiKey,
     api: "openai-completions",
     models: [{ id: model, name: model.split("/").pop() || model }],
   };
-  await fs.writeFile(modelsPath, JSON.stringify(existing, null, 2));
+  await writeConfigFile(modelsPath, JSON.stringify(existing, null, 2));
 };
 
 // POST - Update our provider settings (merge with existing settings)
 export async function POST(request) {
   try {
     // agentModels: { [agentId]: modelId } for per-agent override
-    const { baseUrl, apiKey, model, agentModels = {} } = await request.json();
+    const { baseUrl, apiKey: callerKey, model, agentModels = {} } = await request.json();
+    const apiKey = await resolveCliApiKey(callerKey);
     
     if (!baseUrl || !model) {
       return NextResponse.json({ error: "baseUrl and model are required" }, { status: 400 });
@@ -208,7 +213,7 @@ export async function POST(request) {
     delete settings.models.providers[LEGACY_PROVIDER_KEY];
     settings.models.providers[PROVIDER_KEY] = {
       baseUrl: normalizedBaseUrl,
-      apiKey: apiKey || "your_api_key",
+      apiKey: apiKey,
       api: "openai-completions",
       models: [...allModelIds].map((m) => ({ id: m, name: m.split("/").pop() || m })),
     };
@@ -232,7 +237,7 @@ export async function POST(request) {
       );
     }
 
-    await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2));
+    await writeConfigFile(settingsPath, JSON.stringify(settings, null, 2));
 
     return NextResponse.json({
       success: true,
@@ -292,7 +297,7 @@ export async function DELETE() {
     }
 
     // Write updated settings
-    await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2));
+    await writeConfigFile(settingsPath, JSON.stringify(settings, null, 2));
 
     return NextResponse.json({
       success: true,

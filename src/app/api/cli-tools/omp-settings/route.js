@@ -1,13 +1,17 @@
 "use server";
 
 import { NextResponse } from "next/server";
+import { configWriter } from "../configFile.js";
 import { DISPLAY_NAME, PROVIDER_KEY, PROVIDER_KEYS } from "@/shared/constants/brand.js";
 import { resolveCliApiKey } from "../resolveApiKey.js";
+import { yamlString, configErrorStatus } from "../configText.js";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
 import { exec } from "child_process";
 import { promisify } from "util";
+
+const { writeConfigFile, removeConfigFile } = configWriter("omp");
 
 const execAsync = promisify(exec);
 
@@ -48,7 +52,7 @@ const readModelsYml = async () => {
   }
 };
 
-const has9RouterInYml = (content) => {
+const hasRegentInYml = (content) => {
   if (!content) return false;
   return PROVIDER_KEYS.some((k) => content.includes(`${k}:`)) || content.includes("localhost:20128");
 };
@@ -58,8 +62,8 @@ const buildOmpProviderYaml = (baseUrl, apiKey) => {
   const normalizedBaseUrl = baseUrl.endsWith("/v1") ? baseUrl : `${baseUrl}/v1`;
   const key = apiKey || "";
   return `  ${PROVIDER_ID}:
-    baseUrl: ${normalizedBaseUrl}
-    apiKey: ${key}
+    baseUrl: ${yamlString(normalizedBaseUrl, "Base URL")}
+    apiKey: ${yamlString(key, "API key")}
     api: openai-completions
     authHeader: true
     disableStrictTools: true
@@ -79,15 +83,15 @@ export async function GET() {
     }
 
     const ymlContent = await readModelsYml();
-    const has9Router = has9RouterInYml(ymlContent);
+    const hasRegent = hasRegentInYml(ymlContent);
 
     return NextResponse.json({
       installed: true,
-      has9Router,
+      hasRegent,
       configPath: getOmpModelsYmlPath(),
     });
   } catch (err) {
-    return NextResponse.json({ error: { message: err.message } }, { status: 500 });
+    return NextResponse.json({ error: { message: err.message } }, { status: configErrorStatus(err) });
   }
 }
 
@@ -118,12 +122,12 @@ export async function POST(request) {
     if (!ymlContent.trim()) {
       ymlContent = `providers:\n${providerBlock}\n`;
     } else if (ymlContent.includes("providers:")) {
-      ymlContent = ymlContent.replace(/providers:/, `providers:\n${providerBlock}`);
+      ymlContent = ymlContent.replace(/^providers:/m, () => `providers:\n${providerBlock}`);
     } else {
       ymlContent = `${ymlContent.trim()}\n\nproviders:\n${providerBlock}\n`;
     }
 
-    await fs.writeFile(getOmpModelsYmlPath(), ymlContent, "utf-8");
+    await writeConfigFile(getOmpModelsYmlPath(), ymlContent, "utf-8");
 
     // Best-effort update to agent.db if better-sqlite3 or node:sqlite is present
     try {
@@ -159,7 +163,7 @@ export async function POST(request) {
       configPath: getOmpModelsYmlPath(),
     });
   } catch (err) {
-    return NextResponse.json({ error: { message: err.message } }, { status: 500 });
+    return NextResponse.json({ error: { message: err.message } }, { status: configErrorStatus(err) });
   }
 }
 
@@ -169,9 +173,9 @@ export async function DELETE() {
     ymlContent = ymlContent.replace(providerBlockRegex(), "");
 
     if (ymlContent.trim() === "providers:") {
-      await fs.rm(getOmpModelsYmlPath(), { force: true });
+      await removeConfigFile(getOmpModelsYmlPath());
     } else {
-      await fs.writeFile(getOmpModelsYmlPath(), ymlContent, "utf-8");
+      await writeConfigFile(getOmpModelsYmlPath(), ymlContent, "utf-8");
     }
 
     return NextResponse.json({
@@ -179,6 +183,6 @@ export async function DELETE() {
       message: `${DISPLAY_NAME} removed from Oh My Pi`,
     });
   } catch (err) {
-    return NextResponse.json({ error: { message: err.message } }, { status: 500 });
+    return NextResponse.json({ error: { message: err.message } }, { status: configErrorStatus(err) });
   }
 }

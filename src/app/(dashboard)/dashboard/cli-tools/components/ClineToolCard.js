@@ -1,4 +1,5 @@
 "use client";
+// oxlint-disable react/set-state-in-effect, react/immutability -- upstream data-loading effects, untouched here; the UI redesign rewrites this card.
 
 import { useState, useEffect } from "react";
 import { Card, Button, ModelSelectModal, ManualConfigModal } from "@/shared/components";
@@ -9,7 +10,7 @@ import ApiKeySelect from "./ApiKeySelect";
 import { matchKnownEndpoint } from "./cliEndpointMatch";
 import { DISPLAY_NAME } from "@/shared/constants/brand.js";
 
-export default function ClineToolCard({ tool, isExpanded, onToggle, baseUrl, apiKeys, activeProviders, cloudEnabled, initialStatus, tunnelEnabled, tunnelPublicUrl, tailscaleEnabled, tailscaleUrl }) {
+export default function ClineToolCard({ tool, baseUrl, apiKeys, activeProviders, cloudEnabled, initialStatus, tunnelEnabled, tunnelPublicUrl, tailscaleEnabled, tailscaleUrl }) {
   const [status, setStatus] = useState(initialStatus || null);
   const [checking, setChecking] = useState(false);
   const [applying, setApplying] = useState(false);
@@ -32,11 +33,9 @@ export default function ClineToolCard({ tool, isExpanded, onToggle, baseUrl, api
   }, [initialStatus]);
 
   useEffect(() => {
-    if (isExpanded) {
-      if (!status) checkStatus();
-      fetchModelAliases();
-    }
-  }, [isExpanded]);
+    if (!status) checkStatus();
+    fetchModelAliases();
+  }, []);
 
   useEffect(() => {
     if (status?.settings?.openAiModelId) setSelectedModel(status.settings.openAiModelId);
@@ -56,7 +55,7 @@ export default function ClineToolCard({ tool, isExpanded, onToggle, baseUrl, api
 
   const getConfigStatus = () => {
     if (!status?.installed) return null;
-    if (!status.has9Router) return "not_configured";
+    if (!status.hasRegent) return "not_configured";
     const url = status.settings?.openAiBaseUrl || "";
     return matchKnownEndpoint(url, { tunnelPublicUrl, tailscaleUrl }) ? "configured" : "other";
   };
@@ -89,7 +88,7 @@ export default function ClineToolCard({ tool, isExpanded, onToggle, baseUrl, api
     try {
       const keyToUse = (selectedApiKey && selectedApiKey.trim())
         ? selectedApiKey
-        : (!cloudEnabled ? "sk_9router" : selectedApiKey);
+        : "";
 
       const res = await fetch("/api/cli-tools/cline-settings", {
         method: "POST",
@@ -135,7 +134,7 @@ export default function ClineToolCard({ tool, isExpanded, onToggle, baseUrl, api
   const getManualConfigs = () => {
     const keyToUse = (selectedApiKey && selectedApiKey.trim())
       ? selectedApiKey
-      : (!cloudEnabled ? "sk_9router" : "<API_KEY_FROM_DASHBOARD>");
+      : "<API_KEY_FROM_DASHBOARD>";
     const effectiveUrl = getEffectiveBaseUrl();
     const baseWithoutV1 = effectiveUrl.endsWith("/v1") ? effectiveUrl.slice(0, -3) : effectiveUrl;
 
@@ -159,7 +158,7 @@ export default function ClineToolCard({ tool, isExpanded, onToggle, baseUrl, api
 
   return (
     <Card padding="xs" className="overflow-hidden">
-      <div className="flex items-start justify-between gap-3 hover:cursor-pointer sm:items-center" onClick={onToggle}>
+      <div className="flex items-start justify-between gap-3 sm:items-center">
         <div className="flex min-w-0 items-center gap-3">
           <div className="size-8 flex items-center justify-center shrink-0">
             <Image src="/providers/cline.png" alt={tool.name} width={32} height={32} className="size-8 object-contain rounded-lg" sizes="32px" onError={(e) => { e.target.style.display = "none"; }} loading="lazy" decoding="async" />
@@ -174,11 +173,9 @@ export default function ClineToolCard({ tool, isExpanded, onToggle, baseUrl, api
             <p className="text-xs text-text-muted truncate">{tool.description}</p>
           </div>
         </div>
-        <span className={`material-symbols-outlined text-text-muted text-[20px] transition-transform ${isExpanded ? "rotate-180" : ""}`}>expand_more</span>
       </div>
 
-      {isExpanded && (
-        <div className="mt-4 pt-4 border-t border-border flex flex-col gap-4">
+              <div className="mt-4 pt-4 border-t border-border flex flex-col gap-4">
           {checking && (
             <div className="flex items-center gap-2 text-text-muted">
               <span className="material-symbols-outlined animate-spin">progress_activity</span>
@@ -284,7 +281,7 @@ export default function ClineToolCard({ tool, isExpanded, onToggle, baseUrl, api
             </>
           )}
         </div>
-      )}
+      
 
       {modalOpen && (
         <ModelSelectModal

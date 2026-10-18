@@ -1,9 +1,20 @@
 import { UPDATER_CONFIG } from "@/shared/constants/config";
 
 // Browser-local preset stores (endpoints, API keys) shared by every CLI tool card
-function createStore({ storageKey, changeEvent, itemField, normalize = (v) => v, defaultName = (v) => v }) {
+function createStore({ storageKey, legacyStorageKey, changeEvent, itemField, normalize = (v) => v, defaultName = (v) => v }) {
+  // One-time move from the pre-rename key; the legacy entry is dropped once copied.
+  const migrate = () => {
+    try {
+      const legacy = window.localStorage.getItem(legacyStorageKey);
+      if (legacy === null) return;
+      if (window.localStorage.getItem(storageKey) === null) window.localStorage.setItem(storageKey, legacy);
+      window.localStorage.removeItem(legacyStorageKey);
+    } catch { /* storage unavailable */ }
+  };
+
   const read = () => {
     if (typeof window === "undefined") return [];
+    migrate();
     try {
       const raw = JSON.parse(window.localStorage.getItem(storageKey) || "[]");
       if (!Array.isArray(raw)) return [];
@@ -50,8 +61,9 @@ function createStore({ storageKey, changeEvent, itemField, normalize = (v) => v,
 const stripSlash = (url) => (url || "").replace(/\/+$/, "");
 
 const endpoints = createStore({
-  storageKey: "9router.cliToolEndpointPresets",
-  changeEvent: "9router:endpoint-presets-changed",
+  storageKey: "regent.cliToolEndpointPresets",
+  legacyStorageKey: "9router.cliToolEndpointPresets",
+  changeEvent: "regent:endpoint-presets-changed",
   itemField: "baseUrl",
   normalize: stripSlash,
   defaultName: (url) => {
@@ -60,8 +72,9 @@ const endpoints = createStore({
 });
 
 const apiKeys = createStore({
-  storageKey: "9router.cliToolApiKeyPresets",
-  changeEvent: "9router:api-key-presets-changed",
+  storageKey: "regent.cliToolApiKeyPresets",
+  legacyStorageKey: "9router.cliToolApiKeyPresets",
+  changeEvent: "regent:api-key-presets-changed",
   itemField: "key",
 });
 

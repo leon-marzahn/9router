@@ -1,4 +1,5 @@
 "use client";
+// oxlint-disable react/set-state-in-effect, react/immutability -- upstream data-loading effects, untouched here; the UI redesign rewrites this card.
 
 import { useState, useEffect } from "react";
 import { Card, Button, ManualConfigModal, ComboFormModal, McpMarketplaceModal, ModelSelectModal } from "@/shared/components";
@@ -18,8 +19,6 @@ const ensureV1 = (url) => {
 
 export default function CoworkToolCard({
   tool,
-  isExpanded,
-  onToggle,
   baseUrl,
   apiKeys,
   activeProviders,
@@ -62,18 +61,17 @@ export default function CoworkToolCard({
   }, [initialStatus]);
 
   useEffect(() => {
-    if (isExpanded && !status) checkStatus();
-  }, [isExpanded]);
+    if (!status) checkStatus();
+  }, []);
 
   useEffect(() => {
-    if (!isExpanded) return;
-    fetch("/api/models/alias")
+        fetch("/api/models/alias")
       .then((r) => r.ok ? r.json() : null)
       .then((data) => {
         if (data) setModelAliases(data.aliases || {});
       })
       .catch(() => {});
-  }, [isExpanded]);
+  }, []);
 
   useEffect(() => {
     if (status?.cowork?.models?.length) {
@@ -117,7 +115,7 @@ export default function CoworkToolCard({
     if (!status?.installed) return null;
     const url = status?.cowork?.baseUrl;
     if (!url) return "not_configured";
-    return status.has9Router ? "configured" : "other";
+    return status.hasRegent ? "configured" : "other";
   };
 
   const configStatus = getConfigStatus();
@@ -135,7 +133,7 @@ export default function CoworkToolCard({
     try {
       const keyToUse = selectedApiKey?.trim()
         || (apiKeys?.length > 0 ? apiKeys[0].key : null)
-        || (!cloudEnabled ? "sk_9router" : null);
+        || "";
 
       const res = await fetch(ENDPOINT, {
         method: "POST",
@@ -233,7 +231,7 @@ export default function CoworkToolCard({
   const getManualConfigs = () => {
     const keyToUse = (selectedApiKey && selectedApiKey.trim())
       ? selectedApiKey
-      : (!cloudEnabled ? "sk_9router" : "<API_KEY_FROM_DASHBOARD>");
+      : "<API_KEY_FROM_DASHBOARD>";
 
     const modelsToShow = selectedModels.length > 0 ? selectedModels : ["provider/model-id"];
     const cfg = {
@@ -251,7 +249,7 @@ export default function CoworkToolCard({
 
   return (
     <Card padding="xs" className="overflow-hidden">
-      <div className="flex items-start justify-between gap-3 hover:cursor-pointer sm:items-center" onClick={onToggle}>
+      <div className="flex items-start justify-between gap-3 sm:items-center">
         <div className="flex min-w-0 items-center gap-3">
           <div className="size-8 flex items-center justify-center shrink-0">
             <Image src={tool.image} alt={tool.name} width={32} height={32} className="size-8 object-contain rounded-lg" sizes="32px" onError={(e) => { e.target.style.display = "none"; }} loading="lazy" decoding="async" />
@@ -266,11 +264,9 @@ export default function CoworkToolCard({
             <p className="text-xs text-text-muted truncate">{tool.description}</p>
           </div>
         </div>
-        <span className={`material-symbols-outlined text-text-muted text-[20px] transition-transform ${isExpanded ? "rotate-180" : ""}`}>expand_more</span>
       </div>
 
-      {isExpanded && (
-        <div className="mt-4 pt-4 border-t border-border flex flex-col gap-4">
+              <div className="mt-4 pt-4 border-t border-border flex flex-col gap-4">
           {checking && (
             <div className="flex items-center gap-2 text-text-muted">
               <span className="material-symbols-outlined animate-spin">progress_activity</span>
@@ -501,7 +497,7 @@ export default function CoworkToolCard({
                 <Button variant="primary" size="sm" onClick={handleApply} disabled={selectedModels.length === 0} loading={applying} className="w-full sm:w-auto">
                   <span className="material-symbols-outlined text-[14px] mr-1">save</span>Apply
                 </Button>
-                <Button variant="outline" size="sm" onClick={handleReset} disabled={!status.has9Router} loading={restoring} className="w-full sm:w-auto">
+                <Button variant="outline" size="sm" onClick={handleReset} disabled={!status.hasRegent} loading={restoring} className="w-full sm:w-auto">
                   <span className="material-symbols-outlined text-[14px] mr-1">restore</span>Reset
                 </Button>
                 <Button variant="ghost" size="sm" onClick={() => setShowManualConfigModal(true)} className="w-full sm:w-auto">
@@ -511,7 +507,7 @@ export default function CoworkToolCard({
             </>
           )}
         </div>
-      )}
+      
 
       <ManualConfigModal
         isOpen={showManualConfigModal}

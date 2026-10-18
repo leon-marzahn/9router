@@ -1,6 +1,9 @@
 "use server";
 
 import { NextResponse } from "next/server";
+import { configWriter } from "../configFile.js";
+import { mergeCoworkConfig, removeCoworkConfig } from "./coworkConfig.js";
+import { resolveCliApiKey } from "../resolveApiKey.js";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
@@ -8,6 +11,8 @@ import crypto from "crypto";
 import { DEFAULT_PLUGINS, LOCAL_STDIO_PLUGINS, buildManagedMcpServers } from "@/shared/constants/coworkPlugins";
 import { UPDATER_CONFIG } from "@/shared/constants/config";
 import { getConsistentMachineId } from "@/shared/utils/machineId";
+
+const { writeConfigFile } = configWriter("cowork");
 
 const APP_PORT = UPDATER_CONFIG.appPort;
 const CLI_TOKEN_HEADER = "x-9r-cli-token";
@@ -129,7 +134,7 @@ const read1pConfig = async () => {
 
 const write1pConfig = async (cfg) => {
   await fs.mkdir(get1pRoot(), { recursive: true });
-  await fs.writeFile(get1pConfigPath(), JSON.stringify(cfg, null, 2));
+  await writeConfigFile(get1pConfigPath(), JSON.stringify(cfg, null, 2));
 };
 
 const bootstrapDeploymentMode = async () => {
@@ -220,7 +225,7 @@ const ensureMeta = async () => {
       meta = { appliedId: newId, entries: [{ id: newId, name: "Default" }] };
     }
     await fs.mkdir(getWriteConfigDir(), { recursive: true });
-    await fs.writeFile(writeMetaPath, JSON.stringify(meta, null, 2));
+    await writeConfigFile(writeMetaPath, JSON.stringify(meta, null, 2));
   }
   return meta;
 };
@@ -237,7 +242,7 @@ async function writeSkipApprovals(managedServers) {
   }
   cfg.operonSkipMcpApprovals = skip;
   await fs.mkdir(getWriteRoot(), { recursive: true });
-  await fs.writeFile(cfgPath, JSON.stringify(cfg, null, 2));
+  await writeConfigFile(cfgPath, JSON.stringify(cfg, null, 2));
   return { written: Object.keys(skip).length };
 }
 
@@ -258,7 +263,7 @@ export async function GET() {
       ? config.inferenceModels.map((m) => (typeof m === "string" ? m : m?.name)).filter(Boolean)
       : [];
     const managedMcp = Array.isArray(config?.managedMcpServers) ? config.managedMcpServers : [];
-    const has9Router = !!(config?.inferenceProvider === PROVIDER && baseUrl);
+    const hasRegent = !!(config?.inferenceProvider === PROVIDER && baseUrl);
 
     // Active local plugins = managedMcp entries whose URL points at our inline bridge.
     const stdioNames = new Set(LOCAL_STDIO_PLUGINS.map((p) => p.name));
@@ -274,7 +279,7 @@ export async function GET() {
     return NextResponse.json({
       installed: true,
       config,
-      has9Router,
+      hasRegent,
       configPath,
       cowork: {
         appliedId,
@@ -310,10 +315,11 @@ export async function GET() {
 
 export async function POST(request) {
   try {
-    const { baseUrl, apiKey, models, plugins, localPlugins, customPlugins } = await request.json();
+    const { baseUrl, apiKey: callerKey, models, plugins, localPlugins, customPlugins } = await request.json();
+    const apiKey = await resolveCliApiKey(callerKey);
 
-    if (!baseUrl || !apiKey) {
-      return NextResponse.json({ error: "baseUrl and apiKey are required" }, { status: 400 });
+    if (!baseUrl) {
+      return NextResponse.json({ error: "baseUrl is required" }, { status: 400 });
     }
     const modelsArray = Array.isArray(models) ? models.filter((m) => typeof m === "string" && m.trim()) : [];
     if (modelsArray.length === 0) {
@@ -343,7 +349,7 @@ export async function POST(request) {
     };
     if (managedMcpServers.length > 0) newConfig.managedMcpServers = managedMcpServers;
 
-    await fs.writeFile(configPath, JSON.stringify(newConfig, null, 2));
+    await writeConfigFile(configPath, JSON.stringify(mergeCoworkConfig(await readJson(configPath), newConfig), null, 2));
 
     let skipResult = null;
     try { skipResult = await writeSkipApprovals(managedMcpServers); } catch (e) { skipResult = { error: e.message }; }
@@ -375,8 +381,11 @@ export async function DELETE() {
       return NextResponse.json({ success: true, message: "No active config to reset" });
     }
     const configPath = path.join(await getConfigDir(), `${meta.appliedId}.json`);
-    try { await fs.writeFile(configPath, JSON.stringify({}, null, 2)); }
-    catch (error) { if (error.code !== "ENOENT") throw error; }
+    const existing = await readJson(configPath);
+    if (existing) {
+      const remaining = removeCoworkConfig(existing, { provider: PROVIDER, securityRelax: SECURITY_RELAX });
+      await writeConfigFile(configPath, JSON.stringify(remaining, null, 2));
+    }
     try { await writeSkipApprovals([]); } catch { /* ignore */ }
     try { await cleanup1pLegacy(); } catch { /* ignore */ }
     return NextResponse.json({ success: true, message: "Cowork config reset" });

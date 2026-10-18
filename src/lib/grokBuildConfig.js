@@ -1,4 +1,5 @@
 import { DISPLAY_NAME, PROVIDER_KEY, LEGACY_PROVIDER_KEY } from "@/shared/constants/brand.js";
+import { tomlString } from "@/app/api/cli-tools/configText.js";
 
 export const GROK_MAIN_MODEL_SLOT = PROVIDER_KEY;
 const LEGACY_MAIN_MODEL_SLOT = LEGACY_PROVIDER_KEY;
@@ -11,7 +12,6 @@ const MODELS_SECTION = "models";
 const SUBAGENT_MODELS_SECTION = "subagents.models";
 
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-const tomlString = (value) => JSON.stringify(String(value));
 
 const sectionRegExp = (section) =>
   new RegExp(

@@ -1,6 +1,8 @@
 "use server";
 
 import { NextResponse } from "next/server";
+import { configWriter } from "../configFile.js";
+import { configErrorStatus } from "../configText.js";
 import { DISPLAY_NAME } from "@/shared/constants/brand.js";
 import { resolveCliApiKey } from "../resolveApiKey.js";
 import { exec } from "child_process";
@@ -16,6 +18,8 @@ import {
   parseGrokBuildConfig,
   resetGrokBuildConfig,
 } from "@/lib/grokBuildConfig";
+
+const { writeConfigFile } = configWriter("grok-build");
 
 const execAsync = promisify(exec);
 
@@ -73,7 +77,7 @@ const normalizeSubagentModels = (value) => {
   return result;
 };
 
-const has9RouterConfig = (settings) => Boolean(settings?.model?.base_url);
+const hasRegentConfig = (settings) => Boolean(settings?.model?.base_url);
 
 export async function GET() {
   try {
@@ -90,12 +94,12 @@ export async function GET() {
     return NextResponse.json({
       installed: true,
       settings,
-      has9Router: has9RouterConfig(settings),
+      hasRegent: hasRegentConfig(settings),
       configPath: getGrokConfigPath(),
     });
   } catch (error) {
     console.log("Error checking grok-build settings:", error);
-    return NextResponse.json({ error: "Failed to check grok-build settings" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to check grok-build settings" }, { status: configErrorStatus(error) });
   }
 }
 
@@ -116,7 +120,7 @@ export async function POST(request) {
       contextWindow: normalizeContextWindow(contextWindow, selectedModel),
       subagentModels: normalizeSubagentModels(subagentModels),
     });
-    await fs.writeFile(getGrokConfigPath(), toml);
+    await writeConfigFile(getGrokConfigPath(), toml);
 
     return NextResponse.json({
       success: true,
@@ -126,7 +130,7 @@ export async function POST(request) {
     });
   } catch (error) {
     console.log("Error updating grok-build settings:", error);
-    return NextResponse.json({ error: "Failed to update grok-build settings" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to update grok-build settings" }, { status: configErrorStatus(error) });
   }
 }
 
@@ -143,13 +147,13 @@ export async function DELETE() {
       throw error;
     }
 
-    await fs.writeFile(configPath, resetGrokBuildConfig(toml));
+    await writeConfigFile(configPath, resetGrokBuildConfig(toml));
     return NextResponse.json({
       success: true,
       message: `${DISPLAY_NAME} model slots removed from Grok Build`,
     });
   } catch (error) {
     console.log("Error resetting grok-build settings:", error);
-    return NextResponse.json({ error: "Failed to reset grok-build settings" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to reset grok-build settings" }, { status: configErrorStatus(error) });
   }
 }

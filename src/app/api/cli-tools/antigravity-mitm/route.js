@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { resolveCliApiKey } from "../resolveApiKey.js";
 import { DISPLAY_NAME } from "@/shared/constants/brand.js";
 import {
   getMitmStatus,
@@ -94,7 +95,10 @@ export async function GET() {
 // POST - Start MITM server (cert + server, no DNS)
 export async function POST(request) {
   try {
-    const { apiKey, sudoPassword, mitmRouterBaseUrl, forceKillPort443 } = await request.json();
+    const { apiKey: callerKey, sudoPassword, mitmRouterBaseUrl, forceKillPort443 } = await request.json();
+    // Held in memory by the MITM server only (never written to a config file); the
+    // fallback matches startMitm() in initializeApp for installs without any key.
+    const apiKey = (await resolveCliApiKey(callerKey)) || "sk_9router";
     const pwd = getPassword(sudoPassword) || await loadEncryptedPassword() || "";
 
     if (!apiKey || requiresSudoPassword(pwd)) {

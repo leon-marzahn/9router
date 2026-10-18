@@ -63,8 +63,6 @@ function ModelField({ label, value, placeholder, onChange, onSelect, disabled, h
 
 export default function GrokBuildToolCard({
   tool,
-  isExpanded,
-  onToggle,
   hasActiveProviders,
   apiKeys,
   activeProviders,
@@ -144,15 +142,14 @@ export default function GrokBuildToolCard({
   }, [hydrateForm]);
 
   useEffect(() => {
-    if (!isExpanded) return;
-    let cancelled = false;
+        let cancelled = false;
     const synchronize = async () => {
       if (!hasFetchedStatus.current) await checkStatus({ hydrate: true });
       if (!cancelled) await fetchModelAliases();
     };
     synchronize();
     return () => { cancelled = true; };
-  }, [isExpanded, checkStatus, fetchModelAliases]);
+  }, [checkStatus, fetchModelAliases]);
 
   const getEffectiveBaseUrl = () => {
     const url = customBaseUrl || (typeof window !== "undefined"
@@ -167,7 +164,7 @@ export default function GrokBuildToolCard({
     try {
       const keyToUse = selectedApiKey?.trim()
         || (apiKeys?.length > 0 ? apiKeys[0].key : null)
-        || (!cloudEnabled ? "sk_9router" : null);
+        || "";
       const mappedSubagents = {};
       for (const type of SUBAGENT_TYPES) {
         const model = subagentModels[type.id]?.trim();
@@ -233,7 +230,7 @@ export default function GrokBuildToolCard({
 
   const getManualConfigs = () => {
     const keyToUse = selectedApiKey?.trim()
-      || (!cloudEnabled ? "sk_9router" : "<API_KEY_FROM_DASHBOARD>");
+      || "<API_KEY_FROM_DASHBOARD>";
     const baseUrl = getEffectiveBaseUrl();
     const mainModel = selectedModel || "provider/model-id";
     const blocks = [
@@ -254,7 +251,7 @@ export default function GrokBuildToolCard({
 
   return (
     <Card padding="xs" className="overflow-hidden">
-      <div className="flex items-start justify-between gap-3 hover:cursor-pointer sm:items-center" onClick={onToggle}>
+      <div className="flex items-start justify-between gap-3 sm:items-center">
         <div className="flex min-w-0 items-center gap-3">
           <div className="size-8 flex items-center justify-center shrink-0">
             <Image
@@ -279,11 +276,9 @@ export default function GrokBuildToolCard({
             <p className="text-xs text-text-muted truncate">{tool.description}</p>
           </div>
         </div>
-        <span className={`material-symbols-outlined text-text-muted text-[20px] transition-transform ${isExpanded ? "rotate-180" : ""}`}>expand_more</span>
       </div>
 
-      {isExpanded && (
-        <div className="mt-4 pt-4 border-t border-border flex flex-col gap-4">
+              <div className="mt-4 pt-4 border-t border-border flex flex-col gap-4">
           {checking && <div className="flex items-center gap-2 text-text-muted"><span className="material-symbols-outlined animate-spin">progress_activity</span><span>Checking Grok Build...</span></div>}
 
           {!checking && grokStatus && !grokStatus.installed && (
@@ -362,13 +357,13 @@ export default function GrokBuildToolCard({
 
               <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                 <Button variant="primary" size="sm" onClick={handleApply} disabled={!selectedModel} loading={applying} className="w-full sm:w-auto"><span className="material-symbols-outlined text-[14px] mr-1">save</span>Apply</Button>
-                <Button variant="outline" size="sm" onClick={handleReset} disabled={!grokStatus?.has9Router} loading={restoring} className="w-full sm:w-auto"><span className="material-symbols-outlined text-[14px] mr-1">restore</span>Reset</Button>
+                <Button variant="outline" size="sm" onClick={handleReset} disabled={!grokStatus?.hasRegent} loading={restoring} className="w-full sm:w-auto"><span className="material-symbols-outlined text-[14px] mr-1">restore</span>Reset</Button>
                 <Button variant="ghost" size="sm" onClick={() => setShowManualConfigModal(true)} className="w-full sm:w-auto"><span className="material-symbols-outlined text-[14px] mr-1">content_copy</span>Manual Config</Button>
               </div>
             </>
           )}
         </div>
-      )}
+      
 
       {modelTarget && (
         <ModelSelectModal
