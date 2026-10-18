@@ -84,7 +84,7 @@ const readConfigToml = async () => {
 };
 
 // Detect 9Router by checking if provider is "openai" and base_url points to localhost/127.0.0.1
-const has9RouterConfig = (config) => {
+const hasRegentConfig = (config) => {
     if (!config) return false;
     const provider = config.provider;
     if (provider !== "openai") return false;
@@ -104,7 +104,7 @@ export async function GET() {
         return NextResponse.json({
             installed: true,
             settings: config,
-            has9Router: has9RouterConfig(config),
+            hasRegent: hasRegentConfig(config),
             configPath: getDeepSeekConfigPath(),
         });
     } catch (error) {

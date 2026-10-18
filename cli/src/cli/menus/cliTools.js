@@ -187,10 +187,10 @@ async function buildCodexHeader() {
   const result = await api.getCliToolSettings("codex");
   if (!result.success) return `  ${COLORS.red}Failed to load settings${COLORS.reset}`;
 
-  const { installed, has9Router, config } = result.data;
+  const { installed, hasRegent, config } = result.data;
   if (!installed) return `Status:   ${COLORS.red}✗ Codex CLI not installed${COLORS.reset}`;
 
-  if (!has9Router) {
+  if (!hasRegent) {
     return [
       `Status:   ${COLORS.red}✗ Not configured${COLORS.reset}`,
       `${COLORS.dim}Run "Quick Setup" to configure${COLORS.reset}`
@@ -275,10 +275,10 @@ async function buildDroidHeader() {
   const result = await api.getCliToolSettings("droid");
   if (!result.success) return `  ${COLORS.red}Failed to load settings${COLORS.reset}`;
 
-  const { installed, has9Router, settings } = result.data;
+  const { installed, hasRegent, settings } = result.data;
   if (!installed) return `Status:   ${COLORS.red}✗ Factory Droid not installed${COLORS.reset}`;
 
-  if (!has9Router) {
+  if (!hasRegent) {
     return [
       `Status:   ${COLORS.red}✗ Not configured${COLORS.reset}`,
       `${COLORS.dim}Run "Quick Setup" to configure${COLORS.reset}`
@@ -360,10 +360,10 @@ async function buildOpenClawHeader() {
   const result = await api.getCliToolSettings("openclaw");
   if (!result.success) return `  ${COLORS.red}Failed to load settings${COLORS.reset}`;
 
-  const { installed, has9Router, settings } = result.data;
+  const { installed, hasRegent, settings } = result.data;
   if (!installed) return `Status:   ${COLORS.red}✗ Open Claw not installed${COLORS.reset}`;
 
-  if (!has9Router) {
+  if (!hasRegent) {
     return [
       `Status:   ${COLORS.red}✗ Not configured${COLORS.reset}`,
       `${COLORS.dim}Run "Quick Setup" to configure${COLORS.reset}`
@@ -441,10 +441,10 @@ async function buildOpenCodeHeader() {
   const result = await api.getCliToolSettings("opencode");
   if (!result.success) return `  ${COLORS.red}Failed to load settings${COLORS.reset}`;
 
-  const { installed, has9Router, opencode } = result.data;
+  const { installed, hasRegent, opencode } = result.data;
   if (!installed) return `Status:   ${COLORS.red}✗ OpenCode CLI not installed${COLORS.reset}`;
 
-  if (!has9Router) {
+  if (!hasRegent) {
     return [
       `Status:   ${COLORS.red}✗ Not configured${COLORS.reset}`,
       `${COLORS.dim}Run "Quick Setup" to configure${COLORS.reset}`
@@ -537,7 +537,7 @@ async function fetchHermesProfiles() {
 
 const hermesProfileLine = (p) => {
   const name = p.displayName && !p.isDefault ? `${p.name} (${p.displayName})` : p.name;
-  const state = p.has9Router
+  const state = p.hasRegent
     ? `${COLORS.green}✓ ${PROVIDER_KEY}${COLORS.reset}`
     : p.baseUrl
       ? `${COLORS.red}other: ${p.baseUrl}${COLORS.reset}`
@@ -551,12 +551,12 @@ async function buildHermesHeader(profiles) {
   const result = await api.getCliToolSettings("hermes", hermesActiveProfile);
   if (!result.success) return `  ${COLORS.red}Failed to load settings${COLORS.reset}`;
 
-  const { installed, has9Router, settings, profile } = result.data;
+  const { installed, hasRegent, settings, profile } = result.data;
   if (!installed) return `Status:   ${COLORS.red}✗ Hermes Agent not installed${COLORS.reset}`;
 
   const name = profile?.name || hermesActiveProfile;
   const lines = [];
-  if (has9Router) {
+  if (hasRegent) {
     lines.push(`Status:   ${COLORS.green}✓ Configured${COLORS.reset} (${name})`);
   } else {
     lines.push(`Status:   ${COLORS.red}✗ Not configured${COLORS.reset} (${name})`);
@@ -569,7 +569,7 @@ async function buildHermesHeader(profiles) {
 
   if (list.length > 1) {
     const summary = list
-      .map((p) => `${p.name}${p.has9Router ? `${COLORS.green}✓` : `${COLORS.red}✗`}`)
+      .map((p) => `${p.name}${p.hasRegent ? `${COLORS.green}✓` : `${COLORS.red}✗`}`)
       .join(`${COLORS.reset} `);
     lines.push(`Profiles:  ${summary}${COLORS.reset}`);
   }

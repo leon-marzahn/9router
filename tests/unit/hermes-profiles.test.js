@@ -130,7 +130,7 @@ describe("hermes profile resolution", () => {
       expect(names).toEqual(["default", "coder", "research"]);
 
       const defaultEntry = profiles[0];
-      expect(defaultEntry).toMatchObject({ isDefault: true, has9Router: true, model: "anthropic/claude-sonnet-4-6", baseUrl: BASE });
+      expect(defaultEntry).toMatchObject({ isDefault: true, hasRegent: true, model: "anthropic/claude-sonnet-4-6", baseUrl: BASE });
 
       const coderEntry = profiles[1];
       expect(coderEntry).toMatchObject({
@@ -140,10 +140,10 @@ describe("hermes profile resolution", () => {
         command: "hermes -p coder",
         alias: "coder",
         model: "anthropic/claude-opus-4.7",
-        has9Router: false,
+        hasRegent: false,
       });
 
-      expect(profiles[2]).toMatchObject({ name: "research", model: null, has9Router: false });
+      expect(profiles[2]).toMatchObject({ name: "research", model: null, hasRegent: false });
     });
 
     it("reports 9router config in a named profile", async () => {
@@ -153,7 +153,7 @@ describe("hermes profile resolution", () => {
 
       const profiles = await listProfiles(tmpRoot);
       const coderEntry = profiles.find((p) => p.name === "coder");
-      expect(coderEntry.has9Router).toBe(true);
+      expect(coderEntry.hasRegent).toBe(true);
       expect(coderEntry.baseUrl).toBe(BASE);
     });
   });

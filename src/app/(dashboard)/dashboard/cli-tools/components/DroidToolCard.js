@@ -18,8 +18,6 @@ const CLOUD_URL = process.env.NEXT_PUBLIC_CLOUD_URL;
 
 export default function DroidToolCard({
   tool,
-  isExpanded,
-  onToggle,
   baseUrl,
   hasActiveProviders,
   apiKeys,
@@ -69,11 +67,9 @@ export default function DroidToolCard({
   }, [initialStatus]);
 
   useEffect(() => {
-    if (isExpanded) {
-      if (!droidStatus) checkDroidStatus();
-      fetchModelAliases();
-    }
-  }, [isExpanded]);
+    if (!droidStatus) checkDroidStatus();
+    fetchModelAliases();
+  }, []);
 
   const fetchModelAliases = async () => {
     try {
@@ -232,7 +228,7 @@ export default function DroidToolCard({
 
   return (
     <Card padding="xs" className="overflow-hidden">
-      <div className="flex items-start justify-between gap-3 hover:cursor-pointer sm:items-center" onClick={onToggle}>
+      <div className="flex items-start justify-between gap-3 sm:items-center">
         <div className="flex min-w-0 items-center gap-3">
           <div className="size-8 flex items-center justify-center shrink-0">
             <Image src="/providers/droid.png" alt={tool.name} width={32} height={32} className="size-8 object-contain rounded-lg" sizes="32px" onError={(e) => { e.target.style.display = "none"; }} loading="lazy" decoding="async" />
@@ -247,11 +243,9 @@ export default function DroidToolCard({
             <p className="text-xs text-text-muted truncate">{tool.description}</p>
           </div>
         </div>
-        <span className={`material-symbols-outlined text-text-muted text-[20px] transition-transform ${isExpanded ? "rotate-180" : ""}`}>expand_more</span>
       </div>
 
-      {isExpanded && (
-        <div className="mt-4 pt-4 border-t border-border flex flex-col gap-4">
+              <div className="mt-4 pt-4 border-t border-border flex flex-col gap-4">
           {checkingDroid && (
             <div className="flex items-center gap-2 text-text-muted">
               <span className="material-symbols-outlined animate-spin">progress_activity</span>
@@ -388,7 +382,7 @@ export default function DroidToolCard({
                 <Button variant="primary" size="sm" onClick={handleApplySettings} disabled={modelList.length === 0} loading={applying}>
                   <span className="material-symbols-outlined text-[14px] mr-1">save</span>Apply
                 </Button>
-                <Button variant="outline" size="sm" onClick={handleResetSettings} disabled={!droidStatus?.has9Router} loading={restoring}>
+                <Button variant="outline" size="sm" onClick={handleResetSettings} disabled={!droidStatus?.hasRegent} loading={restoring}>
                   <span className="material-symbols-outlined text-[14px] mr-1">restore</span>Reset
                 </Button>
                 <Button variant="ghost" size="sm" onClick={() => setShowManualConfigModal(true)}>
@@ -398,7 +392,7 @@ export default function DroidToolCard({
             </>
           )}
         </div>
-      )}
+      
 
       {modalOpen && (
         <ModelSelectModal

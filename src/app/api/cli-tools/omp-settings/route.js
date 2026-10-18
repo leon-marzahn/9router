@@ -52,7 +52,7 @@ const readModelsYml = async () => {
   }
 };
 
-const has9RouterInYml = (content) => {
+const hasRegentInYml = (content) => {
   if (!content) return false;
   return PROVIDER_KEYS.some((k) => content.includes(`${k}:`)) || content.includes("localhost:20128");
 };
@@ -83,11 +83,11 @@ export async function GET() {
     }
 
     const ymlContent = await readModelsYml();
-    const has9Router = has9RouterInYml(ymlContent);
+    const hasRegent = hasRegentInYml(ymlContent);
 
     return NextResponse.json({
       installed: true,
-      has9Router,
+      hasRegent,
       configPath: getOmpModelsYmlPath(),
     });
   } catch (err) {

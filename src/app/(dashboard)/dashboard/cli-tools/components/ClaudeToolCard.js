@@ -29,8 +29,6 @@ const CONTEXT_OPTIONS = [
 
 export default function ClaudeToolCard({
   tool,
-  isExpanded,
-  onToggle,
   activeProviders,
   modelMappings,
   onModelMappingChange,
@@ -117,11 +115,9 @@ export default function ClaudeToolCard({
   }, [claudeStatus?.settings?.env, tool.defaultModels]);
 
   useEffect(() => {
-    if (isExpanded) {
-      if (!claudeStatus) checkClaudeStatus();
-      fetchModelAliases();
-    }
-  }, [isExpanded]);
+    if (!claudeStatus) checkClaudeStatus();
+    fetchModelAliases();
+  }, []);
 
   useEffect(() => {
     fetch("/api/settings").then(r => r.json()).then(data => {
@@ -298,7 +294,7 @@ export default function ClaudeToolCard({
 
   return (
     <Card padding="xs" className="overflow-hidden">
-      <div className="flex items-start justify-between gap-3 hover:cursor-pointer sm:items-center" onClick={onToggle}>
+      <div className="flex items-start justify-between gap-3 sm:items-center">
         <div className="flex min-w-0 items-center gap-3">
           <div className="size-8 flex items-center justify-center shrink-0">
             <Image src="/providers/claude.png" alt={tool.name} width={32} height={32} className="size-8 object-contain rounded-lg" sizes="32px" onError={(e) => { e.target.style.display = "none"; }} loading="lazy" decoding="async" />
@@ -313,11 +309,9 @@ export default function ClaudeToolCard({
             <p className="text-xs text-text-muted truncate">{tool.description}</p>
           </div>
         </div>
-        <span className={`material-symbols-outlined text-text-muted text-[20px] transition-transform ${isExpanded ? "rotate-180" : ""}`}>expand_more</span>
       </div>
 
-      {isExpanded && (
-        <div className="mt-4 pt-4 border-t border-border flex flex-col gap-4">
+              <div className="mt-4 pt-4 border-t border-border flex flex-col gap-4">
           {checkingClaude && (
             <div className="flex items-center gap-2 text-text-muted">
               <span className="material-symbols-outlined animate-spin">progress_activity</span>
@@ -499,7 +493,7 @@ export default function ClaudeToolCard({
                 <Button variant="primary" size="sm" onClick={handleApplySettings} disabled={!hasActiveProviders} loading={applying}>
                   <span className="material-symbols-outlined text-[14px] mr-1">save</span>Apply
                 </Button>
-                <Button variant="outline" size="sm" onClick={handleResetSettings} disabled={!claudeStatus?.has9Router} loading={restoring}>
+                <Button variant="outline" size="sm" onClick={handleResetSettings} disabled={!claudeStatus?.hasRegent} loading={restoring}>
                   <span className="material-symbols-outlined text-[14px] mr-1">restore</span>Reset
                 </Button>
                 <Button variant="ghost" size="sm" onClick={() => setShowManualConfigModal(true)}>
@@ -509,7 +503,7 @@ export default function ClaudeToolCard({
             </>
           )}
         </div>
-      )}
+      
 
       {modalOpen && (
         <ModelSelectModal isOpen={modalOpen} onClose={() => setModalOpen(false)} onSelect={handleModelSelect} selectedModel={currentEditingAlias ? modelMappings[currentEditingAlias] : null} activeProviders={activeProviders} modelAliases={modelAliases} title={`Select model for ${currentEditingAlias}`} />

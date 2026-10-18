@@ -63,7 +63,7 @@ const readConfig = async () => {
   }
 };
 
-const has9RouterConfig = (config) => {
+const hasRegentConfig = (config) => {
   if (!config?.provider) return false;
   return !!pickProvider(config.provider);
 };
@@ -88,7 +88,7 @@ export async function GET() {
     return NextResponse.json({
       installed: true,
       config,
-      has9Router: has9RouterConfig(config),
+      hasRegent: hasRegentConfig(config),
       configPath: getConfigPath(),
         opencode: {
           models: Object.keys(modelMap),

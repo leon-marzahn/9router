@@ -70,7 +70,7 @@ const readSettings = async () => {
 };
 
 // Check if settings has our provider (current `regent` or legacy `9router` key)
-const has9RouterConfig = (settings) => {
+const hasRegentConfig = (settings) => {
   if (!settings || !settings.models || !settings.models.providers) return false;
   return !!pickProvider(settings.models.providers);
 };
@@ -118,7 +118,7 @@ export async function GET() {
       installed: true,
       settings,
       agents: enrichedAgents,
-      has9Router: has9RouterConfig(settings),
+      hasRegent: hasRegentConfig(settings),
       settingsPath: getOpenClawSettingsPath(),
     });
   } catch (error) {

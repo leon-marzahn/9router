@@ -11,8 +11,6 @@ import { DISPLAY_NAME, PROVIDER_KEY, pickProvider } from "@/shared/constants/bra
 
 export default function JcodeToolCard({
   tool,
-  isExpanded,
-  onToggle,
   baseUrl,
   hasActiveProviders,
   apiKeys,
@@ -41,7 +39,7 @@ export default function JcodeToolCard({
 
   const getConfigStatus = () => {
     if (!jcodeStatus?.installed) return null;
-    if (!jcodeStatus?.has9Router) return "not_configured";
+    if (!jcodeStatus?.hasRegent) return "not_configured";
     const currentProvider = pickProvider(jcodeStatus.config?.providers);
     if (!currentProvider) return "not_configured";
     return matchKnownEndpoint(currentProvider.base_url, { tunnelPublicUrl, tailscaleUrl }) ? "configured" : "other";
@@ -60,11 +58,9 @@ export default function JcodeToolCard({
   }, [initialStatus]);
 
   useEffect(() => {
-    if (isExpanded) {
-      if (!jcodeStatus) checkJcodeStatus();
-      fetchModelAliases();
-    }
-  }, [isExpanded]);
+    if (!jcodeStatus) checkJcodeStatus();
+    fetchModelAliases();
+  }, []);
 
   const fetchModelAliases = async () => {
     try {
@@ -217,7 +213,7 @@ id = "${selectedModel || "cc/claude-opus-4-7"}"`;
 
   return (
     <Card padding="xs" className="overflow-hidden">
-      <div className="flex items-start justify-between gap-3 hover:cursor-pointer sm:items-center" onClick={onToggle}>
+      <div className="flex items-start justify-between gap-3 sm:items-center">
         <div className="flex min-w-0 items-center gap-3">
           <div className="size-8 flex items-center justify-center shrink-0">
             <Image src={tool.image || "/providers/jcode.png"} alt={tool.name} width={32} height={32} className="size-8 object-contain rounded-lg" sizes="32px" onError={(e) => { e.target.style.display = "none"; }} loading="lazy" decoding="async" />
@@ -232,11 +228,9 @@ id = "${selectedModel || "cc/claude-opus-4-7"}"`;
             <p className="text-xs text-text-muted truncate">{tool.description}</p>
           </div>
         </div>
-        <span className={`material-symbols-outlined text-text-muted text-[20px] transition-transform ${isExpanded ? "rotate-180" : ""}`}>expand_more</span>
       </div>
 
-      {isExpanded && (
-        <div className="mt-4 pt-4 border-t border-border flex flex-col gap-4">
+              <div className="mt-4 pt-4 border-t border-border flex flex-col gap-4">
           {checkingJcode && (
             <div className="flex items-center gap-2 text-text-muted">
               <span className="material-symbols-outlined animate-spin">progress_activity</span>
@@ -353,7 +347,7 @@ id = "${selectedModel || "cc/claude-opus-4-7"}"`;
                 <Button variant="primary" size="sm" onClick={handleApplySettings} disabled={!selectedModel} loading={applying}>
                   <span className="material-symbols-outlined text-[14px] mr-1">save</span>Apply
                 </Button>
-                <Button variant="outline" size="sm" onClick={handleResetSettings} disabled={!jcodeStatus?.has9Router} loading={restoring}>
+                <Button variant="outline" size="sm" onClick={handleResetSettings} disabled={!jcodeStatus?.hasRegent} loading={restoring}>
                   <span className="material-symbols-outlined text-[14px] mr-1">restore</span>Reset
                 </Button>
                 <Button variant="ghost" size="sm" onClick={() => setShowManualConfigModal(true)}>
@@ -363,7 +357,7 @@ id = "${selectedModel || "cc/claude-opus-4-7"}"`;
             </>
           )}
         </div>
-      )}
+      
 
       {modalOpen && (
         <ModelSelectModal

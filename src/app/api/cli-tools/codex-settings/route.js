@@ -79,7 +79,7 @@ const readConfig = async () => {
 };
 
 // Check if config has our provider settings (current `regent` key or legacy `9router`)
-const has9RouterConfig = (config) => {
+const hasRegentConfig = (config) => {
   if (!config) return false;
   return PROVIDER_KEYS.some(
     (key) => config.includes(`model_provider = "${key}"`) || config.includes(`[model_providers.${key}]`),
@@ -127,7 +127,7 @@ export async function GET() {
     return NextResponse.json({
       installed: true,
       config,
-      has9Router: has9RouterConfig(config),
+      hasRegent: hasRegentConfig(config),
       configPath: getCodexConfigPath(),
     });
   } catch (error) {

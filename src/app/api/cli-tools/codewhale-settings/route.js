@@ -34,7 +34,7 @@ const checkCodewhaleInstalled = async () => {
   }
 };
 
-const has9RouterConfig = (content) => {
+const hasRegentConfig = (content) => {
   if (!content) return false;
   return (
     content.includes(`managed by ${DISPLAY_NAME}`) ||
@@ -71,7 +71,7 @@ export async function GET() {
     return NextResponse.json({
       installed: true,
       config,
-      has9Router: has9RouterConfig(content),
+      hasRegent: hasRegentConfig(content),
       configPath: getCodewhaleConfigPath(),
     });
   } catch (err) {

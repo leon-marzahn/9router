@@ -77,7 +77,7 @@ const normalizeSubagentModels = (value) => {
   return result;
 };
 
-const has9RouterConfig = (settings) => Boolean(settings?.model?.base_url);
+const hasRegentConfig = (settings) => Boolean(settings?.model?.base_url);
 
 export async function GET() {
   try {
@@ -94,7 +94,7 @@ export async function GET() {
     return NextResponse.json({
       installed: true,
       settings,
-      has9Router: has9RouterConfig(settings),
+      hasRegent: hasRegentConfig(settings),
       configPath: getGrokConfigPath(),
     });
   } catch (error) {

@@ -33,7 +33,7 @@ const checkSmeltInstalled = async () => {
   }
 };
 
-const has9RouterConfig = (settings) => {
+const hasRegentConfig = (settings) => {
   if (!settings) return false;
   return (
     PROVIDER_KEYS.includes(settings._managedBy) ||
@@ -66,7 +66,7 @@ export async function GET() {
     return NextResponse.json({
       installed: true,
       config,
-      has9Router: has9RouterConfig(config),
+      hasRegent: hasRegentConfig(config),
       configPath: getSmeltConfigPath(),
     });
   } catch (err) {

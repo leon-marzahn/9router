@@ -49,7 +49,7 @@ const readJson = async (filePath) => {
   }
 };
 
-const has9RouterConfig = (globalState) => {
+const hasRegentConfig = (globalState) => {
   if (!globalState) return false;
   const isOpenAi =
     globalState.actModeApiProvider === "openai" || globalState.planModeApiProvider === "openai";
@@ -72,7 +72,7 @@ export async function GET() {
         openAiBaseUrl: globalState?.openAiBaseUrl,
         openAiModelId: globalState?.openAiModelId,
       },
-      has9Router: has9RouterConfig(globalState),
+      hasRegent: hasRegentConfig(globalState),
       globalStatePath: getGlobalStatePath(),
     });
   } catch (error) {

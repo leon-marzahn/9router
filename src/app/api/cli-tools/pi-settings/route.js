@@ -42,7 +42,7 @@ const checkPiInstalled = async () => {
   }
 };
 
-const has9RouterConfig = (settings) => {
+const hasRegentConfig = (settings) => {
   if (!settings || !settings.providers) return false;
   const p = pickProvider(settings.providers);
   if (p && p.baseUrl) return true;
@@ -95,7 +95,7 @@ export async function GET() {
     return NextResponse.json({
       installed: true,
       config,
-      has9Router: has9RouterConfig(config),
+      hasRegent: hasRegentConfig(config),
       configPath,
     });
   } catch (err) {

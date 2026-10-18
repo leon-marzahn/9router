@@ -24,12 +24,12 @@ import {
   removeDelegationBlock,
   removeAuxRole,
   upsertEnvVar,
-  has9RouterConfig,
+  hasRegentConfig,
   isCustomBlock,
   parseSttBlock,
-  is9RouterStt,
-  upsertStt9Router,
-  removeStt9Router,
+  isRegentStt,
+  upsertSttRegent,
+  removeSttRegent,
 } from "./hermesYaml.js";
 import { resolveHermesHome, listProfiles, dirExists } from "./hermesProfiles.js";
 
@@ -131,8 +131,8 @@ export async function GET(request) {
       installed: true,
       profile: { name: home.name, dir: home.dir, isDefault: home.isDefault },
       settings: { model, delegation, auxiliary, stt },
-      has9Router: has9RouterConfig(model) || has9RouterConfig(delegation) || Object.values(auxiliary).some(has9RouterConfig),
-      has9RouterStt: is9RouterStt(stt),
+      hasRegent: hasRegentConfig(model) || hasRegentConfig(delegation) || Object.values(auxiliary).some(hasRegentConfig),
+      hasRegentStt: isRegentStt(stt),
       configPath: home.configPath,
     });
   } catch (error) {
@@ -249,11 +249,11 @@ export async function POST(request) {
     }
     if (audio) {
       if (audioEnabled) {
-        newYaml = upsertStt9Router(newYaml, audioModel, normalizedBaseUrl);
-      } else if (is9RouterStt(parseSttBlock(newYaml))) {
+        newYaml = upsertSttRegent(newYaml, audioModel, normalizedBaseUrl);
+      } else if (isRegentStt(parseSttBlock(newYaml))) {
         // Never remove stt wiring this endpoint did not write — a user's own STT
         // provider choice survives an audio-disabled Apply.
-        newYaml = removeStt9Router(newYaml);
+        newYaml = removeSttRegent(newYaml);
       }
     }
     await writeHomeConfig(home, newYaml);
@@ -265,7 +265,7 @@ export async function POST(request) {
       success: true,
       message: home.isDefault ? "Hermes settings applied successfully!" : `Hermes settings applied to profile "${home.name}"!`,
       profile: { name: home.name, dir: home.dir, isDefault: home.isDefault },
-      stt9Router: is9RouterStt(parseSttBlock(newYaml)),
+      sttRegent: isRegentStt(parseSttBlock(newYaml)),
       configPath: home.configPath,
     });
   } catch (error) {
@@ -331,8 +331,8 @@ export async function DELETE(request) {
     }
 
     const sttCfg = parseSttBlock(yaml);
-    if (sttCfg && is9RouterStt(sttCfg)) {
-      yaml = removeStt9Router(yaml);
+    if (sttCfg && isRegentStt(sttCfg)) {
+      yaml = removeSttRegent(yaml);
       removed.stt = true;
       // User settings living inside the block (language, local, ...) survive the key
       // removal — report the remainder as kept, like any other preserved section.

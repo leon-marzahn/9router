@@ -7,7 +7,7 @@ import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 import Image from "next/image";
 import ApiKeySelect from "./ApiKeySelect";
 
-export default function DefaultToolCard({ toolId, tool, isExpanded, onToggle, baseUrl, apiKeys, activeProviders = [], cloudEnabled = false, tunnelEnabled = false }) {
+export default function DefaultToolCard({ toolId, tool, baseUrl, apiKeys, activeProviders = [], cloudEnabled = false, tunnelEnabled = false }) {
   const [copiedField, setCopiedField] = useState(null);
   const [showModelModal, setShowModelModal] = useState(false);
   const [modelValue, setModelValue] = useState("");
@@ -250,7 +250,7 @@ export default function DefaultToolCard({ toolId, tool, isExpanded, onToggle, ba
 
   return (
     <Card padding="xs" className="overflow-hidden overflow-x-hidden">
-      <div className="flex items-center justify-between hover:cursor-pointer" onClick={onToggle}>
+      <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="size-8 rounded-lg flex items-center justify-center shrink-0">
             {renderIcon()}
@@ -260,14 +260,12 @@ export default function DefaultToolCard({ toolId, tool, isExpanded, onToggle, ba
             <p className="text-xs text-text-muted truncate">{tool.description}</p>
           </div>
         </div>
-        <span className={`material-symbols-outlined text-text-muted text-[20px] transition-transform ${isExpanded ? "rotate-180" : ""}`}>expand_more</span>
       </div>
 
-      {isExpanded && (
-        <div className="mt-6 pt-6 border-t border-border">
+              <div className="mt-6 pt-6 border-t border-border">
           {renderGuideSteps()}
         </div>
-      )}
+      
 
       {showModelModal && (
         <ModelSelectModal

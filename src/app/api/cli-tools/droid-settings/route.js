@@ -56,7 +56,7 @@ const MODEL_ID_PREFIXES = [`custom:${PROVIDER_KEY}-`, `custom:${LEGACY_DISPLAY_N
 const isOurModel = (m) => typeof m?.id === "string" && MODEL_ID_PREFIXES.some((p) => m.id.startsWith(p));
 
 // Check if settings has our customModels
-const has9RouterConfig = (settings) => {
+const hasRegentConfig = (settings) => {
   if (!settings || !settings.customModels) return false;
   return settings.customModels.some(isOurModel);
 };
@@ -79,7 +79,7 @@ export async function GET() {
     return NextResponse.json({
       installed: true,
       settings,
-      has9Router: has9RouterConfig(settings),
+      hasRegent: hasRegentConfig(settings),
       settingsPath: getDroidSettingsPath(),
     });
   } catch (error) {
