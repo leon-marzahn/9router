@@ -379,3 +379,28 @@ describe("SSO test endpoints", () => {
   });
 });
 
+
+describe("dashboard guard headroom process routes are local-only", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.NINEROUTER_PEER_TOKEN = PEER_TOKEN;
+    mocks.getSettings.mockResolvedValue({ requireLogin: true });
+    mocks.getConsistentMachineId.mockResolvedValue("cli-token");
+    mocks.verifyDashboardAuthToken.mockResolvedValue(true);
+  });
+
+  // These run pip or spawn the proxy process.
+  for (const route of ["/api/headroom/extras", "/api/headroom/restart", "/api/headroom/start"]) {
+    it(`rejects ${route} from a logged-in remote (tunnel) user`, async () => {
+      const req = request(route, { host: "router.example.com" });
+      req.cookies.get = vi.fn(() => ({ value: "jwt" }));
+      expect((await proxy(req)).status).toBe(403);
+    });
+
+    it(`allows ${route} on loopback with a session`, async () => {
+      const req = localRequest(route, { host: "localhost:20128", origin: "http://localhost:20128" });
+      req.cookies.get = vi.fn(() => ({ value: "jwt" }));
+      expect(await proxy(req)).toBe(mocks.nextResponse);
+    });
+  }
+});

@@ -1,3 +1,4 @@
+import { translatorDisabledResponse } from "@/lib/translatorDebug.js";
 import { getProviderConnections, updateProviderConnection } from "@/lib/localDb.js";
 import { getExecutor } from "open-sse/index.js";
 
@@ -33,6 +34,8 @@ async function persistRefreshedCredentials(connection, newCredentials) {
 }
 
 export async function POST(request) {
+  const disabled = translatorDisabledResponse();
+  if (disabled) return disabled;
   try {
     const { provider, model, body } = await request.json();
 

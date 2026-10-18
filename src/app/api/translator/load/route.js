@@ -1,8 +1,11 @@
+import { translatorDisabledResponse } from "@/lib/translatorDebug.js";
 import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 
 export async function GET(request) {
+  const disabled = translatorDisabledResponse();
+  if (disabled) return disabled;
   try {
     const { searchParams } = new URL(request.url);
     const file = searchParams.get("file");
