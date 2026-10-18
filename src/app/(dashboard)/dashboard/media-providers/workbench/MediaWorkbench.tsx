@@ -405,8 +405,8 @@ function KindSwitch({ value, onChange }: { value: string; onChange: (k: string) 
           className={cn(
             "flex min-w-0 flex-col items-center gap-0.5 rounded-lg px-1 py-1.5 text-[11px] transition-colors",
             value === k.id
-              ? "bg-surface font-medium text-accent-text shadow-sm ring-1 ring-border dark:bg-surface-3 dark:ring-0"
-              : "text-text-muted hover:bg-surface-2/60 hover:text-text dark:hover:bg-surface-2/40",
+              ? "bg-accent-soft font-medium text-accent-text ring-1 ring-accent-ring"
+              : "text-text-muted hover:bg-surface-2 hover:text-text",
           )}
         >
           <Icon name={k.icon} size={17} filled={value === k.id} className="shrink-0" />
