@@ -67,6 +67,7 @@
   --color-info: #0ea5e9;
   --color-info-text: #0369a1;
   --color-paused: #a8a29e;
+  --color-scrim: rgba(28, 25, 23, 0.4); /* behind dialogs & drawers */
 
   --radius-brand: 10px;
   --radius-brand-lg: 16px;
@@ -117,6 +118,7 @@
   --color-danger-border: rgba(127, 29, 29, 0.45);
   --color-info-text: #38bdf8;
   --color-paused: #57534e;
+  --color-scrim: rgba(0, 0, 0, 0.6);
 
   --shadow-soft: 0 1px 2px 0 rgba(0,0,0,0.3);
   --shadow-warm: 0 4px 14px -4px rgba(229, 150, 173, 0.35);
@@ -192,6 +194,7 @@ select {
   --color-danger-border: var(--color-danger-border);
   --color-info-text: var(--color-info-text);
   --color-paused: var(--color-paused);
+  --color-scrim: var(--color-scrim);
   --color-danger: var(--color-danger);
   --color-success: var(--color-success);
   --color-warning: var(--color-warning);

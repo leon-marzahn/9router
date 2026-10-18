@@ -20,3 +20,4 @@ export { Logo } from "./Logo";
 export { Skeleton, ListSkeleton } from "./Skeleton";
 export { CopyButton } from "./CopyButton";
 export { SettingRow, SettingsSection, SettingRowSkeleton, Note } from "./SettingRow";
+export { Dialog, ConfirmDialog } from "./Dialog";

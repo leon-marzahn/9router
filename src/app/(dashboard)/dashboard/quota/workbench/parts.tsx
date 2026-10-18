@@ -1,9 +1,16 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Button, IconButton, MenuItem, MenuSeparator, Popover, StatusLabel } from "@/ui";
+import {
+  Button,
+  ConfirmDialog,
+  IconButton,
+  MenuItem,
+  MenuSeparator,
+  Popover,
+  StatusLabel,
+} from "@/ui";
 import { cn } from "@/ui/cn";
-import { ConfirmModal } from "@/shared/components";
 import AutoPingScheduleModalJs from "@/app/(dashboard)/dashboard/providers/[id]/AutoPingScheduleModal";
 import {
   AUTO_PING_KEYS,
@@ -244,8 +251,8 @@ export function AccountActions({
         </MenuItem>
       </Popover>
 
-      <ConfirmModal
-        isOpen={dialog === "reset"}
+      <ConfirmDialog
+        open={dialog === "reset"}
         onClose={() => setDialog(null)}
         loading={busy}
         title={`Reset ${providerName(a.provider)} limits?`}
@@ -257,8 +264,8 @@ export function AccountActions({
         confirmText="Reset limits"
         onConfirm={() => run(() => actions.resetLimit(a), "Limits reset")}
       />
-      <ConfirmModal
-        isOpen={dialog === "routing"}
+      <ConfirmDialog
+        open={dialog === "routing"}
         onClose={() => setDialog(null)}
         loading={busy}
         variant={a.isActive ? "danger" : "primary"}

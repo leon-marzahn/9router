@@ -43,7 +43,7 @@ export function MobileNav({
     >
       <div
         className={cn(
-          "absolute inset-0 bg-black/40 backdrop-blur-[2px] transition-opacity",
+          "absolute inset-0 bg-scrim backdrop-blur-[2px] transition-opacity",
           open ? "opacity-100" : "opacity-0",
         )}
         onClick={onClose}

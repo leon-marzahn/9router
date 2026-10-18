@@ -29,9 +29,10 @@ import {
   ProviderLogo,
   Segmented,
   Tag,
+  ConfirmDialog,
 } from "@/ui";
 import { cn } from "@/ui/cn";
-import { ConfirmModal, ModelSelectModal } from "@/shared/components";
+import { ModelSelectModal } from "@/shared/components";
 import { STEP_DOT, STEP_LABEL, STEP_TEXT, splitStep, stepDetail } from "./steps";
 import type { Combo, CombosApi, Strategy } from "./useCombos";
 
@@ -275,8 +276,8 @@ export function ComboDetail({
           }
         />
       )}
-      <ConfirmModal
-        isOpen={del}
+      <ConfirmDialog
+        open={del}
         onClose={() => setDel(false)}
         title={`Delete ${combo.name}?`}
         message="Apps sending this combo as the model get an error until you point them somewhere else. Keys limited to it lose access."
