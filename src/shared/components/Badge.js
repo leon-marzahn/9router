@@ -1,53 +1,36 @@
 "use client";
 
-import { cn } from "@/shared/utils/cn";
+import { cn } from "@/ui/cn";
 
 const variants = {
   default: "bg-surface-2 text-text-muted",
-  primary: "bg-brand-500/10 text-brand-600 dark:text-brand-300",
-  success: "bg-green-500/10 text-green-600 dark:text-green-400",
-  warning: "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400",
-  error: "bg-red-500/10 text-red-600 dark:text-red-400",
-  info: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
+  primary: "bg-accent-soft text-accent-text",
+  success: "bg-success/12 text-success-text",
+  warning: "bg-warning/12 text-warning-text",
+  error: "bg-danger/10 text-danger-text",
+  info: "bg-info/12 text-info-text",
+};
+
+const dots = {
+  default: "bg-text-subtle",
+  primary: "bg-accent",
+  success: "bg-success",
+  warning: "bg-warning",
+  error: "bg-danger",
+  info: "bg-info",
 };
 
 const sizes = {
-  sm: "px-2 py-0.5 text-[10px]",
-  md: "px-2.5 py-1 text-xs",
-  lg: "px-3 py-1.5 text-sm",
+  sm: "px-1.5 py-px text-[10px]",
+  md: "px-2 py-0.5 text-[11px]",
+  lg: "px-2.5 py-1 text-xs",
 };
 
-export default function Badge({
-  children,
-  variant = "default",
-  size = "md",
-  dot = false,
-  icon,
-  className,
-}) {
+export default function Badge({ children, variant = "default", size = "md", dot = false, icon, className }) {
   return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1.5 rounded-full font-semibold",
-        variants[variant],
-        sizes[size],
-        className
-      )}
-    >
-      {dot && (
-        <span
-          className={cn(
-            "size-1.5 rounded-full",
-            variant === "success" && "bg-green-500",
-            variant === "warning" && "bg-yellow-500",
-            variant === "error" && "bg-red-500",
-            variant === "info" && "bg-blue-500",
-            variant === "primary" && "bg-brand-500",
-            variant === "default" && "bg-gray-500"
-          )}
-        />
-      )}
-      {icon && <span className="material-symbols-outlined text-[14px]">{icon}</span>}
+    <span className={cn("inline-flex items-center gap-1 whitespace-nowrap rounded font-medium", variants[variant] || variants.default, sizes[size] || sizes.md, className)}>
+      {dot && <span className={cn("size-1.5 rounded-full", dots[variant] || dots.default)} />}
+      {icon && <span className="material-symbols-outlined leading-none" style={{ fontSize: 12 }}>{icon}</span>}
       {children}
     </span>
   );

@@ -24,7 +24,7 @@ export default function ModelRow({ model, fullModel, alias, copied, onCopy, test
           </div>
         )}
       </div>
-      <div className="flex shrink-0 items-center gap-0.5 opacity-100 transition-opacity sm:opacity-60 sm:group-hover:opacity-100 sm:focus-within:opacity-100">
+      <div className="flex shrink-0 items-center gap-0.5 transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:focus-within:opacity-100">
         {onTest && (
           <IconButton
             icon={isTesting ? "progress_activity" : "science"}

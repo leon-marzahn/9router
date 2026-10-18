@@ -156,12 +156,12 @@ export default function KiroSocialOAuthModal({ isOpen, provider, onSuccess, onCl
               </div>
             </div>
 
-            <div className="flex gap-2">
-              <Button onClick={handleManualSubmit} fullWidth disabled={!callbackUrl}>
-                Connect
-              </Button>
-              <Button onClick={onClose} variant="ghost" fullWidth>
+            <div className="mt-2 flex justify-end gap-2">
+              <Button onClick={onClose} variant="secondary">
                 Cancel
+              </Button>
+              <Button onClick={handleManualSubmit} disabled={!callbackUrl}>
+                Connect
               </Button>
             </div>
           </>
@@ -191,12 +191,12 @@ export default function KiroSocialOAuthModal({ isOpen, provider, onSuccess, onCl
             </div>
             <h3 className="text-lg font-semibold mb-2">Connection Failed</h3>
             <p className="text-sm text-red-600 mb-4">{error}</p>
-            <div className="flex gap-2">
-              <Button onClick={() => setStep("input")} variant="secondary" fullWidth>
-                Try Again
-              </Button>
-              <Button onClick={onClose} variant="ghost" fullWidth>
+            <div className="mt-2 flex justify-end gap-2">
+              <Button onClick={onClose} variant="secondary">
                 Cancel
+              </Button>
+              <Button onClick={() => setStep("input")} variant="secondary">
+                Try Again
               </Button>
             </div>
           </div>

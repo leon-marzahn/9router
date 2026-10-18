@@ -56,8 +56,14 @@ export function TopBar({ onMenu }: { onMenu: () => void }) {
           ))}
         </nav>
       ) : (
+        // Title links back to the page root (e.g. clears a workbench selection)
         <h1 className="shrink-0 truncate font-display text-lg tracking-tight">
-          {translate(meta.title)}
+          <Link
+            href={pathname}
+            className="rounded hover:text-accent-text focus-visible:outline-none focus-visible:shadow-focus"
+          >
+            {translate(meta.title)}
+          </Link>
         </h1>
       )}
 

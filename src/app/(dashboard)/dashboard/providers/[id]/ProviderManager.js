@@ -14,7 +14,7 @@ import { useModelCaps } from "@/shared/hooks/useModelCaps";
 import { translate } from "@/i18n/runtime";
 import { fetchSuggestedModels } from "@/shared/utils/providerModelsFetcher";
 import { getProviderCustomModelRows } from "@/shared/utils/providerCustomModels";
-import { Button as UiButton, EmptyState, Eyebrow, Icon, Input as UiInput, Switch } from "@/ui";
+import { Button as UiButton, EmptyState, Eyebrow, Icon, Input as UiInput, Switch, cn } from "@/ui";
 import ModelRow from "./ModelRow";
 import PassthroughModelsSection from "./PassthroughModelsSection";
 import CompatibleModelsSection from "./CompatibleModelsSection";
@@ -803,8 +803,9 @@ export default function ProviderManager({ providerId, embedded = false, liveVers
 
   const handleDelete = async (id) => {
     setConfirmState({
-      title: "Delete Connection",
-      message: "Delete this connection?",
+      title: "Delete account?",
+      message: `${connections.find((c) => c.id === id)?.name || "This account"} will be removed and stop receiving traffic. This can't be undone.`,
+      confirmText: "Delete",
       onConfirm: async () => {
         setConfirmState(null);
         try {
@@ -823,8 +824,9 @@ export default function ProviderManager({ providerId, embedded = false, liveVers
     const count = selectedConnectionIds.length;
     if (count === 0) return;
     setConfirmState({
-      title: `Delete ${count} Connection${count > 1 ? "s" : ""}`,
-      message: `Delete ${count} connection${count > 1 ? "s" : ""}? This cannot be undone.`,
+      title: `Delete ${count} account${count > 1 ? "s" : ""}?`,
+      message: `${count > 1 ? "They" : "It"} will be removed and stop receiving traffic. This can't be undone.`,
+      confirmText: `Delete ${count}`,
       onConfirm: async () => {
         setConfirmState(null);
         let failed = 0;
@@ -1042,7 +1044,7 @@ export default function ProviderManager({ providerId, embedded = false, liveVers
     <div className="flex min-w-0 flex-col divide-y divide-border">
       {connections
         .map((conn, index) => (
-          <div key={conn.id} className="flex min-w-0 items-stretch">
+          <div key={conn.id} className={cn("flex min-w-0 items-stretch", isSelected(conn.id) && "bg-accent-soft")}>
             <label className="flex shrink-0 cursor-pointer items-center pl-3">
               <input
                 type="checkbox"
@@ -1565,8 +1567,8 @@ export default function ProviderManager({ providerId, embedded = false, liveVers
                     {selectedConnectionIds.length > 0 ? `${selectedConnectionIds.length} selected` : "Select all"}
                   </label>
                   {selectedConnectionIds.length > 0 && (
-                    <UiButton variant="danger" icon="delete" onClick={handleBulkDelete} className="ml-auto h-7">
-                      Delete selected
+                    <UiButton variant="ghost" icon="delete" onClick={handleBulkDelete} className="ml-auto h-7 text-danger-text hover:bg-danger-soft hover:text-danger-text">
+                      Delete {selectedConnectionIds.length}
                     </UiButton>
                   )}
                 </div>
@@ -1822,6 +1824,7 @@ export default function ProviderManager({ providerId, embedded = false, liveVers
         onConfirm={confirmState?.onConfirm}
         title={confirmState?.title || "Confirm"}
         message={confirmState?.message}
+        confirmText={confirmState?.confirmText || "Confirm"}
         variant="danger"
       />
     </div>

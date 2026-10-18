@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect } from "react";
-import { cn } from "@/shared/utils/cn";
+import { cn } from "@/ui/cn";
 import Button from "./Button";
-import Tooltip from "./Tooltip";
 
 export default function Modal({
   isOpen,
@@ -13,7 +12,8 @@ export default function Modal({
   footer,
   size = "md",
   closeOnOverlay = true,
-  showTrafficLights = true,
+  // eslint-disable-next-line no-unused-vars -- kept for API compatibility
+  showTrafficLights,
   className,
 }) {
   const sizes = {
@@ -44,69 +44,30 @@ export default function Modal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
-      {/* Overlay */}
-      <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-[2px] fade-in"
-        onClick={closeOnOverlay ? onClose : undefined}
-      />
-
-      {/* Modal content */}
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label={typeof title === "string" ? title : undefined}>
+      <div className="fade-in absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={closeOnOverlay ? onClose : undefined} />
       <div
         className={cn(
-          "relative w-full bg-surface",
-          "border border-border-subtle",
-          "rounded-[14px] shadow-[var(--shadow-elev)]",
-          "fade-in",
+          "fade-in relative flex max-h-[88vh] w-full flex-col overflow-hidden rounded-2xl border border-border bg-surface text-[13px] text-text shadow-elev",
           sizes[size],
-          className
+          className,
         )}
       >
-        {/* Header */}
-        {(title || showTrafficLights) && (
-          <div className="flex items-center justify-between p-2 border-b border-border-subtle">
-            <div className="flex items-center">
-              {/* Traffic lights — desktop only */}
-              {showTrafficLights && (
-                <div className="hidden md:flex items-center gap-2 mr-4 ml-2">
-                  <Tooltip text="Close" position="top" color="#FF5F56">
-                    <button
-                      onClick={onClose}
-                      aria-label="Close"
-                      title="Close"
-                      className="w-4 h-4 rounded-full bg-[#FF5F56] hover:brightness-90 transition-all cursor-pointer flex items-center justify-center group/dot"
-                    >
-                      <span className="text-[9px] font-bold text-white opacity-0 group-hover/dot:opacity-100 transition-opacity leading-none">✕</span>
-                    </button>
-                  </Tooltip>
-                  <div className="w-4 h-4 rounded-full bg-[#3a3a3a]/20 dark:bg-white/15 cursor-not-allowed" />
-                  <div className="w-4 h-4 rounded-full bg-[#3a3a3a]/20 dark:bg-white/15 cursor-not-allowed" />
-                </div>
-              )}
-              {title && (
-                <h2 className="text-lg font-semibold text-text-main">{title}</h2>
-              )}
-            </div>
-            {/* X button — mobile only */}
+        {title && (
+          <div className="flex shrink-0 items-start gap-3 px-5 pb-1 pt-5">
+            <h2 className="min-w-0 flex-1 font-display text-xl leading-tight tracking-tight">{title}</h2>
             <button
+              type="button"
               onClick={onClose}
               aria-label="Close"
-              className="md:hidden p-1.5 rounded-[10px] text-text-muted hover:bg-surface-2 hover:text-text-main transition-colors"
+              className="-mr-1.5 -mt-1 grid size-8 shrink-0 place-items-center rounded-lg text-text-muted transition-colors hover:bg-surface-2 hover:text-text"
             >
-              <span className="material-symbols-outlined text-[20px]">close</span>
+              <span className="material-symbols-outlined" style={{ fontSize: 20 }}>close</span>
             </button>
           </div>
         )}
-
-        {/* Body */}
-        <div className="p-6 max-h-[calc(85vh-100px)] overflow-y-auto custom-scrollbar">{children}</div>
-
-        {/* Footer */}
-        {footer && (
-          <div className="flex items-center justify-end gap-3 p-6 border-t border-border-subtle">
-            {footer}
-          </div>
-        )}
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{children}</div>
+        {footer && <div className="flex shrink-0 items-center justify-end gap-2 px-5 pb-5">{footer}</div>}
       </div>
     </div>
   );
@@ -131,7 +92,7 @@ export function ConfirmModal({
       size="sm"
       footer={
         <>
-          <Button variant="ghost" onClick={onClose} disabled={loading}>
+          <Button variant="secondary" onClick={onClose} disabled={loading}>
             {cancelText}
           </Button>
           <Button variant={variant} onClick={onConfirm} loading={loading}>

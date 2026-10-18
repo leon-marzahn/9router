@@ -186,16 +186,15 @@ export default function CursorAuthModal({ isOpen, onSuccess, onClose }) {
             )}
 
             {/* Action Buttons */}
-            <div className="flex gap-2">
+            <div className="mt-2 flex justify-end gap-2">
+              <Button onClick={onClose} variant="secondary">
+                Cancel
+              </Button>
               <Button
                 onClick={handleImportToken}
-                fullWidth
                 disabled={importing || !accessToken.trim() || !machineId.trim()}
               >
                 {importing ? "Importing..." : "Import Token"}
-              </Button>
-              <Button onClick={onClose} variant="ghost" fullWidth>
-                Cancel
               </Button>
             </div>
           </>

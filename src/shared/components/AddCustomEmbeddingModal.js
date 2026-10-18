@@ -154,15 +154,14 @@ export default function AddCustomEmbeddingModal({ isOpen, onClose, onCreated, on
           </Button>
           {renderValidationResult()}
         </div>
-        <div className="flex gap-2">
+        <div className="mt-2 flex justify-end gap-2">
+          <Button onClick={onClose} variant="secondary">Cancel</Button>
           <Button
             onClick={handleSubmit}
-            fullWidth
             disabled={!formData.name.trim() || !formData.prefix.trim() || !formData.baseUrl.trim() || submitting}
           >
             {submitting ? (isEdit ? "Saving..." : "Creating...") : (isEdit ? "Save" : "Create")}
           </Button>
-          <Button onClick={onClose} variant="ghost" fullWidth>Cancel</Button>
         </div>
       </div>
     </Modal>
