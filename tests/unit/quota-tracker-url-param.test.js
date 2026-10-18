@@ -22,7 +22,13 @@ describe("Quota workbench — URL selection sync (#4217)", () => {
   it("writes the selection back with router.replace", () => {
     expect(src).toContain("useRouter");
     expect(src).toContain("router.replace");
-    expect(src).toContain('params.delete("provider")');
-    expect(src).toContain("params.set(");
+    expect(src).toContain('p.delete("provider")');
+    expect(src).toMatch(/p\.set\(next\.kind === "provider"/);
+  });
+
+  it("keeps the timeline range in ?range= and restores the last view", () => {
+    expect(src).toMatch(/searchParams\.get\("range"\)/);
+    expect(src).toContain('p.set("range"');
+    expect(src).toContain("LAST_VIEW_KEY");
   });
 });
