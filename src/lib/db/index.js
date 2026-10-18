@@ -100,6 +100,8 @@ export async function importDb(payload) {
     throw new Error("Invalid database payload");
   }
   const db = await getAdapter();
+  const { NON_EXPORTED_SETTING_KEYS } = await import("./repos/settingsRepo.js");
+  const currentSettings = parseJson(db.get(`SELECT data FROM settings WHERE id = 1`)?.data, {});
 
   db.transaction(() => {
     // Wipe all tables (keep _meta)
@@ -113,7 +115,13 @@ export async function importDb(payload) {
 
     // Settings
     if (payload.settings) {
-      db.run(`INSERT INTO settings(id, data) VALUES(1, ?) ON CONFLICT(id) DO UPDATE SET data = excluded.data`, [stringifyJson(payload.settings)]);
+      // A backup never carries the redeploy hook: keep this install's own, ignore any in the file.
+      const next = { ...payload.settings };
+      for (const k of NON_EXPORTED_SETTING_KEYS) {
+        if (currentSettings[k] === undefined) delete next[k];
+        else next[k] = currentSettings[k];
+      }
+      db.run(`INSERT INTO settings(id, data) VALUES(1, ?) ON CONFLICT(id) DO UPDATE SET data = excluded.data`, [stringifyJson(next)]);
     }
 
     for (const c of payload.providerConnections || []) {
