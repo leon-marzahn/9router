@@ -5,7 +5,6 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Icon,
   InlineStat,
-  Kbd,
   ListGroup,
   ListRow,
   ProviderLogo,
@@ -16,6 +15,9 @@ import {
   cn,
   needsAttention,
   ListSkeleton,
+  WorkbenchDetail,
+  WorkbenchList,
+  useListKeyboard,
 } from "@/ui";
 import { AddCustomEmbeddingModal } from "@/shared/components";
 import { useNotificationStore } from "@/store/notificationStore";
@@ -70,7 +72,6 @@ export function MediaWorkbench() {
   const [q, setQ] = useState("");
   const [addingEmbedding, setAddingEmbedding] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
-  const listRef = useRef<HTMLDivElement>(null);
 
   const navigate = useCallback(
     (next: { kind?: string; provider?: string | null; combo?: string | null }) => {
@@ -180,39 +181,13 @@ export function MediaWorkbench() {
     }
   };
 
-  // Keyboard: ↑/↓ or j/k move, / search, Esc back to overview
-  useEffect(() => {
-    const items = groups.flatMap((g) => g.items);
-    const onKey = (e: KeyboardEvent) => {
-      if (document.querySelector("[aria-modal=true]")) return;
-      const target = e.target as HTMLElement | null;
-      if (target?.closest("input, textarea, select, [contenteditable], [role=dialog]")) {
-        if (e.key === "Escape") target.blur();
-        return;
-      }
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
-      const i = selId ? order.indexOf(selId) : -1;
-      if (e.key === "ArrowDown" || e.key === "j") {
-        e.preventDefault();
-        selectItem(items[Math.min(i + 1, items.length - 1)] ?? null);
-      } else if (e.key === "ArrowUp" || e.key === "k") {
-        e.preventDefault();
-        selectItem(items[Math.max(i - 1, 0)] ?? null);
-      } else if (e.key === "/") {
-        e.preventDefault();
-        searchRef.current?.focus();
-      } else if (e.key === "Escape") selectItem(null);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+  useListKeyboard({
+    order,
+    selected: selId,
+    onSelect: (id) =>
+      selectItem(groups.flatMap((g) => g.items).find((i) => itemId(i) === id) ?? null),
+    searchRef,
   });
-
-  useEffect(() => {
-    if (selId)
-      listRef.current
-        ?.querySelector(`[data-id="${CSS.escape(selId)}"]`)
-        ?.scrollIntoView({ block: "nearest" });
-  }, [selId]);
 
   const liveCount = providers.filter(isLive).length;
   const failing = providers.filter((p) => needsAttention(p.status));
@@ -242,94 +217,80 @@ export function MediaWorkbench() {
       </TopBarContent>
 
       <div className="flex min-h-0 flex-1">
-        <section
-          className={cn(
-            "flex w-full shrink-0 flex-col border-r border-border bg-pane md:w-[330px]",
-            hasSelection && "hidden md:flex",
-          )}
+        <WorkbenchList
+          selected={selId ?? (selProvider || selCombo)}
+          hints={[
+            ["↑↓", "move"],
+            ["/", "search"],
+            ["esc", "overview"],
+          ]}
+          header={
+            <>
+              <KindSwitch
+                value={kind.id}
+                onChange={(k) => {
+                  setQ("");
+                  navigate({ kind: k, provider: null, combo: null });
+                }}
+              />
+              <SearchInput
+                ref={searchRef}
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder={`Search ${kind.short.toLowerCase()} providers`}
+                shortcut="/"
+              />
+            </>
+          }
         >
-          <div className="space-y-2 p-3">
-            <KindSwitch
-              value={kind.id}
-              onChange={(k) => {
-                setQ("");
-                navigate({ kind: k, provider: null, combo: null });
-              }}
-            />
-            <SearchInput
-              ref={searchRef}
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder={`Search ${kind.short.toLowerCase()} providers`}
-              shortcut="/"
-            />
-          </div>
-          <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto px-2 pb-6">
-            {loading ? (
-              <ListSkeleton />
-            ) : (
-              <>
-                {groups.map((g) =>
-                  g.items.length === 0 && g.title !== "Combos" ? null : (
-                    <ListGroup key={g.title} title={g.title} count={g.items.length} tone={g.tone}>
-                      {g.items.map((i) =>
-                        i.type === "provider" ? (
-                          <MediaRow
-                            key={i.p.id}
-                            p={i.p}
-                            active={selId === itemId(i)}
-                            onClick={() => selectItem(i)}
-                          />
-                        ) : (
-                          <ListRow
-                            key={i.c.id}
-                            id={itemId(i)}
-                            active={selId === itemId(i)}
-                            onClick={() => selectItem(i)}
-                            leading={<Icon name="layers" size={20} className="text-accent" />}
-                            title={<span className="font-mono">{i.c.name}</span>}
-                            subtitle={`${i.c.models.length} provider${i.c.models.length === 1 ? "" : "s"}`}
-                          />
-                        ),
-                      )}
-                      {g.title === "Combos" && !needle && (
-                        <AddRow onClick={createCombo}>New {kind.short.toLowerCase()} combo</AddRow>
-                      )}
-                    </ListGroup>
-                  ),
-                )}
-                {kind.id === "embedding" && !needle && (
-                  <AddRow onClick={() => setAddingEmbedding(true)}>Add custom embedding</AddRow>
-                )}
-                {order.length === 0 && needle && (
-                  <div className="py-10 text-center text-text-muted">Nothing matches “{q}”.</div>
-                )}
-              </>
-            )}
-          </div>
-          <div className="hidden gap-3 border-t border-border px-3 py-2 text-[11px] text-text-subtle md:flex">
-            <span>
-              <Kbd>↑↓</Kbd> move
-            </span>
-            <span>
-              <Kbd>/</Kbd> search
-            </span>
-            <span>
-              <Kbd>esc</Kbd> overview
-            </span>
-          </div>
-        </section>
-
-        <main className={cn("min-w-0 flex-1 overflow-y-auto", !hasSelection && "hidden md:block")}>
-          {hasSelection && (
-            <button
-              type="button"
-              onClick={() => selectItem(null)}
-              className="flex items-center gap-1 px-4 pt-4 text-xs text-text-muted md:hidden"
-            >
-              <Icon name="arrow_back" size={16} /> {kind.label}
-            </button>
+          {loading ? (
+            <ListSkeleton />
+          ) : (
+            <>
+              {groups.map((g) =>
+                g.items.length === 0 && g.title !== "Combos" ? null : (
+                  <ListGroup key={g.title} title={g.title} count={g.items.length} tone={g.tone}>
+                    {g.items.map((i) =>
+                      i.type === "provider" ? (
+                        <MediaRow
+                          key={i.p.id}
+                          p={i.p}
+                          active={selId === itemId(i)}
+                          onClick={() => selectItem(i)}
+                        />
+                      ) : (
+                        <ListRow
+                          key={i.c.id}
+                          id={itemId(i)}
+                          active={selId === itemId(i)}
+                          onClick={() => selectItem(i)}
+                          leading={<Icon name="layers" size={20} className="text-accent" />}
+                          title={<span className="font-mono">{i.c.name}</span>}
+                          subtitle={`${i.c.models.length} provider${i.c.models.length === 1 ? "" : "s"}`}
+                        />
+                      ),
+                    )}
+                    {g.title === "Combos" && !needle && (
+                      <AddRow onClick={createCombo}>New {kind.short.toLowerCase()} combo</AddRow>
+                    )}
+                  </ListGroup>
+                ),
+              )}
+              {kind.id === "embedding" && !needle && (
+                <AddRow onClick={() => setAddingEmbedding(true)}>Add custom embedding</AddRow>
+              )}
+              {order.length === 0 && needle && (
+                <div className="py-10 text-center text-text-muted">Nothing matches “{q}”.</div>
+              )}
+            </>
           )}
+        </WorkbenchList>
+
+        <WorkbenchDetail
+          selected={hasSelection}
+          backLabel={`All ${kind.short.toLowerCase()} providers`}
+          onBack={() => selectItem(null)}
+        >
           {combo ? (
             <MediaComboDetail
               key={combo.id}
@@ -373,7 +334,7 @@ export function MediaWorkbench() {
               onCreateCombo={kind.combos ? createCombo : undefined}
             />
           )}
-        </main>
+        </WorkbenchDetail>
       </div>
 
       {kind.id === "embedding" && (
@@ -476,4 +437,3 @@ function MediaRow({ p, active, onClick }: { p: MediaEntry; active: boolean; onCl
     />
   );
 }
-

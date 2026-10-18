@@ -1,12 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Button,
   Icon,
   InlineStat,
-  Kbd,
   ListGroup,
   ListRow,
   ProviderLogo,
@@ -19,6 +18,9 @@ import {
   needsAttention,
   cn,
   ListSkeleton,
+  WorkbenchDetail,
+  WorkbenchList,
+  useListKeyboard,
 } from "@/ui";
 import { KIND_LABEL, cooldownsOf, versionOf, type ProviderEntry } from "../model";
 import { useProviders } from "../useProviders";
@@ -48,7 +50,6 @@ export function ProvidersWorkbench() {
   const [q, setQ] = useState("");
   const [scope, setScope] = useState<Scope>("live");
   const searchRef = useRef<HTMLInputElement>(null);
-  const listRef = useRef<HTMLDivElement>(null);
 
   const select = useCallback(
     (id: string | null) => {
@@ -92,41 +93,14 @@ export function ProvidersWorkbench() {
   const current = providers.find((p) => p.id === sel) ?? null;
   const template = TEMPLATES.find((t) => t.id === sel) ?? null;
 
-  // Keyboard: ↑/↓ or j/k move, / search, Enter full page, Esc back to overview
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      // Keys belong to an open dialog (e.g. Esc closes it), not to the workbench
-      if (document.querySelector("[aria-modal=true]")) return;
-      const target = e.target as HTMLElement | null;
-      if (target?.closest("input, textarea, select, [contenteditable], [role=dialog]")) {
-        if (e.key === "Escape") target.blur();
-        return;
-      }
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
-      const i = sel ? order.indexOf(sel) : -1;
-      if (e.key === "ArrowDown" || e.key === "j") {
-        e.preventDefault();
-        select(order[Math.min(i + 1, order.length - 1)] ?? null);
-      } else if (e.key === "ArrowUp" || e.key === "k") {
-        e.preventDefault();
-        select(order[Math.max(i - 1, 0)] ?? null);
-      } else if (e.key === "/") {
-        e.preventDefault();
-        searchRef.current?.focus();
-      } else if (e.key === "Escape") select(null);
-      else if (e.key === "Enter" && current)
-        router.push(`/dashboard/providers/${encodeURIComponent(current.id)}`);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [order, sel, current, select, router]);
-
-  useEffect(() => {
-    if (sel)
-      listRef.current
-        ?.querySelector(`[data-id="${CSS.escape(sel)}"]`)
-        ?.scrollIntoView({ block: "nearest" });
-  }, [sel]);
+  useListKeyboard({
+    order,
+    selected: sel,
+    onSelect: select,
+    searchRef,
+    onEnter: (id) =>
+      current?.id === id && router.push(`/dashboard/providers/${encodeURIComponent(id)}`),
+  });
 
   return (
     <>
@@ -167,121 +141,99 @@ export function ProvidersWorkbench() {
       </TopBarActions>
 
       <div className="flex min-h-0 flex-1">
-        {/* List pane */}
-        <section
-          className={cn(
-            "flex w-full shrink-0 flex-col border-r border-border bg-pane md:w-[330px]",
-            sel && "hidden md:flex",
-          )}
+        <WorkbenchList
+          selected={sel}
+          hints={[
+            ["↑↓", "move"],
+            ["↵", "open"],
+            ["/", "search"],
+            ["esc", "overview"],
+          ]}
+          header={
+            <>
+              <SearchInput
+                ref={searchRef}
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Search providers"
+                shortcut="/"
+              />
+              <Segmented<Scope>
+                value={scope}
+                onChange={setScope}
+                options={[
+                  { value: "live", label: `In use · ${totals.live}` },
+                  { value: "all", label: `All · ${providers.length}` },
+                ]}
+              />
+            </>
+          }
         >
-          <div className="space-y-2 p-3">
-            <SearchInput
-              ref={searchRef}
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Search providers"
-              shortcut="/"
-            />
-            <Segmented<Scope>
-              value={scope}
-              onChange={setScope}
-              options={[
-                { value: "live", label: `In use · ${totals.live}` },
-                { value: "all", label: `All · ${providers.length}` },
-              ]}
-            />
-          </div>
-          <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto px-2 pb-6">
-            {loading ? (
-              <ListSkeleton />
-            ) : (
-              <>
-                {groups.map((g) => (
-                  <ListGroup key={g.title} title={g.title} count={g.items.length} tone={g.tone}>
-                    {g.title === "Add custom endpoint"
-                      ? TEMPLATES.filter((t) => g.items.some((i) => i.id === t.id)).map((t) => (
-                          <ListRow
-                            key={t.id}
-                            id={t.id}
-                            active={sel === t.id}
-                            onClick={() => select(t.id)}
-                            leading={<ProviderLogo src={t.icon} name={t.name} size={22} />}
-                            title={t.name}
-                            subtitle={t.hint}
-                            trailing={<Icon name="add" size={18} className="text-text-subtle" />}
-                          />
-                        ))
-                      : (g.items as ProviderEntry[]).map((p) => (
-                          <ProviderRow
-                            key={p.id}
-                            p={p}
-                            active={sel === p.id}
-                            onClick={() => select(p.id)}
-                          />
-                        ))}
-                  </ListGroup>
-                ))}
-                {order.length === 0 && (
-                  <div className="py-10 text-center text-text-muted">Nothing matches “{q}”.</div>
-                )}
-                {scope === "live" && !searching && (
-                  <div className="mt-2 space-y-2 px-2">
-                    <button
-                      type="button"
-                      onClick={() => setScope("all")}
-                      className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border-strong py-2.5 text-xs text-text-muted hover:border-accent hover:text-accent-text dark:border-border"
-                    >
-                      Connect another provider <Icon name="add" size={16} />
-                    </button>
-                    <div className="grid grid-cols-2 gap-2">
-                      {TEMPLATES.map((t) => (
-                        <button
+          {loading ? (
+            <ListSkeleton />
+          ) : (
+            <>
+              {groups.map((g) => (
+                <ListGroup key={g.title} title={g.title} count={g.items.length} tone={g.tone}>
+                  {g.title === "Add custom endpoint"
+                    ? TEMPLATES.filter((t) => g.items.some((i) => i.id === t.id)).map((t) => (
+                        <ListRow
                           key={t.id}
-                          type="button"
+                          id={t.id}
+                          active={sel === t.id}
                           onClick={() => select(t.id)}
-                          className={cn(
-                            "flex items-center justify-center gap-1.5 rounded-lg border py-2 text-[11px]",
-                            sel === t.id
-                              ? "border-accent-ring bg-accent-soft text-accent-text"
-                              : "border-border text-text-muted hover:text-text",
-                          )}
-                        >
-                          <ProviderLogo src={t.icon} name={t.name} size={14} /> {t.name}
-                        </button>
+                          leading={<ProviderLogo src={t.icon} name={t.name} size={22} />}
+                          title={t.name}
+                          subtitle={t.hint}
+                          trailing={<Icon name="add" size={18} className="text-text-subtle" />}
+                        />
+                      ))
+                    : (g.items as ProviderEntry[]).map((p) => (
+                        <ProviderRow
+                          key={p.id}
+                          p={p}
+                          active={sel === p.id}
+                          onClick={() => select(p.id)}
+                        />
                       ))}
-                    </div>
+                </ListGroup>
+              ))}
+              {order.length === 0 && (
+                <div className="py-10 text-center text-text-muted">Nothing matches “{q}”.</div>
+              )}
+              {scope === "live" && !searching && (
+                <div className="mt-2 space-y-2 px-2">
+                  <button
+                    type="button"
+                    onClick={() => setScope("all")}
+                    className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border-strong py-2.5 text-xs text-text-muted hover:border-accent hover:text-accent-text dark:border-border"
+                  >
+                    Connect another provider <Icon name="add" size={16} />
+                  </button>
+                  <div className="grid grid-cols-2 gap-2">
+                    {TEMPLATES.map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => select(t.id)}
+                        className={cn(
+                          "flex items-center justify-center gap-1.5 rounded-lg border py-2 text-[11px]",
+                          sel === t.id
+                            ? "border-accent-ring bg-accent-soft text-accent-text"
+                            : "border-border text-text-muted hover:text-text",
+                        )}
+                      >
+                        <ProviderLogo src={t.icon} name={t.name} size={14} /> {t.name}
+                      </button>
+                    ))}
                   </div>
-                )}
-              </>
-            )}
-          </div>
-          <div className="hidden gap-3 border-t border-border px-3 py-2 text-[11px] text-text-subtle md:flex">
-            <span>
-              <Kbd>↑↓</Kbd> move
-            </span>
-            <span>
-              <Kbd>↵</Kbd> open
-            </span>
-            <span>
-              <Kbd>/</Kbd> search
-            </span>
-            <span>
-              <Kbd>esc</Kbd> overview
-            </span>
-          </div>
-        </section>
-
-        {/* Detail / overview pane */}
-        <main className={cn("min-w-0 flex-1 overflow-y-auto", !sel && "hidden md:block")}>
-          {sel && (
-            <button
-              type="button"
-              onClick={() => select(null)}
-              className="flex items-center gap-1 px-4 pt-4 text-xs text-text-muted md:hidden"
-            >
-              <Icon name="arrow_back" size={16} /> All providers
-            </button>
+                </div>
+              )}
+            </>
           )}
+        </WorkbenchList>
+
+        <WorkbenchDetail selected={!!sel} backLabel="All providers" onBack={() => select(null)}>
           {template ? (
             <CustomEndpointForm
               key={template.id}
@@ -311,7 +263,7 @@ export function ProvidersWorkbench() {
               onSelect={select}
             />
           )}
-        </main>
+        </WorkbenchDetail>
       </div>
     </>
   );
@@ -373,4 +325,3 @@ function ProviderRow({
     />
   );
 }
-
