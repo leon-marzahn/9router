@@ -4,8 +4,8 @@ import { EmptyState } from "@/ui";
 import { QuotaWorkbench } from "./QuotaWorkbench";
 import { useQuota } from "./useQuota";
 
-export function QuotaPage() {
-  const q = useQuota();
+export function QuotaPage({ initial }: { initial: Record<string, unknown>[] }) {
+  const q = useQuota(initial);
   if (q.error && !q.accounts) return <EmptyState icon="error">{q.error}</EmptyState>;
   if (q.accounts && !q.accounts.length)
     return (

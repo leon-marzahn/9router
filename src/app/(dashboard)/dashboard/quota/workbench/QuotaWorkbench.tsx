@@ -265,7 +265,9 @@ export function QuotaWorkbench({
                 onHover={setHover}
                 onPick={(id) => setSel({ kind: "account", id })}
                 title="Coming back"
-                loading={loading}
+                loading={
+                  loading || accounts.some((a) => a.isActive && a.loading && !a.windows.length)
+                }
               />
               <section className="space-y-3">
                 <div>

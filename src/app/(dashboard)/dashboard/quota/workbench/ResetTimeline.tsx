@@ -96,9 +96,9 @@ export function ResetTimeline({
       <div className="flex items-end justify-between gap-3">
         <div>
           <h2 className="font-display text-xl">{title}</h2>
-          <p className="text-xs text-text-muted">
+          <p className="h-4 truncate text-xs leading-4 text-text-muted">
             {loading ? (
-              <Skeleton className="mt-0.5 h-3 w-64" />
+              <Skeleton className="inline-block h-3 w-64 align-middle" />
             ) : events.length ? (
               <>
                 {events.length} reset{events.length === 1 ? "" : "s"} in the next {spanText} · next:{" "}

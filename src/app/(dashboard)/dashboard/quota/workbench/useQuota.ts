@@ -5,7 +5,7 @@
 // every 10 minutes unless forced (Anthropic rate-limits the usage endpoint).
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   CLAUDE_REFRESH_INTERVAL_MS,
   DEPLETED_QUOTA_THRESHOLD,
@@ -162,6 +162,20 @@ function readCache(): { order: string[] | null; entries: Record<string, Entry> }
   }
 }
 
+/** Server list (authoritative for which accounts exist) + cached limits, if any. */
+function seedFrom(
+  initial: Raw[] | null,
+  cached: { order: string[] | null; entries: Record<string, Entry> },
+) {
+  if (!initial) return cached;
+  const entries: Record<string, Entry> = {};
+  for (const c of initial) {
+    const hit = cached.entries[c.id];
+    entries[c.id] = hit ? { ...hit, conn: c } : { conn: c, rows: [], loading: true, fetchedAt: 0 };
+  }
+  return { order: initial.map((c) => c.id), entries };
+}
+
 function writeCache(order: string[], entries: Record<string, Entry>) {
   try {
     const out: Record<string, Raw> = {};
@@ -190,11 +204,20 @@ async function settingsPatch(body: Raw) {
   if (!r.ok) throw new Error("Couldn't save settings");
 }
 
-export function useQuota() {
-  // Client-only component (see page.tsx), so the cache can seed the first render.
-  const [cached] = useState(readCache);
-  const [entries, setEntries] = useState<Record<string, Entry>>(cached.entries);
-  const [order, setOrder] = useState<string[] | null>(cached.order);
+export function useQuota(initial: Raw[] | null = null) {
+  // The server renders the page with the account list (real rows, placeholder
+  // bars). Before the first paint, the last-known limits from this browser are
+  // filled in, so a return visit shows numbers immediately.
+  const [seed] = useState(() => seedFrom(initial, { order: null, entries: {} }));
+  const [entries, setEntries] = useState<Record<string, Entry>>(seed.entries);
+  const [order, setOrder] = useState<string[] | null>(seed.order);
+  useLayoutEffect(() => {
+    const next = seedFrom(initial, readCache());
+    // eslint-disable-next-line react/set-state-in-effect -- localStorage is only readable after hydration; a layout effect applies it before paint
+    setEntries(next.entries);
+    setOrder(next.order);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on mount
+  }, []);
   const [visibility, setVisibility] = useState<Raw>({});
   const [autoPing, setAutoPing] = useState<Record<string, Raw>>({ claude: {}, codex: {} });
   const [error, setError] = useState<string | null>(null);
