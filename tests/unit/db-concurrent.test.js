@@ -45,6 +45,17 @@ describe("DB Concurrency — atomic safety", () => {
     expect(hist.length).toBe(N);
   });
 
+  it("identical writes with the same caller timestamp are deduped", async () => {
+    const entry = () => ({
+      provider: "dedupe-prov", model: "m", connectionId: "cD",
+      timestamp: "2026-01-01T00:00:00.000Z",
+      tokens: { prompt_tokens: 7, completion_tokens: 3 }, status: "ok",
+    });
+    await Promise.all([db.saveRequestUsage(entry()), db.saveRequestUsage(entry())]);
+    const hist = await db.getUsageHistory({ provider: "dedupe-prov" });
+    expect(hist.length).toBe(1);
+  });
+
   it("200 parallel saveRequestDetail → all flushed", async () => {
     await db.updateSettings({ enableObservability: true, observabilityBatchSize: 10 });
 
