@@ -302,7 +302,7 @@ describe("dashboard guard cli-tools routes are local-only", () => {
     "/api/cli-tools/hermes-profiles",
     "/api/cli-tools/cowork-mcp-tools",
     "/api/cli-tools/cowork-mcp-registry",
-    "/api/cli-tools/copilot-settings",
+    "/api/cli-tools/restore",
     "/api/cli-tools/deepseek-tui-settings",
     "/api/cli-tools/all-statuses",
   ];
