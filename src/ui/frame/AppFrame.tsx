@@ -22,7 +22,6 @@ export function AppFrame({ children }: { children: ReactNode }) {
   const { flags, auth } = useFrameData();
   const fullBleed = isFullBleed(pathname);
 
-
   return (
     <FrameSlotsProvider>
       <div className="flex h-dvh w-full overflow-hidden bg-bg text-[13px] text-text">

@@ -1,12 +1,15 @@
 import { NextResponse } from "next/server";
 import { enableTunnel } from "@/lib/tunnel";
 import { getSettings } from "@/lib/localDb";
+import { tunnelExposureProblem } from "@/lib/tunnel/exposureGuard";
 import { configureTunnelMonitoring } from "@/shared/services/initializeApp";
 
 const DNS_WARMUP_DELAY_MS = 8000;
 
 export async function POST() {
   try {
+    const problem = await tunnelExposureProblem();
+    if (problem) return NextResponse.json({ error: problem, code: "unsafe" }, { status: 403 });
     const result = await enableTunnel();
     getSettings()
       .then(configureTunnelMonitoring)

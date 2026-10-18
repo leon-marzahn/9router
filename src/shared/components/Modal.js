@@ -4,6 +4,9 @@ import { useEffect } from "react";
 import { cn } from "@/ui/cn";
 import Button from "./Button";
 
+/**
+ * @param {{ isOpen: boolean, onClose: () => void, title?: any, children?: any, footer?: any, size?: string, closeOnOverlay?: boolean, showTrafficLights?: boolean, className?: string }} props
+ */
 export default function Modal({
   isOpen,
   onClose,
