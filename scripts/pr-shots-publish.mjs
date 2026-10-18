@@ -38,7 +38,7 @@ if (!files.length) throw new Error(`no .png files in ${dir}`);
 const tmp = mkdtempSync(join(tmpdir(), "pr-assets-"));
 const gitEnv = { ...process.env, GIT_INDEX_FILE: join(tmp, "index") };
 const git = (argv, opts = {}) =>
-  execFileSync("git", argv, { encoding: "utf8", env: gitEnv, ...opts }).trim();
+  (execFileSync("git", argv, { encoding: "utf8", env: gitEnv, ...opts }) ?? "").trim();
 
 try {
   const ref = `refs/remotes/${args.remote}/${args.branch}`;
