@@ -31,6 +31,7 @@ export function transformRequest(body, rules, compile = compilePattern) {
     }
     const replaceCount = Math.max(0, total - rule.depth);
     let seen = 0;
+    let removed = 0;
     for (const { parent, key } of fields) {
       const original = parent[key];
       parent[key] = original.replace(regex, (...args) => {
@@ -53,8 +54,9 @@ export function transformRequest(body, rules, compile = compilePattern) {
           return token;
         });
       });
+      removed += original.length - parent[key].length;
     }
-    stats.push({ matches: total, replaced: replaceCount, preserved: total - replaceCount });
+    stats.push({ matches: total, replaced: replaceCount, preserved: total - replaceCount, removed });
   }
   return { body: result, stats };
 }
