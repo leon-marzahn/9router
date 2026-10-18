@@ -51,9 +51,10 @@ export async function addCustomModel({ providerAlias, id, type = "llm", name, ca
 }
 
 // Edit an existing custom model in place. Unlike the addCustomModel upsert this
-// replaces caps wholesale and a null transport clears the pinned one. Returns
-// the updated record, or null when the model doesn't exist.
-export async function updateCustomModel({ providerAlias, id, type = "llm", caps, transport }) {
+// replaces caps wholesale and a null transport clears the pinned one. `name`
+// undefined keeps the stored name; an empty string resets it to the id.
+// Returns the updated record, or null when the model doesn't exist.
+export async function updateCustomModel({ providerAlias, id, type = "llm", name, caps, transport }) {
   const k = customKey(providerAlias, id, type);
   const db = await getAdapter();
   let updated = null;
@@ -61,7 +62,7 @@ export async function updateCustomModel({ providerAlias, id, type = "llm", caps,
     const row = db.get(`SELECT value FROM kv WHERE scope = 'customModels' AND key = ?`, [k]);
     if (!row) return;
     const { caps: _caps, transport: _transport, ...rest } = parseJson(row.value) || {};
-    updated = { ...rest, ...(caps ? { caps } : {}), ...(transport ? { transport } : {}) };
+    updated = { ...rest, ...(name !== undefined ? { name: name || id } : {}), ...(caps ? { caps } : {}), ...(transport ? { transport } : {}) };
     db.run(`UPDATE kv SET value = ? WHERE scope = 'customModels' AND key = ?`, [stringifyJson(updated), k]);
   });
   return updated;

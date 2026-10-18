@@ -543,6 +543,9 @@ export async function buildModelsList(kindFilter, options = {}) {
         .map((m) => {
           const modelId = String(m.id).trim();
           if (modelId) customModelKindById.set(modelId, getModelKind(m) || LLM_KIND);
+          // A user-given name wins over the catalog's; records default name to the id.
+          const customName = typeof m.name === "string" ? m.name.trim() : "";
+          if (modelId && customName && customName !== modelId) modelNameById.set(modelId, customName);
           return modelId;
         })
         .filter((modelId) => modelId !== "");
