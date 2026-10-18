@@ -1,6 +1,7 @@
 "use server";
 
 import { NextResponse } from "next/server";
+import { resolveCliApiKey } from "../resolveApiKey.js";
 import { DISPLAY_NAME } from "@/shared/constants/brand.js";
 import { exec } from "child_process";
 import { promisify } from "util";
@@ -194,7 +195,8 @@ const applyToAllProfiles = async ({ normalizedBaseUrl, apiKey, model }) => {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { baseUrl, apiKey, model, selections, audio } = body;
+    const { baseUrl, apiKey: callerKey, model, selections, audio } = body;
+    const apiKey = await resolveCliApiKey(callerKey);
     // selections: [{role, model}] — "default" plus any auxiliary/delegation slots.
     // Legacy callers (CLI quick setup) send a bare `model` → treat as default role.
     const sel = Array.isArray(selections) && selections.some((s) => s?.role && s?.model)

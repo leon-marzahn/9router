@@ -1,6 +1,7 @@
 "use server";
 
 import { NextResponse } from "next/server";
+import { resolveCliApiKey } from "../resolveApiKey.js";
 import { DISPLAY_NAME, LEGACY_DISPLAY_NAME, PROVIDER_KEY } from "@/shared/constants/brand.js";
 import { exec } from "child_process";
 import { promisify } from "util";
@@ -89,7 +90,8 @@ export async function GET() {
 // Also accepts `activeModel` to set which model is active/primary
 export async function POST(request) {
   try {
-    const { baseUrl, apiKey, model, models, activeModel } = await request.json();
+    const { baseUrl, apiKey: callerKey, model, models, activeModel } = await request.json();
+    const apiKey = await resolveCliApiKey(callerKey);
     
     // Accept either `models` (array) or `model` (string, legacy)
     const modelsArray = Array.isArray(models) ? models.slice() : (typeof model === "string" ? [model] : []);
@@ -121,7 +123,7 @@ export async function POST(request) {
 
     // Normalize baseUrl to ensure /v1 suffix
     const normalizedBaseUrl = baseUrl.endsWith("/v1") ? baseUrl : `${baseUrl}/v1`;
-    const keyToUse = apiKey || "your_api_key";
+    const keyToUse = apiKey;
 
     // Determine active model: prefer explicit activeModel, else first of modelsArray
     // If activeModel is explicitly empty string, no model will be set as default

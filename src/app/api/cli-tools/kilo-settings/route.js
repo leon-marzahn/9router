@@ -1,6 +1,7 @@
 "use server";
 
 import { NextResponse } from "next/server";
+import { resolveCliApiKey } from "../resolveApiKey.js";
 import { DISPLAY_NAME, pickProvider, deleteProviderKeys, mentionsBrand } from "@/shared/constants/brand.js";
 import { exec } from "child_process";
 import { promisify } from "util";
@@ -74,9 +75,10 @@ export async function GET() {
 
 export async function POST(request) {
   try {
-    const { baseUrl, apiKey, model } = await request.json();
-    if (!baseUrl || !apiKey || !model) {
-      return NextResponse.json({ error: "baseUrl, apiKey and model are required" }, { status: 400 });
+    const { baseUrl, apiKey: callerKey, model } = await request.json();
+    const apiKey = await resolveCliApiKey(callerKey);
+    if (!baseUrl || !model) {
+      return NextResponse.json({ error: "baseUrl and model are required" }, { status: 400 });
     }
 
     await fs.mkdir(getDataDir(), { recursive: true });

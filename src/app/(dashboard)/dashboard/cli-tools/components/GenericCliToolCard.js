@@ -137,7 +137,7 @@ export default function GenericCliToolCard({
     try {
       const keyToUse = (selectedApiKey && selectedApiKey.trim())
         ? selectedApiKey
-        : (!cloudEnabled ? "sk_9router" : selectedApiKey);
+        : "";
 
       const payload = {
         baseUrl: getEffectiveBaseUrl(),
@@ -240,7 +240,7 @@ export default function GenericCliToolCard({
 
   const getManualConfigContent = () => {
     const effectiveUrl = getEffectiveBaseUrl();
-    const key = selectedApiKey || "sk_9router";
+    const key = selectedApiKey || "<API_KEY_FROM_DASHBOARD>";
     const mod = selectedModel || "provider/model-id";
 
     switch (tool.id) {

@@ -95,3 +95,21 @@ describe("resolveApiKey.js source checks (#4399)", () => {
     expect(src).not.toMatch(/\|\|\s*"sk_9router"/);
   });
 });
+describe("no CLI tool route or card writes the placeholder key", () => {
+  const roots = ["../../src/app/api/cli-tools", "../../src/app/(dashboard)/dashboard/cli-tools"];
+  const files = roots.flatMap((r) => {
+    const dir = path.join(import.meta.dirname, r);
+    return fs.readdirSync(dir, { recursive: true })
+      .filter((f) => f.endsWith(".js"))
+      .map((f) => path.join(dir, f));
+  });
+
+  it("only guards against sk_9router, never falls back to it", () => {
+    const offenders = files.filter((f) => {
+      const src = fs.readFileSync(f, "utf-8");
+      return /\?\s*"sk_9router"|\|\|\s*"sk_9router"|"your_api_key"/.test(src)
+        && !f.endsWith(path.join("antigravity-mitm", "route.js"));
+    });
+    expect(offenders).toEqual([]);
+  });
+});

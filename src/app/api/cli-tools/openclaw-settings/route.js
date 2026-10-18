@@ -1,6 +1,7 @@
 "use server";
 
 import { NextResponse } from "next/server";
+import { resolveCliApiKey } from "../resolveApiKey.js";
 import {
   DISPLAY_NAME,
   PROVIDER_KEY,
@@ -137,7 +138,7 @@ const writeAgentModels = async (agentDir, model, baseUrl, apiKey) => {
   delete existing.providers[LEGACY_PROVIDER_KEY];
   existing.providers[PROVIDER_KEY] = {
     baseUrl,
-    apiKey: apiKey || "your_api_key",
+    apiKey: apiKey,
     api: "openai-completions",
     models: [{ id: model, name: model.split("/").pop() || model }],
   };
@@ -148,7 +149,8 @@ const writeAgentModels = async (agentDir, model, baseUrl, apiKey) => {
 export async function POST(request) {
   try {
     // agentModels: { [agentId]: modelId } for per-agent override
-    const { baseUrl, apiKey, model, agentModels = {} } = await request.json();
+    const { baseUrl, apiKey: callerKey, model, agentModels = {} } = await request.json();
+    const apiKey = await resolveCliApiKey(callerKey);
     
     if (!baseUrl || !model) {
       return NextResponse.json({ error: "baseUrl and model are required" }, { status: 400 });
@@ -208,7 +210,7 @@ export async function POST(request) {
     delete settings.models.providers[LEGACY_PROVIDER_KEY];
     settings.models.providers[PROVIDER_KEY] = {
       baseUrl: normalizedBaseUrl,
-      apiKey: apiKey || "your_api_key",
+      apiKey: apiKey,
       api: "openai-completions",
       models: [...allModelIds].map((m) => ({ id: m, name: m.split("/").pop() || m })),
     };

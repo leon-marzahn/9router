@@ -1,6 +1,7 @@
 "use server";
 
 import { NextResponse } from "next/server";
+import { resolveCliApiKey } from "../resolveApiKey.js";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
@@ -310,10 +311,11 @@ export async function GET() {
 
 export async function POST(request) {
   try {
-    const { baseUrl, apiKey, models, plugins, localPlugins, customPlugins } = await request.json();
+    const { baseUrl, apiKey: callerKey, models, plugins, localPlugins, customPlugins } = await request.json();
+    const apiKey = await resolveCliApiKey(callerKey);
 
-    if (!baseUrl || !apiKey) {
-      return NextResponse.json({ error: "baseUrl and apiKey are required" }, { status: 400 });
+    if (!baseUrl) {
+      return NextResponse.json({ error: "baseUrl is required" }, { status: 400 });
     }
     const modelsArray = Array.isArray(models) ? models.filter((m) => typeof m === "string" && m.trim()) : [];
     if (modelsArray.length === 0) {

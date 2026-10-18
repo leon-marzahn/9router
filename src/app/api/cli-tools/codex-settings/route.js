@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { resolveCliApiKey } from "../resolveApiKey.js";
 import { exec } from "child_process";
 import { promisify } from "util";
 import fs from "fs/promises";
@@ -135,10 +136,11 @@ export async function GET() {
 // POST - Update our provider settings (merge with existing config)
 export async function POST(request) {
   try {
-    const { baseUrl, apiKey, model, subagentModel } = await request.json();
+    const { baseUrl, apiKey: callerKey, model, subagentModel } = await request.json();
+    const apiKey = await resolveCliApiKey(callerKey);
     
-    if (!baseUrl || !apiKey || !model) {
-      return NextResponse.json({ error: "baseUrl, apiKey and model are required" }, { status: 400 });
+    if (!baseUrl || !model) {
+      return NextResponse.json({ error: "baseUrl and model are required" }, { status: 400 });
     }
 
     const codexDir = getCodexDir();
