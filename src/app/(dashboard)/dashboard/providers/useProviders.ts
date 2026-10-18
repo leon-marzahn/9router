@@ -161,6 +161,8 @@ export function useProviders() {
 
   return {
     providers,
+    connections,
+    nodes,
     loading,
     dataVersion,
     live,

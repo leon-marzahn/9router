@@ -1,5 +1,3 @@
-import { MEDIA_PROVIDER_KINDS } from "@/shared/constants/providers";
-
 export interface NavItem {
   href: string;
   label: string;
@@ -14,14 +12,6 @@ export interface NavGroup {
   items: NavItem[];
 }
 
-// Media kinds shown in the "Media" flyout. webSearch + webFetch share one page.
-const VISIBLE_MEDIA_KINDS = ["embedding", "image", "video", "tts", "stt", "systemone"];
-export const MEDIA_ITEMS: NavItem[] = [
-  ...(MEDIA_PROVIDER_KINDS as { id: string; label: string; icon: string }[])
-    .filter((k) => VISIBLE_MEDIA_KINDS.includes(k.id))
-    .map((k) => ({ href: `/dashboard/media-providers/${k.id}`, label: k.label, icon: k.icon })),
-  { href: "/dashboard/media-providers/web", label: "Web Fetch & Search", icon: "travel_explore" },
-];
 export const MEDIA_ROOT = "/dashboard/media-providers";
 
 export const NAV: NavGroup[] = [
@@ -67,7 +57,14 @@ export const SETTINGS_HREF = "/dashboard/profile";
 
 /** Pages that manage their own panes/scrolling (no padding, no max-width). */
 const FULL_BLEED_PREFIXES = ["/dashboard/basic-chat"];
-const FULL_BLEED_EXACT = ["/dashboard/providers", "/dashboard/quota", "/dashboard/combos", "/dashboard/cli-tools", "/dashboard/request-pipelines"];
+const FULL_BLEED_EXACT = [
+  "/dashboard/providers",
+  "/dashboard/quota",
+  "/dashboard/combos",
+  "/dashboard/cli-tools",
+  "/dashboard/media-providers",
+  "/dashboard/request-pipelines",
+];
 
 export function isFullBleed(pathname: string): boolean {
   return (

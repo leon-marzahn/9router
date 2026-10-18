@@ -38,6 +38,32 @@ for (const c of connections) {
   );
 }
 
+// Media providers (speech, transcription, embeddings, web search/fetch); one failing.
+const mediaConnections = [
+  { provider: "elevenlabs", name: "Demo ElevenLabs", apiKey: "sk-demo-elevenlabs-000000000000" },
+  { provider: "deepgram", name: "Demo Deepgram", apiKey: "demo-deepgram-00000000000000000" },
+  { provider: "voyage-ai", name: "Demo Voyage", apiKey: "pa-demo-voyage-000000000000000" },
+  { provider: "tavily", name: "Demo Tavily", apiKey: "tvly-demo-00000000000000000000" },
+  { provider: "firecrawl", name: "Demo Firecrawl", apiKey: "fc-demo-000000000000000000000" },
+  {
+    provider: "jina-ai",
+    name: "Demo Jina",
+    apiKey: "jina_demo_expired_000000000000",
+    testStatus: "error",
+    lastError: "401 invalid api key (demo)",
+    errorCode: 401,
+  },
+];
+for (const c of mediaConnections) {
+  await createProviderConnection({
+    testStatus: "active",
+    ...c,
+    authType: "apikey",
+    isActive: true,
+  });
+}
+await createCombo({ name: "search-combo", kind: "webSearch", models: ["tavily", "exa"] });
+
 const keys = [
   ["demo-key-laptop", "Laptop (demo)", "sk-regent-demo-laptop-0000000000"],
   ["demo-key-ci", "CI runner (demo)", "sk-regent-demo-ci-000000000000000"],
@@ -142,6 +168,6 @@ await updateSettings({
 });
 
 console.log(
-  `seeded ${conns.length} connections, ${keys.length} API keys, 2 combos, ${n} usage rows`,
+  `seeded ${conns.length + mediaConnections.length} connections, ${keys.length} API keys, 3 combos, ${n} usage rows`,
 );
 process.exit(0);

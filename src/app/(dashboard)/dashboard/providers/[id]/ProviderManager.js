@@ -44,8 +44,12 @@ function sleep(ms) {
  * /dashboard/providers/[id], and embedded (without its own header) in the
  * Providers workbench detail pane. `liveVersion` changes whenever the
  * workbench's live stream reports provider changes, triggering a re-fetch.
+ * `mediaKind` (Media Providers workbench) scopes the models list and custom
+ * models to that kind (tts, embedding, …) instead of chat models; null = LLM.
  */
-export default function ProviderManager({ providerId, embedded = false, liveVersion }) {
+export default function ProviderManager({ providerId, embedded = false, liveVersion, mediaKind = null }) {
+  const modelKind = mediaKind || "llm";
+  const isMedia = !!mediaKind;
   const router = useRouter();
   const { getCaps } = useModelCaps();
   const [connections, setConnections] = useState([]);
@@ -155,6 +159,7 @@ export default function ProviderManager({ providerId, embedded = false, liveVers
         name: providerNode.name || (providerNode.type === "anthropic-compatible" ? "Anthropic Compatible" : "OpenAI Compatible"),
         color: providerNode.type === "anthropic-compatible" ? "#D97757" : "#10A37F",
         textIcon: providerNode.type === "anthropic-compatible" ? "AC" : "OC",
+        ...(providerNode.type === "custom-embedding" && { name: providerNode.name || "Custom Embedding", color: "#6366F1", textIcon: "CE" }),
         apiType: providerNode.apiType,
         baseUrl: providerNode.baseUrl,
         type: providerNode.type,
@@ -190,7 +195,9 @@ export default function ProviderManager({ providerId, embedded = false, liveVers
     const levels = getThinkingLevels(providerId, modelId);
     return levels && levels.includes(thinkingMode) ? thinkingMode : null;
   };
-  const providerStorageAlias = isCompatible ? providerId : providerAlias;
+  // Custom embedding nodes are addressed by their prefix.
+  const customEmbeddingPrefix = providerNode?.type === "custom-embedding" ? providerNode.prefix || providerId : null;
+  const providerStorageAlias = isCompatible ? providerId : customEmbeddingPrefix || providerAlias;
   // Union of levels across this provider's reasoning models — drives the level picker options.
   // Include custom models too (e.g. manually added gpt-5.6-sol → max).
   const providerThinkingLevels = (() => {
@@ -213,7 +220,7 @@ export default function ProviderManager({ providerId, embedded = false, liveVers
   })();
   const providerDisplayAlias = isCompatible
     ? (providerNode?.prefix || providerId)
-    : providerAlias;
+    : customEmbeddingPrefix || providerAlias;
 
   const fetchDisabledModels = useCallback(async () => {
     try {
@@ -1223,7 +1230,7 @@ export default function ProviderManager({ providerId, embedded = false, liveVers
     const allModels = [
       ...models,
       ...kiloFreeModels.filter((fm) => !models.some((m) => m.id === fm.id)),
-    ].filter((m) => { const k = getModelKind(m); return !k || k === "llm"; });
+    ].filter((m) => { const k = getModelKind(m); return isMedia ? k === mediaKind : !k || k === "llm"; });
     const disabledSet = new Set(disabledModelIds);
     const displayModels = allModels.filter((m) => !disabledSet.has(m.id));
     const disabledDisplayModels = allModels.filter((m) => disabledSet.has(m.id));
@@ -1232,7 +1239,7 @@ export default function ProviderManager({ providerId, embedded = false, liveVers
       modelAliases,
       providerAlias: providerStorageAlias,
       builtInModels: models,
-      type: "llm",
+      type: modelKind,
     });
 
     return (
@@ -1252,13 +1259,13 @@ export default function ProviderManager({ providerId, embedded = false, liveVers
             onEdit={model.source === "custom" ? () => setEditingCustomModel(customModels.find((entry) => entry.providerAlias === providerStorageAlias && entry.id === model.id && (entry.kind || entry.type || "llm") === model.type)) : undefined}
             onDeleteAlias={() => {
               if (model.source === "custom") {
-                handleDeleteCustomModel(model.id, "llm", providerStorageAlias);
+                handleDeleteCustomModel(model.id, modelKind, providerStorageAlias);
               } else {
                 handleDeleteAlias(model.alias);
               }
             }}
             testStatus={modelTestResults[model.id]}
-            onTest={connections.length > 0 || isFreeNoAuth ? () => handleTestModel(model.id) : undefined}
+            onTest={!isMedia && (connections.length > 0 || isFreeNoAuth) ? () => handleTestModel(model.id) : undefined}
             isTesting={testingModelIds.has(model.id)}
             isCustom
             isFree={false}
@@ -1284,7 +1291,7 @@ export default function ProviderManager({ providerId, embedded = false, liveVers
               onSetAlias={(alias) => handleSetAlias(model.id, alias, providerStorageAlias)}
               onDeleteAlias={() => handleDeleteAlias(existingAlias)}
               testStatus={modelTestResults[model.id]}
-              onTest={connections.length > 0 || isFreeNoAuth ? () => handleTestModel(model.id) : undefined}
+              onTest={!isMedia && (connections.length > 0 || isFreeNoAuth) ? () => handleTestModel(model.id) : undefined}
               isTesting={testingModelIds.has(model.id)}
               isFree={model.isFree}
               onDisable={() => handleDisableModel(model.id)}
@@ -1319,7 +1326,7 @@ export default function ProviderManager({ providerId, embedded = false, liveVers
         </div>
 
         {/* Suggested models from provider API — show only models not yet added */}
-        {suggestedModels.length > 0 && (() => {
+        {!isMedia && suggestedModels.length > 0 && (() => {
           const addedFullModels = new Set([
             ...Object.values(modelAliases),
             ...customModelRows.map((model) => model.fullModel),
@@ -1467,24 +1474,24 @@ export default function ProviderManager({ providerId, embedded = false, liveVers
       )}
 
       {providerInfo.deprecated && (
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-yellow-500/10 border border-yellow-500/30">
-          <span className="material-symbols-outlined text-[16px] text-yellow-500 mt-0.5 shrink-0">warning</span>
-          <p className="text-xs text-red-600 dark:text-yellow-400 leading-relaxed">{providerInfo.deprecationNotice}</p>
+        <div className="flex items-start gap-2.5 rounded-xl bg-warning/12 px-4 py-3 text-xs leading-relaxed text-warning-text">
+          <Icon name="warning" size={18} className="mt-px shrink-0" />
+          <p className="min-w-0">{providerInfo.deprecationNotice}</p>
         </div>
       )}
 
       {providerInfo.notice?.text && !providerInfo.deprecated && (
-        <div className="flex flex-col gap-2 rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-2 sm:flex-row sm:items-center">
-          <span className="material-symbols-outlined text-[16px] text-blue-500 shrink-0">info</span>
-          <p className="min-w-0 flex-1 text-xs leading-relaxed text-blue-600 dark:text-blue-400">{providerInfo.notice.text}</p>
+        <div className="flex flex-col gap-2 rounded-xl bg-info/12 px-4 py-3 text-xs leading-relaxed text-info-text sm:flex-row sm:items-start">
+          <Icon name="info" size={18} className="mt-px shrink-0" />
+          <p className="min-w-0 flex-1">{providerInfo.notice.text}</p>
           {providerInfo.notice.apiKeyUrl && (
             <a
               href={providerInfo.notice.apiKeyUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex justify-center rounded bg-blue-500 px-2 py-1 text-xs font-medium text-white transition-colors hover:bg-blue-600 sm:py-0.5"
+              className="inline-flex shrink-0 items-center gap-1 font-medium underline-offset-2 hover:underline"
             >
-              Get API Key →
+              Get API key <Icon name="open_in_new" size={14} />
             </a>
           )}
         </div>
@@ -1630,13 +1637,14 @@ export default function ProviderManager({ providerId, embedded = false, liveVers
       )}
 
       {/* Per-provider user overrides (custom headers / connect timeout) */}
-      <CustomConfigCard providerId={providerId} />
+      {!isMedia && <CustomConfigCard providerId={providerId} />}
 
-      {/* Models */}
+      {/* Models (media kinds where the provider is the model have none) */}
+      {!["tts", "webSearch", "webFetch"].includes(mediaKind) && (
       <section>
         <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-2">
           <Eyebrow>Models</Eyebrow>
-          {providerThinkingLevels && (
+          {providerThinkingLevels && !isMedia && (
             <select
               value={thinkingMode}
               onChange={(e) => handleThinkingModeChange(e.target.value)}
@@ -1652,7 +1660,7 @@ export default function ProviderManager({ providerId, embedded = false, liveVers
             const allIds = [
               ...models,
               ...kiloFreeModels.filter((fm) => !models.some((m) => m.id === fm.id)),
-            ].filter((m) => { const k = getModelKind(m); return !k || k === "llm"; }).map((m) => m.id);
+            ].filter((m) => { const k = getModelKind(m); return isMedia ? k === mediaKind : !k || k === "llm"; }).map((m) => m.id);
             const activeIds = allIds.filter((id) => !disabledModelIds.includes(id));
             return (
               <div className="ml-auto flex gap-2">
@@ -1700,6 +1708,7 @@ export default function ProviderManager({ providerId, embedded = false, liveVers
         )}
         {renderModelsSection()}
       </section>
+      )}
 
       {bulkActionModal}
 
@@ -1803,7 +1812,7 @@ export default function ProviderManager({ providerId, embedded = false, liveVers
             } else {
               // caps.stt is a UI-only flag; the API accepts transports only on
               // type "stt" records, so the save derives the type from it.
-              await handleAddCustomModel(modelId, caps?.stt ? "stt" : "llm", providerStorageAlias, caps, transport, name);
+              await handleAddCustomModel(modelId, isMedia ? modelKind : caps?.stt ? "stt" : "llm", providerStorageAlias, caps, transport, name);
             }
             closeCustomModelDialog();
           }}

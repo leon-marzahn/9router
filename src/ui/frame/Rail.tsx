@@ -1,16 +1,15 @@
 "use client";
 
-import { Fragment, useRef, useState } from "react";
+import { Fragment } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTheme } from "@/shared/hooks/useTheme";
 import { Icon } from "../Icon";
 import { Logo } from "../Logo";
-import { Popover } from "../Popover";
 import { cn } from "../cn";
 import { RailTooltip } from "./Tooltip";
 import { AccountMenu } from "./AccountMenu";
-import { MEDIA_ITEMS, MEDIA_ROOT, NAV, SETTINGS_HREF, isActive, type NavItem } from "./nav";
+import { NAV, SETTINGS_HREF, isActive, type NavItem } from "./nav";
 import type { AuthInfo } from "./useFrameData";
 
 const itemClass = (active: boolean) =>
@@ -43,21 +42,17 @@ export function Rail({ flags, auth }: { flags: { enableTranslator?: boolean }; a
         {NAV.map((g, gi) => (
           <Fragment key={g.id}>
             {gi > 0 && <div className="my-1.5 h-px w-6 shrink-0 bg-border" />}
-            {g.items.filter(visible).map((item) =>
-              item.href === MEDIA_ROOT ? (
-                <MediaFlyout key={item.href} item={item} pathname={pathname} />
-              ) : (
-                <RailTooltip key={item.href} label={item.label}>
-                  <Link
-                    href={item.href}
-                    aria-label={item.label}
-                    className={itemClass(isActive(pathname, item.href))}
-                  >
-                    <Icon name={item.icon} size={19} filled={isActive(pathname, item.href)} />
-                  </Link>
-                </RailTooltip>
-              ),
-            )}
+            {g.items.filter(visible).map((item) => (
+              <RailTooltip key={item.href} label={item.label}>
+                <Link
+                  href={item.href}
+                  aria-label={item.label}
+                  className={itemClass(isActive(pathname, item.href))}
+                >
+                  <Icon name={item.icon} size={19} filled={isActive(pathname, item.href)} />
+                </Link>
+              </RailTooltip>
+            ))}
           </Fragment>
         ))}
       </div>
@@ -75,50 +70,5 @@ export function Rail({ flags, auth }: { flags: { enableTranslator?: boolean }; a
         <AccountMenu auth={auth} active={pathname.startsWith(SETTINGS_HREF)} />
       </div>
     </nav>
-  );
-}
-
-function MediaFlyout({ item, pathname }: { item: NavItem; pathname: string }) {
-  const ref = useRef<HTMLButtonElement>(null);
-  const [open, setOpen] = useState(false);
-  const active = pathname.startsWith(MEDIA_ROOT);
-  return (
-    <>
-      <RailTooltip label={item.label}>
-        <button
-          ref={ref}
-          type="button"
-          aria-label={item.label}
-          aria-expanded={open}
-          onClick={() => setOpen((v) => !v)}
-          className={itemClass(active || open)}
-        >
-          <Icon name={item.icon} size={19} filled={active} />
-        </button>
-      </RailTooltip>
-      <Popover open={open} onClose={() => setOpen(false)} anchorRef={ref} side="right">
-        <div className="px-3 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wider text-text-subtle">
-          Media providers
-        </div>
-        {MEDIA_ITEMS.map((m) => (
-          <Link
-            key={m.href}
-            href={m.href}
-            onClick={() => setOpen(false)}
-            className={cn(
-              "flex items-center gap-2.5 px-3 py-2 hover:bg-surface-2",
-              pathname.startsWith(m.href) && "bg-accent-soft text-accent-text",
-            )}
-          >
-            <Icon
-              name={m.icon}
-              size={18}
-              className={pathname.startsWith(m.href) ? "" : "text-text-muted"}
-            />
-            {m.label}
-          </Link>
-        ))}
-      </Popover>
-    </>
   );
 }

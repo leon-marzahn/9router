@@ -151,7 +151,7 @@ export function connectionLabel(c: Connection): string {
   );
 }
 
-function statsFor(conns: Connection[]): ProviderStats {
+export function statsFor(conns: Connection[]): ProviderStats {
   const failing = conns
     .filter(isFailing)
     .sort((a, b) => +new Date(b.lastErrorAt || 0) - +new Date(a.lastErrorAt || 0));
@@ -167,7 +167,7 @@ function statsFor(conns: Connection[]): ProviderStats {
   };
 }
 
-function statusFor(noAuth: boolean, s: ProviderStats): Status {
+export function statusFor(noAuth: boolean, s: ProviderStats): Status {
   if (noAuth) return "ready";
   if (s.total === 0) return "none";
   if (s.allDisabled) return "paused";
