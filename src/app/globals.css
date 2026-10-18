@@ -9,29 +9,29 @@
 
 /* ============================================================
    9Router "warm workbench" palette — see docs/DESIGN.md
-   Warm cream (light) / warm near-black (dark), one accent: #E56A4A.
+   Warm cream (light) / warm near-black (dark), one accent: dusty rose #A84D68.
    Legacy names (primary, text-main, bg-alt, …) are kept as aliases so
    pages not yet migrated pick up the new look automatically.
    ============================================================ */
 :root {
-  /* Accent scale — centered on #E56A4A */
-  --color-brand-50: #fdf1ed;
-  --color-brand-100: #fadccf;
-  --color-brand-200: #f4b59c;
-  --color-brand-300: #ee8d6a;
-  --color-brand-400: #ea7855;
-  --color-brand-500: #E56A4A;
-  --color-brand-600: #cc5236;
-  --color-brand-700: #a64027;
-  --color-brand-800: #7a2f1d;
-  --color-brand-900: #4d1e12;
+  /* Accent scale — centered on #A84D68 (dusty rose) */
+  --color-brand-50: #fbf0f3;
+  --color-brand-100: #f5d9e1;
+  --color-brand-200: #ebb3c3;
+  --color-brand-300: #e596ad;
+  --color-brand-400: #c96a86;
+  --color-brand-500: #A84D68;
+  --color-brand-600: #93405A;
+  --color-brand-700: #7a3449;
+  --color-brand-800: #5c2737;
+  --color-brand-900: #3b1823;
 
   --color-accent: var(--color-brand-500);
   --color-accent-hover: var(--color-brand-600);
   --color-accent-fg: #ffffff;
-  --color-accent-soft: rgba(229, 106, 74, 0.10);
-  --color-accent-ring: rgba(229, 106, 74, 0.35);
-  --color-accent-text: #c2502f;
+  --color-accent-soft: rgba(168, 77, 104, 0.10);
+  --color-accent-ring: rgba(168, 77, 104, 0.35);
+  --color-accent-text: #93405A;
   --color-primary: var(--color-accent);
   --color-primary-hover: var(--color-accent-hover);
 
@@ -72,7 +72,7 @@
   --radius-brand-lg: 16px;
 
   --shadow-soft: 0 1px 2px 0 rgba(60, 50, 45, 0.04);
-  --shadow-warm: 0 4px 14px -4px rgba(229, 106, 74, 0.7);
+  --shadow-warm: 0 4px 14px -4px rgba(168, 77, 104, 0.7);
   --shadow-elevated: 0 12px 28px -8px rgba(60, 50, 45, 0.15);
   --shadow-elev:
     inset 0 1px 0 0 rgba(255,255,255,0.8),
@@ -84,9 +84,13 @@
 }
 
 .dark {
-  --color-accent-soft: rgba(229, 106, 74, 0.14);
-  --color-accent-ring: rgba(240, 138, 108, 0.40);
-  --color-accent-text: #f08a6c;
+  /* Dark: lighter rose fill with a dark label (8.4:1) */
+  --color-accent: var(--color-brand-300);
+  --color-accent-hover: #ebabbe;
+  --color-accent-fg: #2A0D16;
+  --color-accent-soft: rgba(229, 150, 173, 0.14);
+  --color-accent-ring: rgba(229, 150, 173, 0.40);
+  --color-accent-text: #EBA8BC;
 
   --color-bg: #121110;
   --color-bg-alt: #0e0d0c;
@@ -115,7 +119,7 @@
   --color-paused: #57534e;
 
   --shadow-soft: 0 1px 2px 0 rgba(0,0,0,0.3);
-  --shadow-warm: 0 4px 14px -4px rgba(229, 106, 74, 0.55);
+  --shadow-warm: 0 4px 14px -4px rgba(229, 150, 173, 0.35);
   --shadow-elevated: 0 12px 28px -8px rgba(0, 0, 0, 0.5);
   --shadow-elev:
     inset 0 1px 0 0 rgba(255,255,255,0.05),
@@ -237,11 +241,11 @@ body {
 
 /* Selection - brand-tinted */
 ::selection {
-  background-color: rgba(229, 106, 74, 0.25);
+  background-color: rgba(168, 77, 104, 0.25);
   color: var(--color-primary);
 }
 .dark ::selection {
-  background-color: rgba(229, 106, 74, 0.3);
+  background-color: rgba(168, 77, 104, 0.3);
   color: var(--color-brand-300);
 }
 
@@ -268,19 +272,19 @@ input, textarea {
 /* Thin horizontal scrollbar - brand colored */
 .scroll-thin-x {
   scrollbar-width: thin;
-  scrollbar-color: rgba(229, 106, 74, 0.55) transparent;
+  scrollbar-color: rgba(168, 77, 104, 0.55) transparent;
 }
 .dark .scroll-thin-x {
-  scrollbar-color: rgba(229, 106, 74, 0.55) transparent;
+  scrollbar-color: rgba(168, 77, 104, 0.55) transparent;
 }
 .scroll-thin-x::-webkit-scrollbar { height: 3px; }
 .scroll-thin-x::-webkit-scrollbar-track { background: transparent; }
 .scroll-thin-x::-webkit-scrollbar-thumb {
-  background: rgba(229, 106, 74, 0.55);
+  background: rgba(168, 77, 104, 0.55);
   border-radius: 3px;
 }
 .dark .scroll-thin-x::-webkit-scrollbar-thumb {
-  background: rgba(229, 106, 74, 0.55);
+  background: rgba(168, 77, 104, 0.55);
 }
 
 /* Global thin mac-like scrollbars (overrides clunky Windows/Linux default) */
@@ -414,12 +418,12 @@ button:disabled,
 
 @keyframes border-glow {
   0%, 100% {
-    box-shadow: 0 0 5px rgba(229, 106, 74, 0.3), 0 0 10px rgba(229, 106, 74, 0.2);
-    border-color: rgba(229, 106, 74, 0.5);
+    box-shadow: 0 0 5px rgba(168, 77, 104, 0.3), 0 0 10px rgba(168, 77, 104, 0.2);
+    border-color: rgba(168, 77, 104, 0.5);
   }
   50% {
-    box-shadow: 0 0 10px rgba(229, 106, 74, 0.5), 0 0 20px rgba(229, 106, 74, 0.3);
-    border-color: rgba(229, 106, 74, 0.8);
+    box-shadow: 0 0 10px rgba(168, 77, 104, 0.5), 0 0 20px rgba(168, 77, 104, 0.3);
+    border-color: rgba(168, 77, 104, 0.8);
   }
 }
 .animate-border-glow { animation: border-glow 2s ease-in-out infinite; }
@@ -452,8 +456,8 @@ button:disabled,
   100% { transform: translateX(220%) skewX(-20deg); }
 }
 @keyframes ctaGlowPulse {
-  0%, 100% { box-shadow: 0 8px 24px -8px rgba(229, 106, 74, 0.45), 0 0 0 0 rgba(229, 106, 74, 0.5); }
-  50% { box-shadow: 0 12px 32px -8px rgba(229, 106, 74, 0.6), 0 0 0 8px rgba(229, 106, 74, 0); }
+  0%, 100% { box-shadow: 0 8px 24px -8px rgba(168, 77, 104, 0.45), 0 0 0 0 rgba(168, 77, 104, 0.5); }
+  50% { box-shadow: 0 12px 32px -8px rgba(168, 77, 104, 0.6), 0 0 0 8px rgba(168, 77, 104, 0); }
 }
 .btn-cta {
   position: relative;
@@ -479,13 +483,13 @@ button:disabled,
 .dot-grid-bg {
   background-color: var(--color-bg);
   background-image:
-    radial-gradient(circle at 15% 20%, rgba(229, 106, 74, 0.10) 0%, transparent 40%),
-    radial-gradient(circle at 85% 80%, rgba(229, 106, 74, 0.06) 0%, transparent 40%);
+    radial-gradient(circle at 15% 20%, rgba(168, 77, 104, 0.10) 0%, transparent 40%),
+    radial-gradient(circle at 85% 80%, rgba(168, 77, 104, 0.06) 0%, transparent 40%);
 }
 .dark .dot-grid-bg {
   background-image:
-    radial-gradient(circle at 15% 20%, rgba(229, 106, 74, 0.18) 0%, transparent 40%),
-    radial-gradient(circle at 85% 80%, rgba(229, 106, 74, 0.10) 0%, transparent 40%);
+    radial-gradient(circle at 15% 20%, rgba(168, 77, 104, 0.18) 0%, transparent 40%),
+    radial-gradient(circle at 85% 80%, rgba(168, 77, 104, 0.10) 0%, transparent 40%);
 }
 
 /* Landing-style faint grid overlay (use absolute pos inside relative parent) */

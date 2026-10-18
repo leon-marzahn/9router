@@ -5,7 +5,7 @@ import { cn } from "@/ui/cn";
 // Shared (legacy-API) button rendered in the warm-workbench design.
 // New code should use Button from "@/ui"; this keeps old call sites consistent.
 const variants = {
-  primary: "bg-accent text-accent-fg shadow-warm hover:bg-accent-hover",
+  primary: "rounded-full bg-accent text-accent-fg shadow-warm hover:bg-accent-hover",
   secondary: "border border-border-strong bg-surface text-text hover:bg-surface-2 dark:border-border",
   outline: "border border-border-strong bg-transparent text-text hover:bg-surface-2 dark:border-border",
   ghost: "text-text-muted hover:bg-surface-2 hover:text-text",
@@ -40,6 +40,8 @@ export default function Button({
       {name}
     </span>
   );
+  // Primary is a pill ending in an arrow chip (see docs/DESIGN.md).
+  const pill = (variant === "primary" || !variants[variant]) && !!children;
   return (
     <button
       type={type}
@@ -48,15 +50,22 @@ export default function Button({
         "focus-visible:outline-none focus-visible:shadow-focus disabled:pointer-events-none disabled:opacity-50",
         variants[variant] || variants.primary,
         sizes[size] || sizes.md,
+        pill && "rounded-full !pr-1.5",
         fullWidth && "w-full",
         className,
       )}
       disabled={disabled || loading}
       {...props}
     >
-      {loading ? glyph("progress_activity", true) : icon ? glyph(icon) : null}
+      {loading ? glyph("progress_activity", true) : icon && !pill ? glyph(icon) : null}
       {children}
-      {iconRight && !loading && glyph(iconRight)}
+      {pill ? (
+        <span aria-hidden className="inline-flex size-6 items-center justify-center rounded-full bg-accent-fg/20">
+          {glyph(iconRight || "arrow_forward")}
+        </span>
+      ) : (
+        iconRight && !loading && glyph(iconRight)
+      )}
     </button>
   );
 }
