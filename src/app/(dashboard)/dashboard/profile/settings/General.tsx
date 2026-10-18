@@ -56,7 +56,12 @@ export function Appearance() {
 
 export function Routing({ api }: { api: SettingsApi }) {
   const s = api.settings;
-  const accounts = s?.fallbackStrategy === "round-robin" ? "rr" : "fill";
+  const accounts =
+    s?.fallbackStrategy === "round-robin"
+      ? "rr"
+      : s?.fallbackStrategy === "cache-affinity"
+        ? "affinity"
+        : "fill";
   const combos = s?.comboStrategy === "round-robin" ? "rr" : "fallback";
   return (
     <SectionCard id="routing" icon="alt_route" title="Routing">
@@ -72,19 +77,29 @@ export function Routing({ api }: { api: SettingsApi }) {
             hint={
               accounts === "fill"
                 ? "Use the first account until it runs out or fails, then the next."
-                : `Take turns: ${s.stickyRoundRobinLimit ?? 3} requests per account, then move on.`
+                : accounts === "affinity"
+                  ? "Keep each conversation on the same account so its prompt cache is reused. Conversations spread across accounts; if one fails, the next takes over."
+                  : `Take turns: ${s.stickyRoundRobinLimit ?? 3} requests per account, then move on.`
             }
           >
             <Segmented
               value={accounts}
               onChange={(v) =>
                 void api
-                  .save({ fallbackStrategy: v === "rr" ? "round-robin" : "fill-first" })
+                  .save({
+                    fallbackStrategy:
+                      v === "rr"
+                        ? "round-robin"
+                        : v === "affinity"
+                          ? "cache-affinity"
+                          : "fill-first",
+                  })
                   .catch(() => {})
               }
               options={[
                 { value: "fill", label: "Fill first" },
                 { value: "rr", label: "Take turns" },
+                { value: "affinity", label: "Per conversation" },
               ]}
             />
           </Row>
