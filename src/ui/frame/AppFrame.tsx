@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { cn } from "../cn";
 import { Rail } from "./Rail";
@@ -22,21 +22,6 @@ export function AppFrame({ children }: { children: ReactNode }) {
   const { flags, auth } = useFrameData();
   const fullBleed = isFullBleed(pathname);
 
-  // Warm the heavy usage charts while the browser is idle
-  useEffect(() => {
-    const preload = () => {
-      import("@/shared/components/UsageStats").catch(() => {});
-      import("@/app/(dashboard)/dashboard/usage/components/UsageChart").catch(() => {});
-      import("@/app/(dashboard)/dashboard/usage/components/ProviderBarChart").catch(() => {});
-      import("@/app/(dashboard)/dashboard/usage/components/TopModelsChart").catch(() => {});
-    };
-    if ("requestIdleCallback" in window) {
-      const id = window.requestIdleCallback(preload, { timeout: 4000 });
-      return () => window.cancelIdleCallback(id);
-    }
-    const t = setTimeout(preload, 2500);
-    return () => clearTimeout(t);
-  }, []);
 
   return (
     <FrameSlotsProvider>
