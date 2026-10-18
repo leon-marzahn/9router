@@ -44,12 +44,18 @@ export function Popover({
 
   useLayoutEffect(() => {
     if (!open || !anchorRef.current) return;
-    const s = place(anchorRef.current.getBoundingClientRect(), side);
+    let s = place(anchorRef.current.getBoundingClientRect(), side);
     // keep inside the viewport vertically
     const h = panelRef.current?.offsetHeight ?? 0;
     if (typeof s.top === "number" && s.top + h > window.innerHeight - 8)
       s.top = Math.max(8, window.innerHeight - h - 8);
-    setStyle(s);
+    // ...and horizontally: on narrow screens a wide menu would spill off the left/right edge
+    const w = Math.min(panelRef.current?.offsetWidth ?? 0, window.innerWidth - 16);
+    if (typeof s.right === "number" && window.innerWidth - s.right - w < 8)
+      s = { left: 8, top: s.top };
+    if (typeof s.left === "number" && s.left + w > window.innerWidth - 8)
+      s = { left: Math.max(8, window.innerWidth - w - 8), top: s.top };
+    setStyle({ ...s, maxWidth: "calc(100vw - 16px)" });
   }, [open, side, anchorRef]);
 
   useEffect(() => {

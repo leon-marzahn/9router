@@ -73,6 +73,9 @@ export default function Modal({
   );
 }
 
+/**
+ * @param {{ confirmIcon?: string } & Record<string, any>} props
+ */
 export function ConfirmModal({
   isOpen,
   onClose,
@@ -83,6 +86,7 @@ export function ConfirmModal({
   cancelText = "Cancel",
   variant = "danger",
   loading = false,
+  confirmIcon,
 }) {
   return (
     <Modal
@@ -95,7 +99,7 @@ export function ConfirmModal({
           <Button variant="secondary" onClick={onClose} disabled={loading}>
             {cancelText}
           </Button>
-          <Button variant={variant} onClick={onConfirm} loading={loading}>
+          <Button variant={variant} onClick={onConfirm} loading={loading} icon={confirmIcon}>
             {confirmText}
           </Button>
         </>
