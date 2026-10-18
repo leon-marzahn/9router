@@ -1,6 +1,5 @@
-import { DashboardLayout } from "@/shared/components";
+import { AppFrame } from "@/ui/frame/AppFrame";
 
 export default function DashboardRootLayout({ children }) {
-  return <DashboardLayout>{children}</DashboardLayout>;
+  return <AppFrame>{children}</AppFrame>;
 }
-
