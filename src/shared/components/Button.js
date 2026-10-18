@@ -40,7 +40,9 @@ export default function Button({
       {name}
     </span>
   );
-  // Primary is a pill ending in an arrow chip (see docs/DESIGN.md).
+  const trailingName = loading ? "progress_activity" : icon || iconRight;
+  const trailing = trailingName ? glyph(trailingName, loading) : null;
+  // Primary is a pill ending in an icon chip (see docs/DESIGN.md).
   const pill = (variant === "primary" || !variants[variant]) && !!children;
   return (
     <button
@@ -57,15 +59,15 @@ export default function Button({
       disabled={disabled || loading}
       {...props}
     >
-      {loading ? glyph("progress_activity", true) : icon && !pill ? glyph(icon) : null}
+      {/* Icons always sit after the label; primary carries one in a chip (arrow by default). */}
+      {!children && trailing}
       {children}
-      {pill ? (
+      {children && pill && (
         <span aria-hidden className="inline-flex size-6 items-center justify-center rounded-full bg-accent-fg/20">
-          {glyph(iconRight || "arrow_forward")}
+          {trailing ?? glyph("arrow_forward")}
         </span>
-      ) : (
-        iconRight && !loading && glyph(iconRight)
       )}
+      {children && !pill && trailing}
     </button>
   );
 }

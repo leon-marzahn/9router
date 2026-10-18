@@ -42,7 +42,7 @@ Dark mode is the `.dark` class on `<html>` (set by `useTheme`). Write `dark:` va
 ### Shape & depth
 
 - Radius: inputs/buttons/rows `rounded-lg`, panels `rounded-2xl`, tags `rounded`.
-- Primary button: a dusty-rose pill (`rounded-full`) ending in an arrow chip; secondary/ghost/danger stay `rounded-lg`. Label contrast ≥ 4.5:1 in both themes (5.4:1 light, 8.4:1 dark).
+- Buttons put their icon **after** the label, on every variant, so a row of buttons reads label-first and lines up. The primary button is a dusty-rose pill (`rounded-full`) whose icon sits in a round chip: the action's own icon (`add` to create, `play_arrow` to test, `save`, …), or `arrow_forward` when it moves you on. Secondary/ghost/danger stay `rounded-lg` with a plain trailing icon. Label contrast ≥ 4.5:1 in both themes (5.4:1 light, 8.4:1 dark).
 - Shadows: `shadow-soft` (resting panel), `shadow-elevated` (hover lift), `shadow-elev` (menus, toasts, dialogs), `shadow-warm` (primary button only), `shadow-focus` (focus ring).
 
 ## Status

@@ -48,6 +48,14 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
 ) {
   const iconSize = size === "sm" ? 16 : 18;
   const pill = variant === "primary" && !!children;
+  const name = loading ? "progress_activity" : (icon ?? trailingIcon);
+  const glyph = name ? (
+    <Icon
+      name={name}
+      size={pill ? iconSize - 2 : iconSize}
+      className={cn(loading && "animate-spin")}
+    />
+  ) : null;
   return (
     <button
       ref={ref}
@@ -64,25 +72,23 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       )}
       {...rest}
     >
-      {loading ? (
-        <Icon name="progress_activity" size={iconSize} className="animate-spin" />
-      ) : (
-        icon && !pill && <Icon name={icon} size={iconSize} />
-      )}
+      {/* Icons always sit after the label. Primary carries one in a chip:
+          the action's own icon (plus to create, play to test), else an arrow. */}
+      {!children && glyph}
       {children}
-      {pill ? (
+      {children && pill && (
         <span
           aria-hidden
           className={cn(
-            "inline-flex items-center justify-center rounded-full bg-accent-fg/20 transition-transform group-hover/primary:translate-x-0.5",
+            "inline-flex items-center justify-center rounded-full bg-accent-fg/20 transition-transform",
+            !loading && !(icon ?? trailingIcon) && "group-hover/primary:translate-x-0.5",
             size === "sm" ? "size-6" : "size-7",
           )}
         >
-          <Icon name={trailingIcon ?? "arrow_forward"} size={iconSize - 2} />
+          {glyph ?? <Icon name="arrow_forward" size={iconSize - 2} />}
         </span>
-      ) : (
-        trailingIcon && <Icon name={trailingIcon} size={iconSize - 1} />
       )}
+      {children && !pill && glyph}
     </button>
   );
 });
