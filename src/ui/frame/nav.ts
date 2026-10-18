@@ -65,8 +65,13 @@ export const EXTERNAL_LINKS = [
 
 export const SETTINGS_HREF = "/dashboard/profile";
 
-/** Routes whose page manages its own panes/scrolling (no padding, no max-width). */
-export const FULL_BLEED_ROUTES = ["/dashboard/basic-chat"];
+/** Pages that manage their own panes/scrolling (no padding, no max-width). */
+const FULL_BLEED_PREFIXES = ["/dashboard/basic-chat"];
+const FULL_BLEED_EXACT = ["/dashboard/providers"];
+
+export function isFullBleed(pathname: string): boolean {
+  return FULL_BLEED_EXACT.includes(pathname) || FULL_BLEED_PREFIXES.some((r) => pathname.startsWith(r));
+}
 
 export function isActive(pathname: string, href: string): boolean {
   if (href === "/dashboard/endpoint") return pathname === "/dashboard" || pathname.startsWith(href);

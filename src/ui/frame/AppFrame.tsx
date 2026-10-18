@@ -8,19 +8,19 @@ import { MobileNav } from "./MobileNav";
 import { TopBar } from "./TopBar";
 import { Toasts } from "./Toasts";
 import { FrameSlotsProvider } from "./slots";
-import { FULL_BLEED_ROUTES } from "./nav";
+import { isFullBleed } from "./nav";
 import { useFrameData } from "./useFrameData";
 
 /**
  * Dashboard shell: icon rail | (top bar / page). Pages render into the
- * scrolling content area; full-bleed routes (FULL_BLEED_ROUTES) get the raw
+ * scrolling content area; full-bleed routes (see isFullBleed) get the raw
  * area and manage their own panes.
  */
 export function AppFrame({ children }: { children: ReactNode }) {
   const pathname = usePathname() ?? "";
   const [menuOpen, setMenuOpen] = useState(false);
   const { flags, auth } = useFrameData();
-  const fullBleed = FULL_BLEED_ROUTES.some((r) => pathname.startsWith(r));
+  const fullBleed = isFullBleed(pathname);
 
   // Warm the heavy usage charts while the browser is idle
   useEffect(() => {

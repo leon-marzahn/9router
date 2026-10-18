@@ -15,8 +15,12 @@ export interface StatItem {
 export function StatGrid({ items, className }: { items: StatItem[]; className?: string }) {
   return (
     <div
-      className={cn("grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-border bg-border", className)}
-      style={{ gridTemplateColumns: `repeat(auto-fit, minmax(150px, 1fr))` }}
+      className={cn(
+        "grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-border bg-border",
+        items.length % 4 === 0 && "xl:grid-cols-4",
+        items.length % 3 === 0 && "sm:grid-cols-3",
+        className,
+      )}
     >
       {items.map((s) => (
         <div key={s.label} className="bg-surface p-5">
