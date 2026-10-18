@@ -32,7 +32,7 @@ A new git worktree has no `node_modules`, so `npm run typecheck`, `vp lint`, `vp
 
 To check UI in a browser from a worktree, don't use `npm run dev`: it always binds port 20127 (likely the user's own dev server) and reads the real `~/.regent` data. Start your own instance on a free port with a throwaway data dir:
 ```bash
-DATA_DIR="$(mktemp -d)" PORT=20137 NEXT_PUBLIC_BASE_URL=http://localhost:20137 npx next dev --port 20137
+DATA_DIR="$(mktemp -d)" PORT=20137 NEXT_PUBLIC_BASE_URL=http://localhost:20137 npx next dev --webpack --port 20137
 ```
 Pick another port if 20137 is taken. Usage/log files ignore `DATA_DIR` and still go to `~/.regent` (see Persistence), so avoid generating traffic you don't want in the user's usage history. The scratch data starts empty (default password, no providers), so seed what the check needs through the dashboard or API.
 
@@ -40,9 +40,10 @@ Pick another port if 20137 is taken. Usage/log files ignore `DATA_DIR` and still
 CI (`.github/workflows/pr.yml`) runs typecheck, `vp lint` on the files the PR changes (`scripts/ci/lint-changed.sh`; fix errors in files you touch), and `vp test run`, which must be green: any failure fails the job unless it is listed in `tests/__baseline__/known-fails.txt` (empty; `scripts/ci/compare-tests.mjs` also reports listed tests that pass again). For UI changes, attach screenshots of demo data only (the repo is public):
 ```bash
 node scripts/pr-shots.mjs --routes /dashboard/usage,/dashboard/providers --label after [--dark]
+node scripts/pr-shots.mjs --shots shots.json --label after   # specific states: opened dialogs, filled forms, menus
 node scripts/pr-shots-publish.mjs --pr <number>
 ```
-The first boots its own seeded instance (temp `DATA_DIR` + `HOME`, random password) and writes PNGs (1440×900 and 375×812) to `pr-shots/`; for before/after, also run it on the base branch with `--label before`. The second pushes them to the orphan `pr-assets` branch under `pr-<number>/` and prints Markdown links for the PR's Evidence section. Needs Chromium for playwright-core 1.63 (`npx playwright@1.63.0 install chromium` if not preinstalled).
+The first boots its own seeded instance (temp `DATA_DIR` + `HOME`, random password) and writes PNGs (1440×900 and 375×812) to `pr-shots/`; for before/after, also run it on the base branch with `--label before`. The second pushes them to the orphan `pr-assets` branch under `pr-<number>/` and prints Markdown links for the PR's Evidence section. When the change is a state rather than a page (a new dialog, menu, validation error), the shot must show that state: describe it in a `--shots` JSON file (`name`, `route`, `steps` of `click`/`fill`/`hover`/`press`/`waitFor`/`wait`, optional `selector` to crop to the dialog); the format is documented at the top of `scripts/pr-shots.mjs`. Keep that file out of the commit unless it is useful to reviewers. Needs Chromium for playwright-core 1.63 (`npx playwright@1.63.0 install chromium` if not preinstalled).
 
 CLI package (`cli/`):
 ```bash
