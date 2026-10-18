@@ -36,6 +36,14 @@ DATA_DIR="$(mktemp -d)" PORT=20137 NEXT_PUBLIC_BASE_URL=http://localhost:20137 n
 ```
 Pick another port if 20137 is taken. Usage/log files ignore `DATA_DIR` and still go to `~/.regent` (see Persistence), so avoid generating traffic you don't want in the user's usage history. The scratch data starts empty (default password, no providers), so seed what the check needs through the dashboard or API.
 
+### PR evidence (agents)
+CI (`.github/workflows/pr.yml`) runs typecheck, `vp lint` on the files the PR changes (`scripts/ci/lint-changed.sh`; fix errors in files you touch), and `vp test run`, which must be green: any failure fails the job unless it is listed in `tests/__baseline__/known-fails.txt` (empty; `scripts/ci/compare-tests.mjs` also reports listed tests that pass again). For UI changes, attach screenshots of demo data only (the repo is public):
+```bash
+node scripts/pr-shots.mjs --routes /dashboard/usage,/dashboard/providers --label after [--dark]
+node scripts/pr-shots-publish.mjs --pr <number>
+```
+The first boots its own seeded instance (temp `DATA_DIR` + `HOME`, random password) and writes PNGs (1440×900 and 375×812) to `pr-shots/`; for before/after, also run it on the base branch with `--label before`. The second pushes them to the orphan `pr-assets` branch under `pr-<number>/` and prints Markdown links for the PR's Evidence section. Needs Chromium for playwright-core 1.63 (`npx playwright@1.63.0 install chromium` if not preinstalled).
+
 CLI package (`cli/`):
 ```bash
 npm run cli:pack       # build + npm pack from root

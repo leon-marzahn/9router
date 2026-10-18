@@ -1,0 +1,60 @@
+name: PR checks
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-checks-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Typecheck, lint, test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # Full history so the lint step can diff against the merge base.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .node-version
+
+      # No lockfile is committed (package-lock.json is not tracked), so this is
+      # `npm install`, not `npm ci`. vite-plus is a devDependency, so `npx vp`
+      # resolves the pinned local binary.
+      - name: Install
+        run: npm install --no-audit --no-fund
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint changed files
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          # On push to master `before` can be all zeros (new branch); lint the last commit then.
+          if [ -z "$BASE_REF" ] || [ "$BASE_REF" = "0000000000000000000000000000000000000000" ]; then BASE_REF=HEAD~1; fi
+          scripts/ci/lint-changed.sh "$BASE_REF"
+
+      - name: Test
+        run: npx vp test run --reporter=default --reporter=json --outputFile=vitest-report.json || true
+
+      - name: Fail on any test failure (except tests/__baseline__/known-fails.txt, kept empty)
+        run: node scripts/ci/compare-tests.mjs vitest-report.json
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: vitest-report
+          path: vitest-report.json
+          retention-days: 14
