@@ -5,7 +5,7 @@ description: Generate videos via Elizabeth's Proxy /v1/videos/generations using 
 
 # Elizabeth's Proxy — Video Generation (xAI Grok Imagine)
 
-Requires `REGENT_URL` (and `REGENT_KEY` if auth enabled; the old `REGENT_URL`/`REGENT_KEY` names work too). See https://raw.githubusercontent.com/leon-marzahn/9router/refs/heads/master/skills/regent/SKILL.md for setup.
+Requires `REGENT_URL` (and `REGENT_KEY` if auth enabled; the old `REGENT_URL`/`REGENT_KEY` names work too). See https://raw.githubusercontent.com/leon-marzahn/regent/refs/heads/master/skills/regent/SKILL.md for setup.
 
 Requires a connected **xAI account** in the Elizabeth's Proxy dashboard — either **Grok Build OAuth** (SuperGrok / X Premium+ subscription sign-in) or a direct **xAI API key** from console.x.ai. The two are separate auth types with separate billing; the dashboard shows which one each connection uses.
 
