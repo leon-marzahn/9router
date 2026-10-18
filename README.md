@@ -3,7 +3,9 @@
 
   # Elizabeth's Proxy
 
-  A local AI routing gateway with a live dashboard. One OpenAI-compatible endpoint in front of 40+ providers and all your accounts.
+  A self-hosted AI routing gateway with a live dashboard. One OpenAI-compatible endpoint in front of 40+ providers and all your accounts.
+
+  <sub>The command, package, data folder and Docker image are called <code>regent</code>.</sub>
 </div>
 
 ---
