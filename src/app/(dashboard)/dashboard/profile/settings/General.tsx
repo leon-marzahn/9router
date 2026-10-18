@@ -498,7 +498,7 @@ export function About() {
         </Button>
       </Row>
       <Row
-        title="Stop regent"
+        title="Stop Elizabeth's Proxy"
         hint="Shuts down the gateway and this dashboard. Nothing can use it until you start it again."
       >
         <Button size="sm" variant="danger" icon="power_settings_new" onClick={() => setStop(true)}>
