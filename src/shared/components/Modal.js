@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { createPortal } from "react-dom";
 import { cn } from "@/ui/cn";
 import Button from "./Button";
 
@@ -44,9 +45,10 @@ export default function Modal({
     return () => document.removeEventListener("keydown", handleEscape);
   }, [isOpen, onClose]);
 
-  if (!isOpen) return null;
+  if (!isOpen || typeof document === "undefined") return null;
 
-  return (
+  // Portal to body so a dimmed/transformed ancestor (e.g. an inactive row) can't fade or clip the dialog.
+  return createPortal(
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label={typeof title === "string" ? title : undefined}>
       <div className="fade-in absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={closeOnOverlay ? onClose : undefined} />
       <div
@@ -72,7 +74,8 @@ export default function Modal({
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{children}</div>
         {footer && <div className="flex shrink-0 items-center justify-end gap-2 px-5 pb-5">{footer}</div>}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
