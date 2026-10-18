@@ -1,6 +1,7 @@
 "use server";
 
 import { NextResponse } from "next/server";
+import { configWriter } from "../configFile.js";
 import { DISPLAY_NAME } from "@/shared/constants/brand.js";
 import { resolveCliApiKey } from "../resolveApiKey.js";
 import { tomlString } from "../configText.js";
@@ -9,6 +10,8 @@ import { promisify } from "util";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
+
+const { writeConfigFile } = configWriter("deepseek-tui");
 
 const execAsync = promisify(exec);
 
@@ -136,7 +139,7 @@ export async function POST(request) {
         await fs.mkdir(dir, { recursive: true });
 
         const newConfig = build9RouterConfig(baseUrl, await resolveCliApiKey(apiKey), model);
-        await fs.writeFile(getDeepSeekConfigPath(), newConfig);
+        await writeConfigFile(getDeepSeekConfigPath(), newConfig);
 
         return NextResponse.json({
             success: true,
@@ -158,7 +161,7 @@ export async function DELETE() {
             return NextResponse.json({ success: true, message: "No config file to reset" });
         }
 
-        await fs.writeFile(configPath, DEFAULT_CONFIG);
+        await writeConfigFile(configPath, DEFAULT_CONFIG);
         return NextResponse.json({ success: true, message: `${PROVIDER_NAME} config reset to DeepSeek defaults` });
     } catch (error) {
         console.log("Error resetting deepseek-tui settings:", error);

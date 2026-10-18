@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
+import { configWriter } from "../configFile.js";
 import { configErrorStatus } from "../configText.js";
 import { buildCodexProfileToml } from "@/app/(dashboard)/dashboard/cli-tools/components/codexConfig.js";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
+
+const { writeConfigFile, removeConfigFile } = configWriter("codex");
 
 export const dynamic = "force-dynamic";
 
@@ -81,7 +84,7 @@ export async function POST(request) {
 
     const filePath = path.join(codexDir, `${cleanName}.config.toml`);
     const content = buildCodexProfileToml({ name: cleanName, model: cleanModel });
-    await fs.writeFile(filePath, content, "utf-8");
+    await writeConfigFile(filePath, content, "utf-8");
 
     return NextResponse.json({
       success: true,
@@ -109,13 +112,11 @@ export async function DELETE(request) {
 
     const filePath = path.join(getCodexDir(), `${cleanName}.config.toml`);
     try {
-      await fs.unlink(filePath);
-    } catch (err) {
-      if (err.code === "ENOENT") {
-        return NextResponse.json({ error: "Profile not found" }, { status: 404 });
-      }
-      throw err;
+      await fs.access(filePath);
+    } catch {
+      return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
+    await removeConfigFile(filePath);
 
     return NextResponse.json({ success: true, message: `Profile ${cleanName} deleted` });
   } catch (error) {

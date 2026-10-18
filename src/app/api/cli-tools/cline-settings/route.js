@@ -1,6 +1,7 @@
 "use server";
 
 import { NextResponse } from "next/server";
+import { configWriter } from "../configFile.js";
 import { resolveCliApiKey } from "../resolveApiKey.js";
 import { DISPLAY_NAME, mentionsBrand } from "@/shared/constants/brand.js";
 import { exec } from "child_process";
@@ -8,6 +9,8 @@ import { promisify } from "util";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
+
+const { writeConfigFile } = configWriter("cline");
 
 const execAsync = promisify(exec);
 
@@ -97,11 +100,11 @@ export async function POST(request) {
     globalState.openAiBaseUrl = normalizedBaseUrl;
     globalState.openAiModelId = model;
     globalState.planModeOpenAiModelId = model;
-    await fs.writeFile(getGlobalStatePath(), JSON.stringify(globalState, null, 2));
+    await writeConfigFile(getGlobalStatePath(), JSON.stringify(globalState, null, 2));
 
     const secrets = (await readJson(getSecretsPath())) || {};
     secrets.openAiApiKey = apiKey;
-    await fs.writeFile(getSecretsPath(), JSON.stringify(secrets, null, 2));
+    await writeConfigFile(getSecretsPath(), JSON.stringify(secrets, null, 2));
 
     return NextResponse.json({ success: true, message: "Cline settings applied successfully!", globalStatePath: getGlobalStatePath() });
   } catch (error) {
@@ -124,11 +127,11 @@ export async function DELETE() {
       globalState.actModeApiProvider = "cline";
       globalState.planModeApiProvider = "cline";
     }
-    await fs.writeFile(getGlobalStatePath(), JSON.stringify(globalState, null, 2));
+    await writeConfigFile(getGlobalStatePath(), JSON.stringify(globalState, null, 2));
 
     const secrets = (await readJson(getSecretsPath())) || {};
     delete secrets.openAiApiKey;
-    await fs.writeFile(getSecretsPath(), JSON.stringify(secrets, null, 2));
+    await writeConfigFile(getSecretsPath(), JSON.stringify(secrets, null, 2));
 
     return NextResponse.json({ success: true, message: `${DISPLAY_NAME} settings removed from Cline` });
   } catch (error) {

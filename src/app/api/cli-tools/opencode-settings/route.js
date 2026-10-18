@@ -1,6 +1,7 @@
 "use server";
 
 import { NextResponse } from "next/server";
+import { configWriter } from "../configFile.js";
 import { resolveCliApiKey } from "../resolveApiKey.js";
 import { exec } from "child_process";
 import { promisify } from "util";
@@ -18,6 +19,8 @@ import {
   stripProviderPrefix,
   prefixModel,
 } from "@/shared/constants/brand.js";
+
+const { writeConfigFile } = configWriter("opencode");
 
 const execAsync = promisify(exec);
 
@@ -173,7 +176,7 @@ export async function POST(request) {
       model: prefixModel(effectiveSubagentModel),
     };
 
-    await fs.writeFile(configPath, JSON.stringify(config, null, 2));
+    await writeConfigFile(configPath, JSON.stringify(config, null, 2));
 
     return NextResponse.json({
       success: true,
@@ -210,7 +213,7 @@ export async function PATCH(request) {
       }
     }
 
-    await fs.writeFile(configPath, JSON.stringify(config, null, 2));
+    await writeConfigFile(configPath, JSON.stringify(config, null, 2));
 
     return NextResponse.json({
       success: true,
@@ -268,7 +271,7 @@ export async function DELETE(request) {
       if (Object.keys(config.agent).length === 0) delete config.agent;
     }
 
-    await fs.writeFile(configPath, JSON.stringify(config, null, 2));
+    await writeConfigFile(configPath, JSON.stringify(config, null, 2));
 
     return NextResponse.json({
       success: true,

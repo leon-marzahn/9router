@@ -1,6 +1,7 @@
 "use server";
 
 import { NextResponse } from "next/server";
+import { configWriter } from "../configFile.js";
 import { DISPLAY_NAME, LEGACY_DISPLAY_NAME } from "@/shared/constants/brand.js";
 import { resolveCliApiKey } from "../resolveApiKey.js";
 import fs from "fs/promises";
@@ -9,6 +10,8 @@ import os from "os";
 import { exec } from "child_process";
 import { promisify } from "util";
 import { parseTOML, stringifyTOML } from "confbox";
+
+const { writeConfigFile, removeConfigFile } = configWriter("forge");
 
 const execAsync = promisify(exec);
 
@@ -110,7 +113,7 @@ export async function POST(request) {
     const header = `# Forge config — managed by ${DISPLAY_NAME}\n\n`;
     const content = header + stringifyTOML(existing);
 
-    await fs.writeFile(configPath, content, "utf-8");
+    await writeConfigFile(configPath, content, "utf-8");
 
     return NextResponse.json({
       success: true,
@@ -136,9 +139,9 @@ export async function DELETE() {
     delete existing.openai;
 
     if (Object.keys(existing).length === 0) {
-      await fs.rm(configPath, { force: true });
+      await removeConfigFile(configPath);
     } else {
-      await fs.writeFile(configPath, stringifyTOML(existing), "utf-8");
+      await writeConfigFile(configPath, stringifyTOML(existing), "utf-8");
     }
 
     return NextResponse.json({ success: true, message: `${DISPLAY_NAME} removed from ForgeCode` });

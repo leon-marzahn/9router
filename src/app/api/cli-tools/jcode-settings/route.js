@@ -1,6 +1,7 @@
 "use server";
 
 import { NextResponse } from "next/server";
+import { configWriter } from "../configFile.js";
 import { resolveCliApiKey } from "../resolveApiKey.js";
 import { dotenvString, configErrorStatus } from "../configText.js";
 import fs from "fs/promises";
@@ -10,6 +11,8 @@ import { exec } from "child_process";
 import { promisify } from "util";
 import { parseTOML, stringifyTOML } from "confbox";
 import { DISPLAY_NAME, PROVIDER_KEY, LEGACY_PROVIDER_KEY, PROVIDER_KEYS, pickProvider, deleteProviderKeys } from "@/shared/constants/brand.js";
+
+const { writeConfigFile, removeConfigFile } = configWriter("jcode");
 
 const execAsync = promisify(exec);
 
@@ -29,7 +32,7 @@ const getProviderEnvPath = (key = PROVIDER_KEY) => {
 // Remove the legacy env file (only our own key lived there); ignore if absent.
 const removeLegacyProviderEnv = async () => {
   try {
-    await fs.unlink(getProviderEnvPath(LEGACY_PROVIDER_KEY));
+    await removeConfigFile(getProviderEnvPath(LEGACY_PROVIDER_KEY));
   } catch { /* not present */ }
 };
 
@@ -78,7 +81,7 @@ const has9RouterConfig = (config) => {
 const writeConfig = async (config) => {
   const configPath = getConfigPath();
   const content = stringifyTOML(config);
-  await fs.writeFile(configPath, content, "utf-8");
+  await writeConfigFile(configPath, content, "utf-8");
 };
 
 const readProviderEnv = async () => {
@@ -119,7 +122,7 @@ const writeProviderEnv = async (env) => {
     content += `${key}=${dotenvString(value, key)}\n`;
   }
 
-  await fs.writeFile(envPath, content, "utf-8");
+  await writeConfigFile(envPath, content, "utf-8");
 };
 
 export async function GET() {

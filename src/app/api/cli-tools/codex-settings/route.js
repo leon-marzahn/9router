@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { configWriter } from "../configFile.js";
 import { resolveCliApiKey } from "../resolveApiKey.js";
 import { exec } from "child_process";
 import { promisify } from "util";
@@ -7,6 +8,8 @@ import path from "path";
 import os from "os";
 import { parseTOML, stringifyTOML } from "confbox";
 import { DISPLAY_NAME, PROVIDER_KEY, LEGACY_PROVIDER_KEY, PROVIDER_KEYS } from "@/shared/constants/brand.js";
+
+const { writeConfigFile, removeConfigFile } = configWriter("codex");
 
 export const dynamic = "force-dynamic";
 
@@ -99,7 +102,7 @@ const migrateLegacyProfiles = async (codexDir) => {
         try {
           const content = await fs.readFile(file, "utf-8");
           if (legacyLine.test(content)) {
-            await fs.writeFile(file, content.replace(legacyLine, `$1"${PROVIDER_KEY}"`), "utf-8");
+            await writeConfigFile(file, content.replace(legacyLine, `$1"${PROVIDER_KEY}"`), "utf-8");
           }
         } catch { /* unreadable profile — leave it */ }
       }),
@@ -178,7 +181,7 @@ export async function POST(request) {
 
     // Write merged config
     const configContent = stringifyTOML(parsed);
-    await fs.writeFile(configPath, configContent);
+    await writeConfigFile(configPath, configContent);
     await migrateLegacyProfiles(codexDir);
 
     return NextResponse.json({
@@ -227,7 +230,7 @@ export async function DELETE() {
 
     // Write updated config
     const configContent = stringifyTOML(parsed);
-    await fs.writeFile(configPath, configContent);
+    await writeConfigFile(configPath, configContent);
 
     // Remove OPENAI_API_KEY from auth.json
     const authPath = getCodexAuthPath();
@@ -239,9 +242,9 @@ export async function DELETE() {
 
       // Write back or delete if empty
       if (Object.keys(authData).length === 0) {
-        await fs.unlink(authPath);
+        await removeConfigFile(authPath);
       } else {
-        await fs.writeFile(authPath, JSON.stringify(authData, null, 2));
+        await writeConfigFile(authPath, JSON.stringify(authData, null, 2));
       }
     } catch { /* No auth file */ }
 

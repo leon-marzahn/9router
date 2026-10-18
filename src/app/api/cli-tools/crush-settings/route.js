@@ -1,6 +1,7 @@
 "use server";
 
 import { NextResponse } from "next/server";
+import { configWriter } from "../configFile.js";
 import { resolveCliApiKey } from "../resolveApiKey.js";
 import fs from "fs/promises";
 import path from "path";
@@ -8,6 +9,8 @@ import os from "os";
 import { exec } from "child_process";
 import { promisify } from "util";
 import { DISPLAY_NAME, PROVIDER_KEY, LEGACY_PROVIDER_KEY, pickProvider, deleteProviderKeys } from "@/shared/constants/brand.js";
+
+const { writeConfigFile } = configWriter("crush");
 
 const execAsync = promisify(exec);
 
@@ -121,7 +124,7 @@ export async function POST(request) {
       ],
     };
 
-    await fs.writeFile(configPath, JSON.stringify(existing, null, 2), "utf-8");
+    await writeConfigFile(configPath, JSON.stringify(existing, null, 2), "utf-8");
 
     return NextResponse.json({
       success: true,
@@ -147,7 +150,7 @@ export async function DELETE() {
     if (pickProvider(existing.providers)) {
       deleteProviderKeys(existing.providers);
       if (Object.keys(existing.providers).length === 0) delete existing.providers;
-      await fs.writeFile(configPath, JSON.stringify(existing, null, 2), "utf-8");
+      await writeConfigFile(configPath, JSON.stringify(existing, null, 2), "utf-8");
     }
 
     return NextResponse.json({ success: true, message: `${DISPLAY_NAME} removed from Crush` });

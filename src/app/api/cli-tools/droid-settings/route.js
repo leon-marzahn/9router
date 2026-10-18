@@ -1,6 +1,7 @@
 "use server";
 
 import { NextResponse } from "next/server";
+import { configWriter } from "../configFile.js";
 import { resolveCliApiKey } from "../resolveApiKey.js";
 import { DISPLAY_NAME, LEGACY_DISPLAY_NAME, PROVIDER_KEY } from "@/shared/constants/brand.js";
 import { exec } from "child_process";
@@ -8,6 +9,8 @@ import { promisify } from "util";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
+
+const { writeConfigFile } = configWriter("droid");
 
 const execAsync = promisify(exec);
 
@@ -165,7 +168,7 @@ export async function POST(request) {
     }
 
     // Write settings
-    await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2));
+    await writeConfigFile(settingsPath, JSON.stringify(settings, null, 2));
 
     return NextResponse.json({
       success: true,
@@ -209,7 +212,7 @@ export async function DELETE() {
     }
 
     // Write updated settings
-    await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2));
+    await writeConfigFile(settingsPath, JSON.stringify(settings, null, 2));
 
     return NextResponse.json({
       success: true,

@@ -1,6 +1,7 @@
 "use server";
 
 import { NextResponse } from "next/server";
+import { configWriter } from "../configFile.js";
 import { DISPLAY_NAME, PROVIDER_KEY, PROVIDER_KEYS } from "@/shared/constants/brand.js";
 import { resolveCliApiKey } from "../resolveApiKey.js";
 import fs from "fs/promises";
@@ -8,6 +9,8 @@ import path from "path";
 import os from "os";
 import { exec } from "child_process";
 import { promisify } from "util";
+
+const { writeConfigFile, removeConfigFile } = configWriter("smelt");
 
 const execAsync = promisify(exec);
 
@@ -103,7 +106,7 @@ export async function POST(request) {
       _managedBy: PROVIDER_KEY,
     };
 
-    await fs.writeFile(configPath, JSON.stringify(updated, null, 2), "utf-8");
+    await writeConfigFile(configPath, JSON.stringify(updated, null, 2), "utf-8");
 
     return NextResponse.json({
       success: true,
@@ -132,9 +135,9 @@ export async function DELETE() {
     delete existing._managedBy;
 
     if (Object.keys(existing).length === 0) {
-      await fs.rm(configPath, { force: true });
+      await removeConfigFile(configPath);
     } else {
-      await fs.writeFile(configPath, JSON.stringify(existing, null, 2), "utf-8");
+      await writeConfigFile(configPath, JSON.stringify(existing, null, 2), "utf-8");
     }
 
     return NextResponse.json({ success: true, message: `Smelt ${DISPLAY_NAME} settings removed` });

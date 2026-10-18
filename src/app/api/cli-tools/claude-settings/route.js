@@ -1,6 +1,7 @@
 "use server";
 
 import { NextResponse } from "next/server";
+import { configWriter } from "../configFile.js";
 import { resolveCliApiKey } from "../resolveApiKey.js";
 import { exec } from "child_process";
 import { promisify } from "util";
@@ -8,6 +9,8 @@ import fs from "fs/promises";
 import path from "path";
 import os from "os";
 import { DEFAULT_PLUGINS } from "@/shared/constants/coworkPlugins";
+
+const { writeConfigFile } = configWriter("claude");
 
 const execAsync = promisify(exec);
 
@@ -50,7 +53,7 @@ const writeClaudeJsonMcp = async (mcpServers) => {
     delete data.mcpServers.exa;
     if (Object.keys(data.mcpServers).length === 0) delete data.mcpServers;
   }
-  await fs.writeFile(filePath, JSON.stringify(data, null, 2));
+  await writeConfigFile(filePath, JSON.stringify(data, null, 2));
 };
 
 
@@ -188,7 +191,7 @@ export async function POST(request) {
     }
 
     // Write new settings
-    await fs.writeFile(settingsPath, JSON.stringify(newSettings, null, 2));
+    await writeConfigFile(settingsPath, JSON.stringify(newSettings, null, 2));
 
     // Exa MCP toggle — write to ~/.claude.json (CLI reads mcpServers from here).
     if (EXA_PLUGIN) {
@@ -255,7 +258,7 @@ export async function DELETE() {
     await writeClaudeJsonMcp(null);
 
     // Write updated settings
-    await fs.writeFile(settingsPath, JSON.stringify(currentSettings, null, 2));
+    await writeConfigFile(settingsPath, JSON.stringify(currentSettings, null, 2));
 
     return NextResponse.json({
       success: true,

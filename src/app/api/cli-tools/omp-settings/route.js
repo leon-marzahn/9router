@@ -1,6 +1,7 @@
 "use server";
 
 import { NextResponse } from "next/server";
+import { configWriter } from "../configFile.js";
 import { DISPLAY_NAME, PROVIDER_KEY, PROVIDER_KEYS } from "@/shared/constants/brand.js";
 import { resolveCliApiKey } from "../resolveApiKey.js";
 import { yamlString, configErrorStatus } from "../configText.js";
@@ -9,6 +10,8 @@ import path from "path";
 import os from "os";
 import { exec } from "child_process";
 import { promisify } from "util";
+
+const { writeConfigFile, removeConfigFile } = configWriter("omp");
 
 const execAsync = promisify(exec);
 
@@ -124,7 +127,7 @@ export async function POST(request) {
       ymlContent = `${ymlContent.trim()}\n\nproviders:\n${providerBlock}\n`;
     }
 
-    await fs.writeFile(getOmpModelsYmlPath(), ymlContent, "utf-8");
+    await writeConfigFile(getOmpModelsYmlPath(), ymlContent, "utf-8");
 
     // Best-effort update to agent.db if better-sqlite3 or node:sqlite is present
     try {
@@ -170,9 +173,9 @@ export async function DELETE() {
     ymlContent = ymlContent.replace(providerBlockRegex(), "");
 
     if (ymlContent.trim() === "providers:") {
-      await fs.rm(getOmpModelsYmlPath(), { force: true });
+      await removeConfigFile(getOmpModelsYmlPath());
     } else {
-      await fs.writeFile(getOmpModelsYmlPath(), ymlContent, "utf-8");
+      await writeConfigFile(getOmpModelsYmlPath(), ymlContent, "utf-8");
     }
 
     return NextResponse.json({

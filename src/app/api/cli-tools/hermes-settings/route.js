@@ -1,6 +1,7 @@
 "use server";
 
 import { NextResponse } from "next/server";
+import { configWriter } from "../configFile.js";
 import { resolveCliApiKey } from "../resolveApiKey.js";
 import { ConfigValueError } from "../configText.js";
 import { DISPLAY_NAME } from "@/shared/constants/brand.js";
@@ -31,6 +32,8 @@ import {
   removeStt9Router,
 } from "./hermesYaml.js";
 import { resolveHermesHome, listProfiles, dirExists } from "./hermesProfiles.js";
+
+const { writeConfigFile } = configWriter("hermes");
 
 const execAsync = promisify(exec);
 
@@ -78,7 +81,7 @@ const readEnvFile = (home) => readTextFile(home.envPath);
 // without identity files is not a profile, and we must not fabricate one.
 const writeHomeConfig = async (home, yaml) => {
   if (home.isDefault) await fs.mkdir(home.dir, { recursive: true });
-  await fs.writeFile(home.configPath, yaml);
+  await writeConfigFile(home.configPath, yaml);
 };
 
 // Only ever upserts the OPENAI_API_KEY line — per-profile .env files also carry bot tokens
@@ -87,7 +90,7 @@ const writeHomeEnv = async (home, apiKey) => {
   if (!apiKey) return;
   if (home.isDefault) await fs.mkdir(home.dir, { recursive: true });
   const env = upsertEnvVar(await readEnvFile(home), API_KEY_ENV, apiKey);
-  await fs.writeFile(home.envPath, env);
+  await writeConfigFile(home.envPath, env);
 };
 
 const checkHermesInstalled = async () => {

@@ -1,6 +1,7 @@
 "use server";
 
 import { NextResponse } from "next/server";
+import { configWriter } from "../configFile.js";
 import { configErrorStatus } from "../configText.js";
 import { DISPLAY_NAME } from "@/shared/constants/brand.js";
 import { resolveCliApiKey } from "../resolveApiKey.js";
@@ -17,6 +18,8 @@ import {
   parseGrokBuildConfig,
   resetGrokBuildConfig,
 } from "@/lib/grokBuildConfig";
+
+const { writeConfigFile } = configWriter("grok-build");
 
 const execAsync = promisify(exec);
 
@@ -117,7 +120,7 @@ export async function POST(request) {
       contextWindow: normalizeContextWindow(contextWindow, selectedModel),
       subagentModels: normalizeSubagentModels(subagentModels),
     });
-    await fs.writeFile(getGrokConfigPath(), toml);
+    await writeConfigFile(getGrokConfigPath(), toml);
 
     return NextResponse.json({
       success: true,
@@ -144,7 +147,7 @@ export async function DELETE() {
       throw error;
     }
 
-    await fs.writeFile(configPath, resetGrokBuildConfig(toml));
+    await writeConfigFile(configPath, resetGrokBuildConfig(toml));
     return NextResponse.json({
       success: true,
       message: `${DISPLAY_NAME} model slots removed from Grok Build`,

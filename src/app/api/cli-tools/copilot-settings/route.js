@@ -1,11 +1,14 @@
 "use server";
 
 import { NextResponse } from "next/server";
+import { configWriter } from "../configFile.js";
 import { DISPLAY_NAME, LEGACY_DISPLAY_NAME } from "@/shared/constants/brand.js";
 import { resolveCliApiKey } from "../resolveApiKey.js";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
+
+const { writeConfigFile } = configWriter("copilot");
 
 // Resolve chatLanguageModels.json path per OS
 const getConfigPath = () => {
@@ -112,7 +115,7 @@ export async function POST(request) {
       config.push(newEntry);
     }
 
-    await fs.writeFile(configPath, JSON.stringify(config, null, 2));
+    await writeConfigFile(configPath, JSON.stringify(config, null, 2));
 
     return NextResponse.json({
       success: true,
@@ -143,7 +146,7 @@ export async function DELETE() {
     }
 
     config = config.filter((e) => !isOurEntry(e));
-    await fs.writeFile(configPath, JSON.stringify(config, null, 2));
+    await writeConfigFile(configPath, JSON.stringify(config, null, 2));
 
     return NextResponse.json({
       success: true,

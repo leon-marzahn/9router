@@ -1,6 +1,7 @@
 "use server";
 
 import { NextResponse } from "next/server";
+import { configWriter } from "../configFile.js";
 import { resolveCliApiKey } from "../resolveApiKey.js";
 import {
   DISPLAY_NAME,
@@ -16,6 +17,8 @@ import { promisify } from "util";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
+
+const { writeConfigFile } = configWriter("openclaw");
 
 const execAsync = promisify(exec);
 
@@ -142,7 +145,7 @@ const writeAgentModels = async (agentDir, model, baseUrl, apiKey) => {
     api: "openai-completions",
     models: [{ id: model, name: model.split("/").pop() || model }],
   };
-  await fs.writeFile(modelsPath, JSON.stringify(existing, null, 2));
+  await writeConfigFile(modelsPath, JSON.stringify(existing, null, 2));
 };
 
 // POST - Update our provider settings (merge with existing settings)
@@ -234,7 +237,7 @@ export async function POST(request) {
       );
     }
 
-    await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2));
+    await writeConfigFile(settingsPath, JSON.stringify(settings, null, 2));
 
     return NextResponse.json({
       success: true,
@@ -294,7 +297,7 @@ export async function DELETE() {
     }
 
     // Write updated settings
-    await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2));
+    await writeConfigFile(settingsPath, JSON.stringify(settings, null, 2));
 
     return NextResponse.json({
       success: true,
