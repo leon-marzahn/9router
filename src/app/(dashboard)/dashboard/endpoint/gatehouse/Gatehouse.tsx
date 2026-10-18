@@ -76,7 +76,7 @@ export function Gatehouse() {
     });
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
+    <div className="mx-auto w-full max-w-6xl">
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
         <section className="min-w-0 space-y-4">
           <SectionTitle icon="shield" title="Who can reach it" />

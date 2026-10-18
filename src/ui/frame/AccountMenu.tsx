@@ -1,5 +1,6 @@
 "use client";
 
+import { STOP_APP, stopApp } from "./stopApp";
 import { useRef, useState } from "react";
 import Link from "next/link";
 import LanguageSwitcher from "@/shared/components/LanguageSwitcher";
@@ -95,7 +96,7 @@ export function AccountMenu({
         </MenuItem>
         <MenuSeparator />
         <MenuItem icon="power_settings_new" danger onClick={() => openModal("shutdown")}>
-          Shut down server
+          Stop regent…
         </MenuItem>
         <MenuItem
           icon="logout"
@@ -115,14 +116,14 @@ export function AccountMenu({
         onClose={() => setModal(null)}
         onConfirm={async () => {
           setShuttingDown(true);
-          // Expected to fail as the server goes away
-          await fetch("/api/version/shutdown", { method: "POST" }).catch(() => {});
+          await stopApp();
           setShuttingDown(false);
           setModal(null);
         }}
-        title="Shut down server"
-        message="Stop the Elizabeth's Proxy server? Routing stops until you start it again."
-        confirmText="Shut down"
+        title={STOP_APP.title}
+        message={STOP_APP.message}
+        confirmText={STOP_APP.confirm}
+        confirmIcon="power_settings_new"
         cancelText="Cancel"
         variant="danger"
         loading={shuttingDown}

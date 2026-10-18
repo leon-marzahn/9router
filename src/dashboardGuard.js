@@ -186,8 +186,13 @@ async function isAuthenticated(request) {
   return false;
 }
 
+// Under the public /api/auth/{oidc,saml} prefixes, but they make the server fetch
+// a caller-supplied URL (SSRF) — only for signed-in users.
+const AUTH_TEST_PATHS = ["/api/auth/oidc/test", "/api/auth/saml/test"];
+
 function isPublicApi(pathname) {
   if (isPublicLlmApi(pathname)) return true;
+  if (AUTH_TEST_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))) return false;
   return PUBLIC_API_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 
@@ -195,6 +200,7 @@ function isPublicApi(pathname) {
 export { isAuthenticated };
 
 export const __test__ = {
+  isPublicApi,
   isLocalRequest,
   isPublicLlmApi,
   extractApiKey,
