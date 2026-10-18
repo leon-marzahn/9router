@@ -118,11 +118,14 @@ export async function getProviderConnectionById(id) {
 // MAX(priority)+1, which sorts after every existing row, so the order is
 // identical with or without the rewrite. Skipping it there is what makes
 // import O(1) per key instead of O(pool) — see createProviderConnection.
-function reorderInTx(db, providerId) {
+// `preferId` is the connection whose priority was just set: on a priority tie it wins,
+// even when its updatedAt equals a sibling's (same millisecond).
+function reorderInTx(db, providerId, preferId = null) {
   const list = db.all(`SELECT * FROM providerConnections WHERE provider = ?`, [providerId]).map(rowToConn);
   list.sort((a, b) => {
     const pDiff = (a.priority || 0) - (b.priority || 0);
     if (pDiff !== 0) return pDiff;
+    if (preferId && (a.id === preferId) !== (b.id === preferId)) return a.id === preferId ? -1 : 1;
     return new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0);
   });
   list.forEach((c, i) => {
@@ -272,7 +275,7 @@ export async function updateProviderConnection(id, data) {
     const normalized = resetHealthStateOnActivation(existing, data);
     const merged = { ...existing, ...normalized, updatedAt: new Date().toISOString() };
     upsert(db, merged);
-    if (data.priority !== undefined) reorderInTx(db, existing.provider);
+    if (data.priority !== undefined) reorderInTx(db, existing.provider, id);
     result = merged;
   });
   emitLive("providers");

@@ -39,9 +39,13 @@ describe("provider baseUrl const (full path, no trailing slash)", () => {
   });
 });
 
-describe("antigravity retry (intentional change: 429=6, 503=3)", () => {
-  it("429 attempts = 6", () => {
-    expect(antigravity.transport.retry["429"].attempts).toBe(6);
+// 429 lowered 6→3 in 3f9382de ("Fix AG, Kiro, Xiaomi Provider"); 500 added in 639f1204.
+describe("antigravity retry (429=3, 500=3, 503=3)", () => {
+  it("429 attempts = 3", () => {
+    expect(antigravity.transport.retry["429"].attempts).toBe(3);
+  });
+  it("500 attempts = 3", () => {
+    expect(antigravity.transport.retry["500"].attempts).toBe(3);
   });
   it("503 attempts = 3", () => {
     expect(antigravity.transport.retry["503"].attempts).toBe(3);

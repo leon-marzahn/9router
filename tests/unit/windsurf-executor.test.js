@@ -7,6 +7,12 @@ import {
   default as WindsurfExecutor,
 } from "open-sse/executors/windsurf.js";
 import { PROVIDERS } from "open-sse/config/providers.js";
+import windsurfRegistry from "open-sse/providers/registry/windsurf.js";
+
+// Chat endpoint is server.codeium.com since the upstream sync 351f1730 (self-serve host
+// is only the Devin auth1 api server). Windsurf is commented out of
+// providers/registry/index.js (no tool calling), so PROVIDERS has no entry.
+const WS_CHAT_URL = "https://server.codeium.com/exa.language_server_pb.LanguageServerService/GetChatMessage";
 
 // ─── Protobuf helpers for building expected wire bytes in tests ──────────────
 
@@ -165,7 +171,7 @@ describe("WindsurfExecutor class", () => {
     const ex = new WindsurfExecutor();
     expect(ex.provider).toBe("windsurf");
     expect(ex.config).toBeDefined();
-    expect(ex.config.baseUrl).toContain("server.self-serve.windsurf.com");
+    expect(ex.config.baseUrl).toBe(WS_CHAT_URL);
     expect(typeof ex.execute).toBe("function");
   });
 
@@ -187,12 +193,11 @@ describe("WindsurfExecutor class", () => {
 
   it("buildUrl returns the GetChatMessage endpoint", () => {
     const ex = new WindsurfExecutor();
-    expect(ex.buildUrl()).toBe("https://server.self-serve.windsurf.com/exa.language_server_pb.LanguageServerService/GetChatMessage");
+    expect(ex.buildUrl()).toBe(WS_CHAT_URL);
   });
 
-  it("PROVIDERS.windsurf baseUrl is the chat endpoint (registry in sync)", () => {
-    expect(PROVIDERS.windsurf.baseUrl).toBe(
-      "https://server.self-serve.windsurf.com/exa.language_server_pb.LanguageServerService/GetChatMessage"
-    );
+  it("registry baseUrl is the chat endpoint (registry in sync)", () => {
+    expect(PROVIDERS.windsurf).toBeUndefined(); // hidden from the registry index
+    expect(windsurfRegistry.transport.baseUrl).toBe(WS_CHAT_URL);
   });
 });
