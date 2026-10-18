@@ -2,6 +2,7 @@
 
 import { NextResponse } from "next/server";
 import { configWriter } from "../configFile.js";
+import { crushCurrent } from "../currentSummary.js";
 import { resolveCliApiKey } from "../resolveApiKey.js";
 import fs from "fs/promises";
 import path from "path";
@@ -73,6 +74,7 @@ export async function GET() {
       installed: true,
       config,
       hasRegent: hasRegentConfig(config),
+      current: crushCurrent(config),
       configPath: getCrushConfigPath(),
     });
   } catch (err) {

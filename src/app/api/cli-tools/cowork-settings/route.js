@@ -2,6 +2,7 @@
 
 import { NextResponse } from "next/server";
 import { configWriter } from "../configFile.js";
+import { coworkCurrent } from "../currentSummary.js";
 import { mergeCoworkConfig, removeCoworkConfig } from "./coworkConfig.js";
 import { resolveCliApiKey } from "../resolveApiKey.js";
 import fs from "fs/promises";
@@ -281,6 +282,7 @@ export async function GET() {
       config,
       hasRegent,
       configPath,
+      current: coworkCurrent(config),
       cowork: {
         appliedId,
         baseUrl,

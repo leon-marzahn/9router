@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { configWriter } from "../configFile.js";
+import { codexCurrent } from "../currentSummary.js";
 import { resolveCliApiKey } from "../resolveApiKey.js";
 import { exec } from "child_process";
 import { promisify } from "util";
@@ -129,6 +130,7 @@ export async function GET() {
       config,
       hasRegent: hasRegentConfig(config),
       configPath: getCodexConfigPath(),
+      current: codexCurrent(config),
     });
   } catch (error) {
     console.log("Error checking codex settings:", error);

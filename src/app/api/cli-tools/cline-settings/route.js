@@ -2,6 +2,7 @@
 
 import { NextResponse } from "next/server";
 import { configWriter } from "../configFile.js";
+import { clineCurrent } from "../currentSummary.js";
 import { resolveCliApiKey } from "../resolveApiKey.js";
 import { DISPLAY_NAME, mentionsBrand } from "@/shared/constants/brand.js";
 import { exec } from "child_process";
@@ -73,6 +74,7 @@ export async function GET() {
         openAiModelId: globalState?.openAiModelId,
       },
       hasRegent: hasRegentConfig(globalState),
+      current: hasRegentConfig(globalState) ? clineCurrent(globalState, await readJson(getSecretsPath())) : null,
       globalStatePath: getGlobalStatePath(),
     });
   } catch (error) {

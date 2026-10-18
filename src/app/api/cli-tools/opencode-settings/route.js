@@ -2,6 +2,7 @@
 
 import { NextResponse } from "next/server";
 import { configWriter } from "../configFile.js";
+import { opencodeCurrent } from "../currentSummary.js";
 import { resolveCliApiKey } from "../resolveApiKey.js";
 import { exec } from "child_process";
 import { promisify } from "util";
@@ -89,6 +90,7 @@ export async function GET() {
       installed: true,
       config,
       hasRegent: hasRegentConfig(config),
+      current: opencodeCurrent(config),
       configPath: getConfigPath(),
         opencode: {
           models: Object.keys(modelMap),

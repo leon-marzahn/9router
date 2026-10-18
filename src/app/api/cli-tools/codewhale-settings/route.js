@@ -2,6 +2,7 @@
 
 import { NextResponse } from "next/server";
 import { configWriter } from "../configFile.js";
+import { codewhaleCurrent } from "../currentSummary.js";
 import { DISPLAY_NAME, LEGACY_DISPLAY_NAME } from "@/shared/constants/brand.js";
 import { resolveCliApiKey } from "../resolveApiKey.js";
 import fs from "fs/promises";
@@ -72,6 +73,7 @@ export async function GET() {
       installed: true,
       config,
       hasRegent: hasRegentConfig(content),
+      current: codewhaleCurrent(config, hasRegentConfig(content)),
       configPath: getCodewhaleConfigPath(),
     });
   } catch (err) {

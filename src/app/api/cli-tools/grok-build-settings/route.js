@@ -2,6 +2,7 @@
 
 import { NextResponse } from "next/server";
 import { configWriter } from "../configFile.js";
+import { grokBuildCurrent } from "../currentSummary.js";
 import { configErrorStatus } from "../configText.js";
 import { DISPLAY_NAME } from "@/shared/constants/brand.js";
 import { resolveCliApiKey } from "../resolveApiKey.js";
@@ -95,6 +96,7 @@ export async function GET() {
       installed: true,
       settings,
       hasRegent: hasRegentConfig(settings),
+      current: grokBuildCurrent(settings),
       configPath: getGrokConfigPath(),
     });
   } catch (error) {

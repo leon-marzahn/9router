@@ -123,6 +123,7 @@ export default defineConfig({
       "!/src/app/(dashboard)/dashboard/cli-tools",
       "/src/app/(dashboard)/dashboard/cli-tools/*",
       "!/src/app/(dashboard)/dashboard/cli-tools/workbench",
+      "!/src/app/(dashboard)/dashboard/cli-tools/connect",
       "!/src/app/(dashboard)/dashboard/combos",
       "/src/app/(dashboard)/dashboard/combos/*",
       "!/src/app/(dashboard)/dashboard/combos/workbench",
