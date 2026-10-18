@@ -54,7 +54,17 @@ export function MediaWorkbench() {
   const kind = kindById(params.get("kind")) ?? kindById(DEFAULT_KIND)!;
   const selProvider = params.get("provider");
   const selCombo = params.get("combo");
-  const { connections, nodes, loading, live, refresh, setConnectionActive } = useProviders();
+  const {
+    connections,
+    nodes,
+    loading,
+    live,
+    testing,
+    dataVersion,
+    refresh,
+    runTest,
+    setConnectionActive,
+  } = useProviders();
   const [combos, setCombos] = useState<MediaCombo[] | null>(null);
   const [q, setQ] = useState("");
   const [addingEmbedding, setAddingEmbedding] = useState(false);
@@ -336,6 +346,9 @@ export function MediaWorkbench() {
               key={`${current.id}:${kind.id}`}
               p={current}
               kind={kind}
+              testing={testing}
+              liveVersion={dataVersion}
+              onTest={runTest}
               onSetActive={setConnectionActive}
               onSwitchKind={(k) => navigate({ kind: k })}
               onCustomChanged={(deleted) => {

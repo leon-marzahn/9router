@@ -3,17 +3,16 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import {
   Button,
-  EmptyState,
   Eyebrow,
   Field,
-  Icon,
   IconButton,
   Input,
   Panel,
   ProviderLogo,
-  Switch,
+  Segmented,
+  Tag,
 } from "@/ui";
-import { ModelSelectModal } from "@/shared/components";
+import { ConfirmModal, ModelSelectModal } from "@/shared/components";
 import { AI_PROVIDERS } from "@/shared/constants/providers";
 import { useNotificationStore } from "@/store/notificationStore";
 import type { Connection } from "../../providers/model";
@@ -46,6 +45,15 @@ const PickerModal = ModelSelectModal as unknown as (p: {
   kindFilter: string;
   addedModelValues: string[];
   closeOnSelect: boolean;
+}) => ReactNode;
+
+const Confirm = ConfirmModal as unknown as (p: {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  title: string;
+  message: string;
+  confirmText: string;
 }) => ReactNode;
 
 const VALID_NAME = /^[a-zA-Z0-9_.-]+$/;
@@ -105,6 +113,7 @@ export function MediaComboDetail({
   const [logs, setLogs] = useState<string[] | null>(null);
   const [aliases, setAliases] = useState<Record<string, string>>({});
   const [picker, setPicker] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [testing, setTesting] = useState(false);
   const [result, setResult] = useState<TestResult | null>(null);
   const [testError, setTestError] = useState("");
@@ -196,7 +205,6 @@ export function MediaComboDetail({
   };
 
   const remove = async () => {
-    if (!confirm(`Delete combo "${combo.name}"?`)) return;
     try {
       await call(`/api/combos/${encodeURIComponent(combo.id)}`, { method: "DELETE" });
       notify().success(`Deleted ${combo.name}`);
@@ -254,30 +262,27 @@ export function MediaComboDetail({
   };
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
-      <div className="flex flex-wrap items-start gap-4">
-        <div className="grid size-14 shrink-0 place-items-center rounded-2xl bg-surface text-accent shadow-soft ring-1 ring-border">
-          <Icon name="layers" size={28} />
-        </div>
-        <div className="min-w-0 flex-1">
-          <h1 className="truncate font-mono text-2xl tracking-tight">{combo.name}</h1>
-          <p className="mt-1 text-xs text-text-muted">
-            {kind.label} combo · {models.length} provider{models.length === 1 ? "" : "s"} ·{" "}
-            {roundRobin ? "round-robin" : "fallback in order"}
+    <div className="mx-auto max-w-3xl space-y-6 px-4 py-6 md:px-8 md:py-8">
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="truncate font-mono text-2xl">{combo.name}</h1>
+          <p className="mt-1 text-[13px] text-text-muted">
+            {kind.label} combo. Send <code className="font-mono">{combo.name}</code> as the model.
           </p>
         </div>
-        <Button variant="danger" icon="delete" onClick={remove}>
-          Delete
-        </Button>
-      </div>
+        <span className="flex items-center gap-1">
+          <IconButton
+            icon="content_copy"
+            label="Copy model name"
+            onClick={() => void navigator.clipboard?.writeText(combo.name)}
+          />
+          <IconButton icon="delete" label="Delete combo" onClick={() => setConfirmDelete(true)} />
+        </span>
+      </header>
 
-      <div className="mt-8 space-y-6">
-        <Panel className="space-y-4 p-4 sm:p-5">
-          <Field
-            label="Name"
-            error={nameError}
-            hint="Clients request this name as the model. Letters, numbers, -, _ and ."
-          >
+      <Panel className="divide-y divide-border px-4">
+        <div className="py-4">
+          <Field label="Name" error={nameError} hint="Letters, numbers, -, _ and .">
             <Input
               mono
               value={name}
@@ -289,41 +294,51 @@ export function MediaComboDetail({
               onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
             />
           </Field>
-          <div className="flex items-center gap-3">
-            <div className="min-w-0 flex-1">
-              <div className="text-[13px] font-medium">Round robin</div>
-              <div className="text-xs text-text-muted">
-                Rotate providers across requests instead of strict fallback order.
-              </div>
+        </div>
+        <div className="flex flex-col gap-3 py-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0 sm:max-w-sm">
+            <div className="text-[13px] font-medium">How it picks</div>
+            <div className="mt-0.5 text-[12px] leading-relaxed text-text-muted">
+              {roundRobin
+                ? "Takes turns between the providers across requests."
+                : "Top to bottom: the next provider is only tried when the one before fails."}
             </div>
-            <Switch checked={roundRobin} onChange={toggleRoundRobin} label="Round robin" />
           </div>
-        </Panel>
+          <Segmented<"fallback" | "round-robin">
+            className="shrink-0"
+            value={roundRobin ? "round-robin" : "fallback"}
+            onChange={(v) => void toggleRoundRobin(v === "round-robin")}
+            options={[
+              { value: "fallback", label: "In order" },
+              { value: "round-robin", label: "Take turns" },
+            ]}
+          />
+        </div>
+      </Panel>
 
-        <Panel className="p-4 sm:p-5">
-          <div className="mb-3 flex flex-wrap items-center gap-2">
-            <div className="min-w-0 flex-1">
-              <h2 className="text-base font-semibold">Providers</h2>
-              <p className="text-xs text-text-muted">
-                Tried top-down, or rotated when round robin is on.
-              </p>
-            </div>
-            <Button icon="add" onClick={() => setPicker(true)}>
-              Add provider
-            </Button>
-          </div>
-          {models.length === 0 ? (
-            <EmptyState icon="layers">Add a provider so this combo can route requests.</EmptyState>
-          ) : (
-            <ol className="space-y-1.5">
-              {models.map((entry, i) => {
-                const { providerId, model } = parseComboEntry(entry);
-                const p = PROVIDERS[providerId];
-                return (
-                  <li
-                    key={`${entry}-${i}`}
-                    className="flex items-center gap-3 rounded-lg bg-surface-2 px-2.5 py-2"
-                  >
+      <section className="space-y-2">
+        <div className="flex items-center justify-between">
+          <h2 className="text-[13px] font-medium">
+            Providers <span className="text-text-subtle">{models.length}</span>
+          </h2>
+          <Button icon="add" onClick={() => setPicker(true)}>
+            Add provider
+          </Button>
+        </div>
+        {models.length === 0 ? (
+          <Panel className="p-6 text-center text-[13px] text-text-muted">
+            No providers yet. Add the ones this combo should use.
+          </Panel>
+        ) : (
+          <ol className="space-y-2">
+            {models.map((entry, i) => {
+              const { providerId, model } = parseComboEntry(entry);
+              const p = PROVIDERS[providerId];
+              const conns = connections.filter((c) => c.provider === providerId);
+              const ready = conns.filter((c) => c.isActive !== false).length;
+              return (
+                <li key={`${entry}-${i}`}>
+                  <Panel className="flex items-center gap-3 p-3">
                     <span className="w-4 text-center text-[11px] tabular-nums text-text-subtle">
                       {i + 1}
                     </span>
@@ -336,11 +351,15 @@ export function MediaComboDetail({
                     />
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-[13px]">{p?.name || providerId}</div>
-                      {model && (
-                        <div className="truncate font-mono text-[11px] text-text-muted">
-                          {model}
-                        </div>
-                      )}
+                      <div className="truncate text-[11px] text-text-muted">
+                        {model ? <span className="font-mono">{model}</span> : null}
+                        {model ? " · " : ""}
+                        {ready > 0
+                          ? `${ready} account${ready === 1 ? "" : "s"}`
+                          : conns.length > 0
+                            ? "paused"
+                            : "no account"}
+                      </div>
                     </div>
                     <IconButton
                       icon="arrow_upward"
@@ -367,16 +386,22 @@ export function MediaComboDetail({
                       label={`Remove ${p?.name || providerId}`}
                       onClick={() => void setAndSave(models.filter((_, j) => j !== i))}
                     />
-                  </li>
-                );
-              })}
-            </ol>
-          )}
-        </Panel>
+                  </Panel>
+                </li>
+              );
+            })}
+          </ol>
+        )}
+      </section>
 
-        {body && (
-          <Panel className="space-y-3 p-4 sm:p-5">
-            <h2 className="text-base font-semibold">Try it</h2>
+      {body && (
+        <section>
+          <div className="mb-2 flex min-w-0 items-center gap-2">
+            <Eyebrow>Try it</Eyebrow>
+            <Tag mono>POST</Tag>
+            <span className="min-w-0 truncate font-mono text-[11px] text-text-subtle">{path}</span>
+          </div>
+          <div className="space-y-3 rounded-xl border border-border bg-surface p-3 sm:p-4">
             <RequestBlock
               env={env}
               curl={curl}
@@ -410,22 +435,24 @@ export function MediaComboDetail({
                 {result.audioUrl && <audio controls src={result.audioUrl} className="w-full" />}
               </ResponseBlock>
             )}
-          </Panel>
-        )}
+          </div>
+        </section>
+      )}
 
-        <Panel className="p-4 sm:p-5">
-          <Eyebrow className="mb-2">Recent requests</Eyebrow>
-          {logs === null ? (
-            <p className="text-xs text-text-subtle">Loading…</p>
-          ) : logs.length === 0 ? (
-            <p className="text-xs text-text-muted">No requests through this combo yet.</p>
-          ) : (
-            <pre className="max-h-96 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-surface-2 px-3 py-2.5 font-mono text-[11px]">
-              {logs.join("\n")}
-            </pre>
-          )}
-        </Panel>
-      </div>
+      <section>
+        <Eyebrow className="mb-2">Recent requests</Eyebrow>
+        {logs === null ? (
+          <p className="text-xs text-text-subtle">Loading…</p>
+        ) : logs.length === 0 ? (
+          <Panel className="p-6 text-center text-[13px] text-text-muted">
+            No requests through this combo yet.
+          </Panel>
+        ) : (
+          <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-all rounded-xl border border-border bg-bg-alt px-3 py-2.5 font-mono text-[11px] leading-relaxed">
+            {logs.join("\n")}
+          </pre>
+        )}
+      </section>
 
       {picker && (
         <PickerModal
@@ -447,6 +474,17 @@ export function MediaComboDetail({
           closeOnSelect={false}
         />
       )}
+      <Confirm
+        isOpen={confirmDelete}
+        onClose={() => setConfirmDelete(false)}
+        title={`Delete ${combo.name}?`}
+        message="Apps sending this combo as the model get an error until you point them somewhere else."
+        confirmText="Delete"
+        onConfirm={() => {
+          setConfirmDelete(false);
+          void remove();
+        }}
+      />
     </div>
   );
 }

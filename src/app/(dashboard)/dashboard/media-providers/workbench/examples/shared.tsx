@@ -7,7 +7,7 @@ import {
   type ReactNode,
   type SelectHTMLAttributes,
 } from "react";
-import { Button, Eyebrow, Icon, Panel, Tag, cn, inputClass } from "@/ui";
+import { Button, Eyebrow, Icon, Tag, cn, inputClass } from "@/ui";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 
 const noSubscribe = () => () => {};
@@ -163,7 +163,7 @@ export function KeyRow({ env, fallback }: { env: ExampleEnv; fallback?: ReactNod
   );
 }
 
-/** The whole "Try it" surface: header, form rows, request, response. */
+/** The whole "Try it" surface: a section like Accounts/Models, form rows in a bordered body. */
 export function ExamplePanel({
   method,
   path,
@@ -174,16 +174,45 @@ export function ExamplePanel({
   children: ReactNode;
 }) {
   return (
-    <Panel className="p-4 sm:p-5">
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <h2 className="text-base font-semibold">Try it</h2>
+    <section>
+      <div className="mb-2 flex min-w-0 items-center gap-2">
+        <Eyebrow>Try it</Eyebrow>
         <Tag mono>{method}</Tag>
-        <span className="min-w-0 truncate font-mono text-xs text-text-muted">{path}</span>
+        <span className="min-w-0 truncate font-mono text-[11px] text-text-subtle">{path}</span>
       </div>
-      <div className="space-y-3">{children}</div>
-    </Panel>
+      <div className="space-y-3 rounded-xl border border-border bg-surface p-3 sm:p-4">
+        {children}
+      </div>
+    </section>
   );
 }
+
+/** Bordered block with a header bar and a mono body (the request drawer's look). */
+function CodeBlock({
+  title,
+  meta,
+  actions,
+  children,
+}: {
+  title: string;
+  meta?: ReactNode;
+  actions?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <div className="overflow-hidden rounded-xl border border-border">
+      <div className="flex min-h-10 flex-wrap items-center gap-x-2 gap-y-1 px-3 py-1.5">
+        <span className="text-[13px] font-medium">{title}</span>
+        {meta}
+        <div className="ml-auto flex items-center gap-1">{actions}</div>
+      </div>
+      <div className="border-t border-border bg-bg-alt">{children}</div>
+    </div>
+  );
+}
+
+const codeClass =
+  "max-h-80 overflow-auto whitespace-pre-wrap break-all px-3 py-2.5 font-mono text-[11px] leading-relaxed";
 
 /**
  * curl preview + Run. `curl(key)` builds the command; the page shows it with a
@@ -210,18 +239,8 @@ export function RequestBlock({
   const keyFor = (full: boolean) =>
     env.apiKey ? (full ? env.apiKey : maskKey(env.apiKey)) : "YOUR_KEY";
   return (
-    <div className="pt-1">
-      <div className="mb-1.5 flex items-center gap-2">
-        <Eyebrow>Request</Eyebrow>
-        <Button
-          variant="ghost"
-          icon={copied ? "check" : "content_copy"}
-          className="ml-auto"
-          onClick={() => copy(curl(keyFor(true)))}
-          title="Copies the command with your full key"
-        >
-          {copied ? "Copied" : "Copy curl"}
-        </Button>
+    <>
+      <div className="flex flex-wrap items-center gap-2 pt-1">
         <Button
           variant="primary"
           icon="play_arrow"
@@ -232,10 +251,23 @@ export function RequestBlock({
           {running ? runningLabel : runLabel}
         </Button>
       </div>
-      <pre className="whitespace-pre-wrap break-all rounded-lg bg-surface-2 px-3 py-2.5 font-mono text-[11px] leading-relaxed text-text">
-        {curl(keyFor(false))}
-      </pre>
-    </div>
+      <CodeBlock
+        title="Request"
+        meta={<span className="text-[11px] text-text-subtle">curl</span>}
+        actions={
+          <Button
+            variant="ghost"
+            icon={copied ? "check" : "content_copy"}
+            onClick={() => copy(curl(keyFor(true)))}
+            title="Copies the command with your full key"
+          >
+            {copied ? "Copied" : "Copy"}
+          </Button>
+        }
+      >
+        <pre className={cn(codeClass, "text-text")}>{curl(keyFor(false))}</pre>
+      </CodeBlock>
+    </>
   );
 }
 
@@ -270,13 +302,17 @@ export function ResponseBlock({
 }) {
   const { copied, copy } = useCopyToClipboard();
   return (
-    <div>
-      <div className="mb-1.5 flex min-h-8 items-center gap-2">
-        <Eyebrow>Response</Eyebrow>
-        {latencyMs != null && (
+    <CodeBlock
+      title="Response"
+      meta={
+        latencyMs != null ? (
           <span className="text-[11px] tabular-nums text-text-muted">{latencyMs} ms</span>
-        )}
-        <div className="ml-auto flex items-center gap-1">
+        ) : (
+          !text && !children && <span className="text-[11px] text-text-subtle">example</span>
+        )
+      }
+      actions={
+        <>
           {action}
           {text && (
             <Button
@@ -287,21 +323,22 @@ export function ResponseBlock({
               {copied ? "Copied" : "Copy"}
             </Button>
           )}
-        </div>
-      </div>
-      {children}
+        </>
+      }
+    >
+      {children && <div className="space-y-2 p-3">{children}</div>}
       {(text || placeholder) && (
         <pre
           className={cn(
-            "max-h-96 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-surface-2 px-3 py-2.5 font-mono text-[11px] leading-relaxed",
+            codeClass,
             text ? "text-text" : "text-text-subtle",
-            children ? "mt-2" : "",
+            !!children && "border-t border-border",
           )}
         >
           {text || placeholder}
         </pre>
       )}
-    </div>
+    </CodeBlock>
   );
 }
 

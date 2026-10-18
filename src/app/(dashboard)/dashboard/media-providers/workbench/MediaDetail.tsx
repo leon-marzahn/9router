@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { Button, Icon, ProviderLogo, StatusLabel, Switch, Tag, cn } from "@/ui";
-import { AddCustomEmbeddingModal, NoAuthProxyCard, ProviderInfoCard } from "@/shared/components";
-import ConnectionsCard from "../../providers/components/ConnectionsCard";
-import ModelsCard from "../../providers/components/ModelsCard";
+import { Button, Eyebrow, Icon, ProviderLogo, StatusLabel, Switch, Tag, cn } from "@/ui";
+import { AddCustomEmbeddingModal, ConfirmModal } from "@/shared/components";
+import ProviderManager from "../../providers/[id]/ProviderManager";
 import { useNotificationStore } from "@/store/notificationStore";
 import { kindById, providerInfo, type MediaEntry, type MediaKind } from "./model";
+import { KindConfig } from "./KindConfig";
 import { KIND_EXAMPLE_CONFIG } from "./examples/config";
 import { EmbeddingExample } from "./examples/EmbeddingExample";
 import { TtsExample } from "./examples/TtsExample";
@@ -16,33 +16,26 @@ import { GenericExample } from "./examples/GenericExample";
 type Notify = { getState: () => { error: (m: string) => void; success: (m: string) => void } };
 const notify = () => (useNotificationStore as unknown as Notify).getState();
 
-// The legacy cards use these props; they're plain JS.
-const Legacy = {
-  AddCustomEmbeddingModal: AddCustomEmbeddingModal as unknown as (p: {
-    isOpen: boolean;
-    node: unknown;
-    onClose: () => void;
-    onSaved: (n: unknown) => void;
-  }) => ReactNode,
-  NoAuthProxyCard: NoAuthProxyCard as unknown as (p: { providerId: string }) => ReactNode,
-  ProviderInfoCard: ProviderInfoCard as unknown as (p: {
-    config: unknown;
-    provider: unknown;
-    title: string;
-  }) => ReactNode,
-  ConnectionsCard: ConnectionsCard as unknown as (p: {
-    providerId: string;
-    isOAuth: boolean;
-  }) => ReactNode,
-  ModelsCard: ModelsCard as unknown as (p: {
-    providerId: string;
-    kindFilter: string;
-    providerAliasOverride?: string;
-  }) => ReactNode,
-};
-
-// Kinds where the provider itself is the model (no model list to manage).
-const NO_MODELS = new Set(["tts", "webSearch", "webFetch"]);
+const EditEmbeddingModal = AddCustomEmbeddingModal as unknown as (p: {
+  isOpen: boolean;
+  node: unknown;
+  onClose: () => void;
+  onSaved: (n: unknown) => void;
+}) => ReactNode;
+const Confirm = ConfirmModal as unknown as (p: {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  title: string;
+  message: string;
+  confirmText: string;
+}) => ReactNode;
+const Manager = ProviderManager as unknown as (p: {
+  providerId: string;
+  embedded: boolean;
+  liveVersion: number;
+  mediaKind: string;
+}) => ReactNode;
 
 function kindConfigOf(info: NonNullable<ReturnType<typeof providerInfo>>, kind: string): unknown {
   switch (kind) {
@@ -69,30 +62,41 @@ function kindConfigOf(info: NonNullable<ReturnType<typeof providerInfo>>, kind: 
   }
 }
 
-/** Selected media provider: status, accounts, models, config and a "Try it" panel. */
+/**
+ * Selected media provider — same shape as the Providers detail: status and
+ * quick actions, then accounts + this kind's models (the shared
+ * ProviderManager), the kind's registry facts and a "Try it" panel.
+ */
 export function MediaDetail({
   p,
   kind,
+  testing,
+  liveVersion,
+  onTest,
   onSetActive,
   onSwitchKind,
   onCustomChanged,
 }: {
   p: MediaEntry;
   kind: MediaKind;
+  testing: string | null;
+  liveVersion: number;
+  onTest: (id: string) => void;
   onSetActive: (ids: string[], active: boolean) => void;
   onSwitchKind: (kind: string) => void;
-  /** A custom embedding node was edited (null = deleted). */
+  /** A custom embedding node was edited or deleted. */
   onCustomChanged: (deleted: boolean) => void;
 }) {
   const info = p.custom ? undefined : providerInfo(p.id);
-  const kinds = p.custom ? ["embedding"] : (info?.serviceKinds ?? []);
+  const kinds = p.custom ? [] : (info?.serviceKinds ?? []).filter((k) => kindById(k));
+  const connected = p.stats.total > 0 || p.noAuth;
   const routing = !p.stats.allDisabled;
   const [editing, setEditing] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const config = info ? kindConfigOf(info, kind.id) : undefined;
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const deleteCustom = async () => {
-    if (!confirm(`Delete the custom embedding "${p.name}"?`)) return;
+    setConfirmDelete(false);
     setDeleting(true);
     try {
       const res = await fetch(`/api/provider-nodes/${encodeURIComponent(p.id)}`, {
@@ -102,7 +106,7 @@ export function MediaDetail({
       notify().success(`Deleted ${p.name}`);
       onCustomChanged(true);
     } catch (e) {
-      notify().error(`Couldn't delete ${p.name}: ${(e as Error).message}`);
+      notify().error(`Couldn’t delete ${p.name}: ${(e as Error).message}`);
     } finally {
       setDeleting(false);
     }
@@ -110,7 +114,7 @@ export function MediaDetail({
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
-      <div className="flex flex-wrap items-start gap-4">
+      <div className="flex items-start gap-4">
         <div className="grid size-14 shrink-0 place-items-center rounded-2xl bg-surface shadow-soft ring-1 ring-border">
           <ProviderLogo
             providerId={p.id}
@@ -125,10 +129,11 @@ export function MediaDetail({
           <h1 className="truncate font-display text-3xl tracking-tight">{p.name}</h1>
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
             <StatusLabel status={p.status} />
+            <span className="text-text-muted">{kind.label}</span>
             {p.custom && (
               <Tag>
-                Custom{p.custom.prefix ? ` · ` : ""}
-                {p.custom.prefix && <span className="font-mono">{p.custom.prefix}</span>}
+                Custom
+                {p.custom.prefix && <span className="font-mono">· {p.custom.prefix}</span>}
               </Tag>
             )}
             <span className="truncate font-mono text-text-subtle">{p.id}</span>
@@ -136,7 +141,9 @@ export function MediaDetail({
         </div>
         {p.stats.total > 0 && (
           <div className="flex shrink-0 items-center gap-2 text-xs text-text-muted">
-            <span aria-hidden>Routing</span>
+            <span aria-hidden className="hidden sm:inline">
+              Routing
+            </span>
             <Switch
               checked={routing}
               label={routing ? `Pause ${p.name}` : `Resume ${p.name}`}
@@ -151,91 +158,111 @@ export function MediaDetail({
         )}
       </div>
 
-      {/* Other media kinds this provider serves */}
-      {kinds.length > 1 && (
-        <div className="mt-4 flex flex-wrap items-center gap-1.5">
-          <span className="mr-1 text-[11px] text-text-subtle">Also serves</span>
-          {kinds.map((k) => {
-            const mk = kindById(k);
-            if (!mk) return null;
-            const current = k === kind.id;
-            return (
-              <button
-                key={k}
-                type="button"
-                disabled={current}
-                onClick={() => onSwitchKind(k)}
-                className={cn(
-                  "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px]",
-                  current
-                    ? "border-accent-ring bg-accent-soft text-accent-text"
-                    : "border-border text-text-muted hover:text-text",
-                )}
+      {(kinds.length > 1 || (connected && !p.noAuth) || p.custom) && (
+        <div className="mt-6 flex flex-wrap items-center gap-2">
+          {connected && !p.noAuth && (
+            <Button
+              variant="primary"
+              icon="play_arrow"
+              loading={testing === p.id}
+              disabled={!!testing && testing !== p.id}
+              onClick={() => onTest(p.id)}
+            >
+              Test accounts
+            </Button>
+          )}
+          {p.custom && (
+            <>
+              <Button icon="edit" onClick={() => setEditing(true)}>
+                Edit endpoint
+              </Button>
+              <Button
+                variant="danger"
+                icon="delete"
+                loading={deleting}
+                onClick={() => setConfirmDelete(true)}
               >
-                <Icon name={mk.icon} size={13} />
-                {mk.short}
-              </button>
-            );
-          })}
+                Delete
+              </Button>
+            </>
+          )}
+          {kinds.length > 1 && (
+            <div className="flex flex-wrap items-center gap-1.5 sm:ml-auto">
+              <span className="text-[11px] text-text-subtle">Also</span>
+              {kinds
+                .filter((k) => k !== kind.id)
+                .map((k) => {
+                  const mk = kindById(k)!;
+                  return (
+                    <button
+                      key={k}
+                      type="button"
+                      onClick={() => onSwitchKind(k)}
+                      className="inline-flex h-7 items-center gap-1 rounded-full border border-border px-2.5 text-[11px] text-text-muted hover:bg-surface-2 hover:text-text"
+                    >
+                      <Icon name={mk.icon} size={14} />
+                      {mk.short}
+                    </button>
+                  );
+                })}
+            </div>
+          )}
         </div>
       )}
 
-      <div className="mt-6 flex flex-wrap gap-2">
-        {info?.notice?.apiKeyUrl && (
-          <a
-            href={info.notice.apiKeyUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border-strong bg-surface px-3 text-xs hover:bg-surface-2 dark:border-border"
-          >
-            Get API key <Icon name="open_in_new" size={16} />
-          </a>
-        )}
-        {p.custom && (
-          <>
-            <Button icon="edit" onClick={() => setEditing(true)}>
-              Edit
-            </Button>
-            <Button variant="danger" icon="delete" loading={deleting} onClick={deleteCustom}>
-              Delete
-            </Button>
-          </>
-        )}
-      </div>
+      {connected && !p.noAuth && (
+        <div className="mt-8 grid grid-cols-3 gap-3">
+          {(
+            [
+              ["Accounts", p.stats.total],
+              ["Healthy", p.stats.connected],
+              ["Failing", p.stats.error],
+            ] as const
+          ).map(([l, v]) => (
+            <div key={l} className="rounded-xl border border-border bg-surface p-4">
+              <Eyebrow>{l}</Eyebrow>
+              <div
+                className={cn(
+                  "mt-1 text-2xl font-semibold tabular-nums",
+                  l === "Failing" && v > 0 && "text-danger-text",
+                )}
+              >
+                {v}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {info?.kindNotice?.[kind.id] && (
-        <Notice tone="warning" icon="warning">
-          {info.kindNotice[kind.id]}
-        </Notice>
-      )}
-      {info?.notice?.text && !info.deprecated && (
-        <Notice tone="info" icon="info">
-          {info.notice.text}
-        </Notice>
+        <div className="mt-6 flex items-start gap-2.5 rounded-xl bg-warning/12 px-4 py-3 text-xs leading-relaxed text-warning-text">
+          <Icon name="warning" size={18} className="mt-px shrink-0" />
+          <p className="min-w-0">{info.kindNotice[kind.id]}</p>
+        </div>
       )}
 
-      {/* Accounts, models and config — the shared management cards, inline */}
-      <div className="mt-8 space-y-6">
-        {info?.noAuth ? (
-          <Legacy.NoAuthProxyCard providerId={p.id} />
-        ) : (
-          <Legacy.ConnectionsCard providerId={p.id} isOAuth={false} />
-        )}
-        {!NO_MODELS.has(kind.id) && (
-          <Legacy.ModelsCard
-            providerId={p.id}
-            kindFilter={kind.id}
-            providerAliasOverride={p.custom?.prefix}
-          />
-        )}
-        {!!config && (
-          <Legacy.ProviderInfoCard config={config} provider={info} title={`${kind.label} config`} />
-        )}
+      {/* Accounts + this kind's models: the same management surface as Providers */}
+      <div className="mt-10">
+        <Manager providerId={p.id} embedded liveVersion={liveVersion} mediaKind={kind.id} />
+      </div>
+
+      <div className="mt-8 space-y-8">
+        {info && <KindConfig title={`${kind.short} config`} config={kindConfigOf(info, kind.id)} />}
         <Example p={p} kind={kind.id} />
       </div>
 
       {p.custom && (
-        <Legacy.AddCustomEmbeddingModal
+        <Confirm
+          isOpen={confirmDelete}
+          onClose={() => setConfirmDelete(false)}
+          title={`Delete ${p.name}?`}
+          message="Requests for this embedding prefix stop working."
+          confirmText="Delete"
+          onConfirm={() => void deleteCustom()}
+        />
+      )}
+      {p.custom && (
+        <EditEmbeddingModal
           isOpen={editing}
           node={p.custom}
           onClose={() => setEditing(false)}
@@ -257,7 +284,7 @@ function Example({ p, kind }: { p: MediaEntry; kind: string }) {
       <EmbeddingExample
         key={key}
         providerId={p.id}
-        customAlias={p.custom?.prefix ?? (p.custom ? "" : undefined)}
+        customAlias={p.custom ? p.custom.prefix || "" : undefined}
       />
     );
   if (p.custom) return null;
@@ -266,26 +293,4 @@ function Example({ p, kind }: { p: MediaEntry; kind: string }) {
   if (KIND_EXAMPLE_CONFIG[kind])
     return <GenericExample key={key} providerId={p.id} kind={kind} connections={p.connections} />;
   return null;
-}
-
-function Notice({
-  tone,
-  icon,
-  children,
-}: {
-  tone: "warning" | "info";
-  icon: string;
-  children: ReactNode;
-}) {
-  return (
-    <div
-      className={cn(
-        "mt-4 flex items-start gap-2.5 rounded-xl px-4 py-3 text-xs leading-relaxed",
-        tone === "warning" ? "bg-warning/12 text-warning-text" : "bg-info/12 text-info-text",
-      )}
-    >
-      <Icon name={icon} size={18} className="mt-px shrink-0" />
-      <p className="min-w-0">{children}</p>
-    </div>
-  );
 }
