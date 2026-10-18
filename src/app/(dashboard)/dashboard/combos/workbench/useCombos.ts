@@ -24,7 +24,13 @@ export interface StepReadiness {
   until: string | null;
 }
 
-type Notify = { getState: () => { error: (m: string) => void; success: (m: string) => void; warning: (m: string) => void } };
+type Notify = {
+  getState: () => {
+    error: (m: string) => void;
+    success: (m: string) => void;
+    warning: (m: string) => void;
+  };
+};
 export const notify = () => (useNotificationStoreJs as unknown as Notify).getState();
 
 async function json(path: string, init?: RequestInit) {
@@ -83,7 +89,10 @@ export function useCombos() {
     const prev = strategies;
     setStrategies(next);
     try {
-      await json("/api/settings", { method: "PATCH", body: JSON.stringify({ comboStrategies: next }) });
+      await json("/api/settings", {
+        method: "PATCH",
+        body: JSON.stringify({ comboStrategies: next }),
+      });
     } catch (e) {
       setStrategies(prev);
       notify().error((e as Error).message);
@@ -92,7 +101,9 @@ export function useCombos() {
 
   const warn = (data: { warning?: { model: string } }, name: string) => {
     if (data.warning)
-      notify().warning(`"${name}" is also a model name (${data.warning.model}); requests for it now go through this combo. Use combo/${name} to always mean the combo.`);
+      notify().warning(
+        `"${name}" is also a model name (${data.warning.model}); requests for it now go through this combo. Use combo/${name} to always mean the combo.`,
+      );
   };
 
   return {
@@ -109,7 +120,10 @@ export function useCombos() {
       return saveStrategies(next);
     },
     create: async (name: string, models: string[]) => {
-      const data = await json("/api/combos", { method: "POST", body: JSON.stringify({ name, models }) });
+      const data = await json("/api/combos", {
+        method: "POST",
+        body: JSON.stringify({ name, models }),
+      });
       warn(data, name);
       await load();
       void loadReadiness();

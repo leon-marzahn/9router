@@ -31,7 +31,8 @@ type ProviderInfo = { id?: string; name?: string } | null;
 
 /** "cc/claude-opus" -> provider id + display name + model part. */
 export function splitStep(step: string, r?: StepReadiness) {
-  if (!step.includes("/")) return { providerId: "combo", providerName: "Combo", model: step, isCombo: true };
+  if (!step.includes("/"))
+    return { providerId: "combo", providerName: "Combo", model: step, isCombo: true };
   const [alias, ...rest] = step.split("/");
   const p = getProviderByAlias(alias) as ProviderInfo;
   const providerId = r?.provider || p?.id || alias;
@@ -50,9 +51,13 @@ export function untilText(iso: string | null, now = Date.now()) {
 
 export function stepDetail(r: StepReadiness | undefined, now = Date.now()) {
   if (!r) return "";
-  if (r.state === "cooling") return r.until ? `all accounts resting · back in ${untilText(r.until, now)}` : "all accounts resting";
+  if (r.state === "cooling")
+    return r.until
+      ? `all accounts resting · back in ${untilText(r.until, now)}`
+      : "all accounts resting";
   if (r.state === "off") return "no active account";
-  if (r.state === "ready") return r.accounts > 1 ? `${r.ready} of ${r.accounts} accounts ready` : "";
+  if (r.state === "ready")
+    return r.accounts > 1 ? `${r.ready} of ${r.accounts} accounts ready` : "";
   if (r.state === "combo") return "routes through another combo";
   return "not a known provider";
 }

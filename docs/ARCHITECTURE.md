@@ -239,6 +239,23 @@ flowchart TD
 
 Fallback decisions are driven by `open-sse/services/accountFallback.js` using status codes and error-message heuristics.
 
+### How a combo picks its step
+
+Set per combo on the Combos page (`settings.comboStrategies[name]`); `settings.comboStrategy` is the default.
+
+| Mode | Order of steps per request |
+|---|---|
+| In order (`fallback`) | Top to bottom. |
+| Take turns (`round-robin`) | Rotates the start, `comboStickyRoundRobinLimit` requests per step. |
+| Per chat (`per-chat`) | Each conversation gets its own fixed order over the steps (rendezvous hash of conversation key × step), so it stays on one step and conversations spread out. No key → behaves like Take turns. |
+| Ask all (`fusion`) | Every step in parallel, then a judge merges. |
+
+- **Readiness:** before trying, steps whose every account is model-locked (cooling down) or that have no active account move to the end (`src/sse/services/stepReadiness.js`, connection rows only, no upstream calls). They're not dropped, so a stale lock can't make a combo fail outright.
+- **After a fallback** (`stickAfterFallback`, In order and Per chat): when a conversation was answered by a step other than its first choice, *Stay* keeps sending it there (its prompt cache is warm) until that step fails or an hour passes without requests; *Go back up* returns to the first choice as soon as it's ready. Default: Stay for Per chat, Go back up for In order. The memory is per process (`open-sse/services/comboAffinity.js`) and holds only combo name + conversation digest + step.
+- **Conversation key:** the same opaque digest as the account "Per chat" strategy (`src/sse/services/cacheAffinity.js`): a client session id if sent, else a SHA-256 of the system prompt + first user message. Prompt text is never stored or logged.
+- Combo and account affinity stack: the combo picks the step, then the account strategy picks the account inside that step's provider.
+- **`combo/<name>`** always resolves to the combo (404 if there's none). A combo named like a real model id catches requests for that bare name; that's allowed (it's how one model gets several providers) and the API returns a `warning` when it happens.
+
 ## OAuth Onboarding and Token Refresh Lifecycle
 
 ```mermaid

@@ -18,7 +18,18 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Button, Icon, IconButton, MenuItem, MenuSeparator, Panel, Popover, ProviderLogo, Segmented, Tag } from "@/ui";
+import {
+  Button,
+  Icon,
+  IconButton,
+  MenuItem,
+  MenuSeparator,
+  Panel,
+  Popover,
+  ProviderLogo,
+  Segmented,
+  Tag,
+} from "@/ui";
 import { cn } from "@/ui/cn";
 import { ConfirmModal, ModelSelectModal } from "@/shared/components";
 import { STEP_DOT, STEP_LABEL, STEP_TEXT, splitStep, stepDetail } from "./steps";
@@ -27,23 +38,40 @@ import type { Combo, CombosApi, Strategy } from "./useCombos";
 const Picker = ModelSelectModal as unknown as React.ComponentType<Record<string, unknown>>;
 
 const HOW: Record<Strategy, string> = {
-  fallback: "Top to bottom. Steps that are resting or have no account are skipped without trying them.",
+  fallback:
+    "Top to bottom. Steps that are resting or have no account are skipped without trying them.",
   "round-robin": "Takes turns between the steps, a few requests each (set in Settings → Routing).",
   "per-chat":
     "Each conversation sticks to one step, so its prompt cache stays warm. New conversations spread across the steps. If a conversation's step fails, it moves to another one.",
   fusion: "Asks every step at once, then a judge model merges the answers. Slower and costs more.",
 };
 
-export function ComboDetail({ combo, api, onBack, onRename }: { combo: Combo & { shadows?: string | null }; api: CombosApi; onBack: () => void; onRename: () => void }) {
+export function ComboDetail({
+  combo,
+  api,
+  onBack,
+  onRename,
+}: {
+  combo: Combo & { shadows?: string | null };
+  api: CombosApi;
+  onBack: () => void;
+  onRename: () => void;
+}) {
   const strategy = api.strategyOf(combo.name);
   const settings = api.settingsFor(combo.name);
-  const stick = typeof settings.stickAfterFallback === "boolean" ? settings.stickAfterFallback : strategy === "per-chat";
+  const stick =
+    typeof settings.stickAfterFallback === "boolean"
+      ? settings.stickAfterFallback
+      : strategy === "per-chat";
   const [picker, setPicker] = useState<null | "steps" | "judge">(null);
   const [menu, setMenu] = useState(false);
   const menuRef = useRef<HTMLButtonElement>(null);
   const [del, setDel] = useState(false);
   const models = combo.models;
-  const next = strategy === "fallback" ? models.findIndex((m) => !["cooling", "off"].includes(api.readiness[m]?.state ?? "ready")) : -1;
+  const next =
+    strategy === "fallback"
+      ? models.findIndex((m) => !["cooling", "off"].includes(api.readiness[m]?.state ?? "ready"))
+      : -1;
 
   const setModels = (m: string[]) => void api.update(combo.id, { models: m }).catch(() => {});
   const sensors = useSensors(
@@ -58,7 +86,11 @@ export function ComboDetail({ combo, api, onBack, onRename }: { combo: Combo & {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 px-4 py-6 md:px-8 md:py-8">
-      <button type="button" onClick={onBack} className="flex items-center gap-1 text-[13px] text-text-muted md:hidden">
+      <button
+        type="button"
+        onClick={onBack}
+        className="flex items-center gap-1 text-[13px] text-text-muted md:hidden"
+      >
         <Icon name="arrow_back" size={16} /> Combos
       </button>
       <header className="flex flex-wrap items-start justify-between gap-3">
@@ -70,15 +102,38 @@ export function ComboDetail({ combo, api, onBack, onRename }: { combo: Combo & {
           </p>
         </div>
         <span className="flex items-center gap-1">
-          <IconButton icon="content_copy" label="Copy model name" onClick={() => void navigator.clipboard?.writeText(combo.name)} />
+          <IconButton
+            icon="content_copy"
+            label="Copy model name"
+            onClick={() => void navigator.clipboard?.writeText(combo.name)}
+          />
           <IconButton ref={menuRef} icon="more_horiz" label="More" onClick={() => setMenu(!menu)} />
         </span>
-        <Popover open={menu} onClose={() => setMenu(false)} anchorRef={menuRef} side="bottom-end" className="w-48 py-1">
-          <MenuItem icon="edit" onClick={() => { setMenu(false); onRename(); }}>
+        <Popover
+          open={menu}
+          onClose={() => setMenu(false)}
+          anchorRef={menuRef}
+          side="bottom-end"
+          className="w-48 py-1"
+        >
+          <MenuItem
+            icon="edit"
+            onClick={() => {
+              setMenu(false);
+              onRename();
+            }}
+          >
             Rename
           </MenuItem>
           <MenuSeparator />
-          <MenuItem icon="delete" danger onClick={() => { setMenu(false); setDel(true); }}>
+          <MenuItem
+            icon="delete"
+            danger
+            onClick={() => {
+              setMenu(false);
+              setDel(true);
+            }}
+          >
             Delete
           </MenuItem>
         </Popover>
@@ -88,8 +143,9 @@ export function ComboDetail({ combo, api, onBack, onRename }: { combo: Combo & {
         <p className="flex items-start gap-1.5 text-[12px] text-warning-text">
           <Icon name="info" size={14} className="mt-px shrink-0" />
           <span>
-            Same name as the model <code className="font-mono">{combo.shadows}</code>, so requests for{" "}
-            <code className="font-mono">{combo.name}</code> go through this combo. Fine if that&rsquo;s the point; otherwise rename it.
+            Same name as the model <code className="font-mono">{combo.shadows}</code>, so requests
+            for <code className="font-mono">{combo.name}</code> go through this combo. Fine if
+            that&rsquo;s the point; otherwise rename it.
           </span>
         </p>
       )}
@@ -99,9 +155,12 @@ export function ComboDetail({ combo, api, onBack, onRename }: { combo: Combo & {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0 sm:max-w-sm">
               <div className="text-[13px] font-medium">How it picks</div>
-              <div className="mt-0.5 text-[12px] leading-relaxed text-text-muted">{HOW[strategy]}</div>
+              <div className="mt-0.5 text-[12px] leading-relaxed text-text-muted">
+                {HOW[strategy]}
+              </div>
             </div>
             <Segmented<Strategy>
+              className="shrink-0"
               value={strategy}
               onChange={(v) => void api.setSettings(combo.name, { fallbackStrategy: v })}
               options={[
@@ -126,8 +185,11 @@ export function ComboDetail({ combo, api, onBack, onRename }: { combo: Combo & {
               </div>
             </div>
             <Segmented<"stay" | "back">
+              className="shrink-0"
               value={stick ? "stay" : "back"}
-              onChange={(v) => void api.setSettings(combo.name, { stickAfterFallback: v === "stay" })}
+              onChange={(v) =>
+                void api.setSettings(combo.name, { stickAfterFallback: v === "stay" })
+              }
               options={[
                 { value: "stay", label: "Stay" },
                 { value: "back", label: "Go back up" },
@@ -139,11 +201,17 @@ export function ComboDetail({ combo, api, onBack, onRename }: { combo: Combo & {
           <div className="flex items-center justify-between gap-3 py-4">
             <div>
               <div className="text-[13px] font-medium">Judge</div>
-              <div className="font-mono text-[12px] text-text-muted">{settings.judgeModel || `${models[0] ?? "—"} (first step)`}</div>
+              <div className="font-mono text-[12px] text-text-muted">
+                {settings.judgeModel || `${models[0] ?? "—"} (first step)`}
+              </div>
             </div>
             <span className="flex gap-1">
               {settings.judgeModel && (
-                <Button size="sm" variant="ghost" onClick={() => void api.setSettings(combo.name, { judgeModel: undefined })}>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => void api.setSettings(combo.name, { judgeModel: undefined })}
+                >
                   Use first step
                 </Button>
               )}
@@ -165,7 +233,9 @@ export function ComboDetail({ combo, api, onBack, onRename }: { combo: Combo & {
           </Button>
         </div>
         {models.length === 0 ? (
-          <Panel className="p-6 text-center text-[13px] text-text-muted">No steps yet. Add the models this combo should use.</Panel>
+          <Panel className="p-6 text-center text-[13px] text-text-muted">
+            No steps yet. Add the models this combo should use.
+          </Panel>
         ) : (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
             <SortableContext items={ids} strategy={verticalListSortingStrategy}>
@@ -200,7 +270,9 @@ export function ComboDetail({ combo, api, onBack, onRename }: { combo: Combo & {
             if (picker === "judge") void api.setSettings(combo.name, { judgeModel: x.value });
             else if (x.value !== combo.name) setModels([...models, x.value]);
           }}
-          onDeselect={(x: { value?: string }) => picker === "steps" && setModels(models.filter((y) => y !== x?.value))}
+          onDeselect={(x: { value?: string }) =>
+            picker === "steps" && setModels(models.filter((y) => y !== x?.value))
+          }
         />
       )}
       <ConfirmModal
@@ -218,20 +290,58 @@ export function ComboDetail({ combo, api, onBack, onRename }: { combo: Combo & {
   );
 }
 
-function StepRow({ id, index, step, api, isNext, onRemove }: { id: string; index: number; step: string; api: CombosApi; isNext: boolean; onRemove: () => void }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+function StepRow({
+  id,
+  index,
+  step,
+  api,
+  isNext,
+  onRemove,
+}: {
+  id: string;
+  index: number;
+  step: string;
+  api: CombosApi;
+  isNext: boolean;
+  onRemove: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id,
+  });
   const r = api.readiness[step];
   const tone = r?.state ?? (step.includes("/") ? "unknown" : "combo");
   const p = splitStep(step, r);
   const detail = stepDetail(r);
   return (
-    <li ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }} className={cn(isDragging && "relative z-10")}>
-      <Panel className={cn("flex items-center gap-3 p-3", isNext && "ring-1 ring-accent-ring", isDragging && "shadow-elev")}>
-        <button type="button" aria-label="Drag to reorder" className="cursor-grab touch-none text-text-subtle active:cursor-grabbing" {...attributes} {...listeners}>
+    <li
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={cn(isDragging && "relative z-10")}
+    >
+      <Panel
+        className={cn(
+          "flex items-center gap-3 p-3",
+          isNext && "ring-1 ring-accent-ring",
+          isDragging && "shadow-elev",
+        )}
+      >
+        <button
+          type="button"
+          aria-label="Drag to reorder"
+          className="cursor-grab touch-none text-text-subtle active:cursor-grabbing"
+          {...attributes}
+          {...listeners}
+        >
           <Icon name="drag_indicator" size={18} />
         </button>
-        <span className="w-4 text-center text-[12px] tabular-nums text-text-subtle">{index + 1}</span>
-        {p.isCombo ? <Icon name="layers" size={18} className="text-info-text" /> : <ProviderLogo providerId={p.providerId} name={p.providerName} size={18} />}
+        <span className="w-4 text-center text-[12px] tabular-nums text-text-subtle">
+          {index + 1}
+        </span>
+        {p.isCombo ? (
+          <Icon name="layers" size={18} className="text-info-text" />
+        ) : (
+          <ProviderLogo providerId={p.providerId} name={p.providerName} size={18} />
+        )}
         <div className="min-w-0 flex-1">
           <div className="truncate font-mono text-[13px]">{step}</div>
           <div className="truncate text-[12px] text-text-muted">
@@ -239,12 +349,19 @@ function StepRow({ id, index, step, api, isNext, onRemove }: { id: string; index
             {detail ? ` · ${detail}` : ""}
           </div>
         </div>
-        {isNext && <Tag tone="accent" className="hidden sm:inline-flex">Next request</Tag>}
+        {isNext && (
+          <Tag tone="accent" className="hidden sm:inline-flex">
+            Next request
+          </Tag>
+        )}
         <span className={cn("hidden items-center gap-1.5 text-[12px] sm:flex", STEP_TEXT[tone])}>
           <span className={cn("size-2 rounded-full", STEP_DOT[tone])} />
           {STEP_LABEL[tone]}
         </span>
-        <span className={cn("size-2 shrink-0 rounded-full sm:hidden", STEP_DOT[tone])} aria-label={STEP_LABEL[tone]} />
+        <span
+          className={cn("size-2 shrink-0 rounded-full sm:hidden", STEP_DOT[tone])}
+          aria-label={STEP_LABEL[tone]}
+        />
         <IconButton icon="close" label="Remove step" onClick={onRemove} />
       </Panel>
     </li>
