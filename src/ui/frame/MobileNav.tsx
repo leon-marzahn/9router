@@ -32,8 +32,8 @@ export function MobileNav({
         "flex items-center gap-3 rounded-lg px-3 py-2.5 text-[14px]",
         nested && "ml-4 py-2 text-[13px]",
         active
-          ? "bg-surface-2 font-medium text-text"
-          : "text-text-muted hover:bg-bg hover:text-text",
+          ? "bg-bg font-medium text-text"
+          : "text-text-muted hover:bg-bg/60 hover:text-text",
       )}
     >
       <Icon
@@ -72,7 +72,7 @@ export function MobileNav({
             type="button"
             onClick={onClose}
             aria-label="Close menu"
-            className="ml-auto grid size-8 place-items-center rounded-lg text-text-muted hover:bg-bg"
+            className="ml-auto grid size-8 place-items-center rounded-lg text-text-muted hover:bg-bg/60"
           >
             <Icon name="close" size={20} />
           </button>
@@ -93,7 +93,7 @@ export function MobileNav({
                         onClick={() => setMediaOpen(!mediaOpen)}
                         aria-expanded={mediaOpen}
                         className={cn(
-                          "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-[14px] hover:bg-bg",
+                          "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-[14px] hover:bg-bg/60",
                           pathname.startsWith(MEDIA_ROOT)
                             ? "font-medium text-text"
                             : "text-text-muted",
@@ -126,7 +126,7 @@ export function MobileNav({
           <button
             type="button"
             onClick={toggleTheme}
-            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-[13px] text-text-muted hover:bg-bg"
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-[13px] text-text-muted hover:bg-bg/60"
           >
             <Icon name={isDark ? "light_mode" : "dark_mode"} size={18} />{" "}
             {isDark ? "Light mode" : "Dark mode"}
