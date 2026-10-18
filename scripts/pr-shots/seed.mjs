@@ -2,7 +2,13 @@
 // boots (see scripts/pr-shots.mjs). Everything here is fake: keys are obvious
 // placeholders that no upstream accepts.
 import { getAdapter } from "@/lib/db/driver.js";
-import { addCustomModel, createCombo, createProviderConnection, initDb } from "@/lib/db/index.js";
+import {
+  addCustomModel,
+  createCombo,
+  createProviderConnection,
+  initDb,
+  updateSettings,
+} from "@/lib/db/index.js";
 import { saveRequestUsage } from "@/lib/db/repos/usageRepo.js";
 
 if (!process.env.DATA_DIR || !process.env.HOME?.includes("pr-shots-")) {
@@ -135,6 +141,7 @@ for (let i = 0; i < 6; i++) {
     request: {
       model,
       messages: [{ role: "user", content: "Demo prompt: summarize the release notes." }],
+      ...(i >= 4 && { regentHeaders: { "x-regent-pipeline": "demo-trim", "x-regent-token-saver": "off" } }),
     },
     providerRequest: {},
     providerResponse: {},
@@ -153,6 +160,12 @@ for (let i = 0; i < 6; i++) {
     ],
   );
 }
+
+// Token Saver page.
+await updateSettings({
+  cavemanEnabled: true,
+  cavemanLevel: "full",
+});
 
 console.log(
   `seeded ${conns.length + mediaConnections.length} connections, ${keys.length} API keys, 3 combos, ${n} usage rows`,

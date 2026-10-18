@@ -2,6 +2,7 @@
 
 import { NextResponse } from "next/server";
 import { configWriter } from "../configFile.js";
+import { ompCurrent } from "../currentSummary.js";
 import { DISPLAY_NAME, PROVIDER_KEY, PROVIDER_KEYS } from "@/shared/constants/brand.js";
 import { resolveCliApiKey } from "../resolveApiKey.js";
 import { yamlString, configErrorStatus } from "../configText.js";
@@ -88,6 +89,7 @@ export async function GET() {
     return NextResponse.json({
       installed: true,
       hasRegent,
+      current: hasRegent ? ompCurrent(ymlContent) : null,
       configPath: getOmpModelsYmlPath(),
     });
   } catch (err) {

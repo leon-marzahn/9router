@@ -2,6 +2,7 @@
 
 import { NextResponse } from "next/server";
 import { configWriter } from "../configFile.js";
+import { deepseekTuiCurrent } from "../currentSummary.js";
 import { DISPLAY_NAME } from "@/shared/constants/brand.js";
 import { resolveCliApiKey } from "../resolveApiKey.js";
 import { stringifyTOML } from "confbox";
@@ -105,6 +106,7 @@ export async function GET() {
             installed: true,
             settings: config,
             hasRegent: hasRegentConfig(config),
+            current: deepseekTuiCurrent(toml),
             configPath: getDeepSeekConfigPath(),
         });
     } catch (error) {

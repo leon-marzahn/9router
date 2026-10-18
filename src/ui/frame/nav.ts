@@ -63,6 +63,7 @@ const FULL_BLEED_EXACT = [
   "/dashboard/combos",
   "/dashboard/cli-tools",
   "/dashboard/media-providers",
+  "/dashboard/request-pipelines",
 ];
 
 export function isFullBleed(pathname: string): boolean {

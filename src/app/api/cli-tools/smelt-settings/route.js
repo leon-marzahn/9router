@@ -2,6 +2,7 @@
 
 import { NextResponse } from "next/server";
 import { configWriter } from "../configFile.js";
+import { smeltCurrent } from "../currentSummary.js";
 import { DISPLAY_NAME, PROVIDER_KEY, PROVIDER_KEYS } from "@/shared/constants/brand.js";
 import { resolveCliApiKey } from "../resolveApiKey.js";
 import fs from "fs/promises";
@@ -67,6 +68,7 @@ export async function GET() {
       installed: true,
       config,
       hasRegent: hasRegentConfig(config),
+      current: smeltCurrent(config, hasRegentConfig(config)),
       configPath: getSmeltConfigPath(),
     });
   } catch (err) {

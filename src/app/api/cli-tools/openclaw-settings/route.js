@@ -2,6 +2,7 @@
 
 import { NextResponse } from "next/server";
 import { configWriter } from "../configFile.js";
+import { openclawCurrent } from "../currentSummary.js";
 import { resolveCliApiKey } from "../resolveApiKey.js";
 import {
   DISPLAY_NAME,
@@ -119,6 +120,7 @@ export async function GET() {
       settings,
       agents: enrichedAgents,
       hasRegent: hasRegentConfig(settings),
+      current: openclawCurrent(settings),
       settingsPath: getOpenClawSettingsPath(),
     });
   } catch (error) {
