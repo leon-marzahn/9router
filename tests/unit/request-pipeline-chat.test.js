@@ -10,7 +10,9 @@ vi.mock("../../src/sse/services/auth.js", () => ({
 vi.mock("../../src/sse/services/model.js", () => ({
   getModelInfo: vi.fn(async () => ({ provider: "openai", model: "test" })),
   getComboModels: vi.fn(async () => null),
+  stripComboPrefix: (m) => m,
 }));
+vi.mock("../../src/sse/services/stepReadiness.js", () => ({ isStepReady: vi.fn(async () => true) }));
 vi.mock("../../src/sse/services/tokenRefresh.js", () => ({
   updateProviderCredentials: vi.fn(), checkAndRefreshToken: vi.fn(async (_, credentials) => credentials),
 }));

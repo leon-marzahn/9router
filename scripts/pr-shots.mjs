@@ -43,8 +43,8 @@ const routes = args.routes
   .map((r) => r.trim())
   .filter(Boolean);
 for (const r of routes) {
-  if (!/^\/[\w\-/]*(#[\w-]+)?$/.test(r))
-    throw new Error(`route must be a plain path like /dashboard/usage[#section]: ${r}`);
+  if (!/^\/[\w\-/]*(\?[\w\-.=&]+)?(#[\w-]+)?$/.test(r))
+    throw new Error(`route must be a plain path like /dashboard/usage[?a=b][#section]: ${r}`);
 }
 
 const root = resolve(import.meta.dirname, "..");
@@ -103,14 +103,22 @@ try {
       if (!login.ok()) throw new Error(`login failed: ${login.status()} ${await login.text()}`);
       const page = await context.newPage();
       for (const route of routes) {
-        await page.goto(base + route, { waitUntil: "load", timeout: 180_000 });
-        // Dev mode compiles on first hit and some pages keep SSE open, so
-        // networkidle can hang; settle on a short quiet period instead.
-        await page.waitForLoadState("networkidle", { timeout: 5_000 }).catch(() => {});
-        // Hide the Next dev-tools badge; it is not part of the UI under review.
-        await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
-        await page.evaluate(() => document.fonts.ready);
-        await page.waitForTimeout(1_000);
+        // Dev mode compiles on first hit and can reload the page mid-way; retry a few times.
+        for (let attempt = 0; ; attempt++) {
+          try {
+            await page.goto(base + route, { waitUntil: "load", timeout: 180_000 });
+            // Some pages keep SSE open, so networkidle can hang; settle on a short quiet period instead.
+            await page.waitForLoadState("networkidle", { timeout: 5_000 }).catch(() => {});
+            // Hide the Next dev-tools badge; it is not part of the UI under review.
+            await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
+            await page.evaluate(() => document.fonts.ready);
+            await page.waitForTimeout(1_500);
+            break;
+          } catch (e) {
+            if (attempt >= 3 || !/context was destroyed|navigation/i.test(String(e))) throw e;
+            await page.waitForTimeout(2_000);
+          }
+        }
         // A `#id` route frames that section instead of the (inner-scrolling) full page.
         const hash = route.includes("#") ? route.slice(route.indexOf("#") + 1) : "";
         const section = hash ? page.locator(`[id="${hash}"]`) : null;
@@ -118,7 +126,7 @@ try {
         const slug =
           route
             .replace(/^\/|\/$/g, "")
-            .replace(/[/#]/g, "-")
+            .replace(/[/#?=&]/g, "-")
             .replace(/[^\w.-]/g, "") || "root";
         const file = join(
           outDir,

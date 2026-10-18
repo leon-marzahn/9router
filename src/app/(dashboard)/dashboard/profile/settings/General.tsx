@@ -62,7 +62,8 @@ export function Routing({ api }: { api: SettingsApi }) {
       : s?.fallbackStrategy === "cache-affinity"
         ? "affinity"
         : "fill";
-  const combos = s?.comboStrategy === "round-robin" ? "rr" : "fallback";
+  const combos =
+    s?.comboStrategy === "round-robin" ? "rr" : s?.comboStrategy === "per-chat" ? "chat" : "fallback";
   return (
     <SectionCard id="routing" icon="alt_route" title="Routing">
       {!s ? (
@@ -118,20 +119,23 @@ export function Routing({ api }: { api: SettingsApi }) {
             title="Models in a combo"
             hint={
               combos === "fallback"
-                ? "Try them in order and move on only when one fails."
-                : `Take turns between the models: ${s.comboStickyRoundRobinLimit ?? 1} request${(s.comboStickyRoundRobinLimit ?? 1) === 1 ? "" : "s"} each.`
+                ? "Default for combos without their own choice: try them in order and move on only when one fails."
+                : combos === "chat"
+                  ? "Default for combos without their own choice: each conversation sticks to one model so its cache stays warm. Each combo can override this on the Combos page."
+                  : `Take turns between the models: ${s.comboStickyRoundRobinLimit ?? 1} request${(s.comboStickyRoundRobinLimit ?? 1) === 1 ? "" : "s"} each.`
             }
           >
             <Segmented
               value={combos}
               onChange={(v) =>
                 void api
-                  .save({ comboStrategy: v === "rr" ? "round-robin" : "fallback" })
+                  .save({ comboStrategy: v === "rr" ? "round-robin" : v === "chat" ? "per-chat" : "fallback" })
                   .catch(() => {})
               }
               options={[
                 { value: "fallback", label: "In order" },
                 { value: "rr", label: "Take turns" },
+                { value: "chat", label: "Per chat" },
               ]}
             />
           </Row>
