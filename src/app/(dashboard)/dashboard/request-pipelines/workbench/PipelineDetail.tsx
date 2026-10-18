@@ -37,16 +37,20 @@ export function PipelineDetail({
   onBack,
   onRename,
   onDelete,
+  onDuplicate,
 }: {
   pipeline: Pipeline;
   api: PipelinesApi;
   onBack: () => void;
   onRename: (name: string) => void;
   onDelete: () => void;
+  onDuplicate: () => void;
 }) {
   const [name, setName] = useState(p.name);
   const [stats, setStats] = useState<(StepStat | null)[]>([]);
   const [confirm, setConfirm] = useState(false);
+  const [menu, setMenu] = useState(false);
+  const menuRef = useRef<HTMLButtonElement>(null);
   const [adding, setAdding] = useState(false);
   const [attaching, setAttaching] = useState(false);
   const addRef = useRef<HTMLButtonElement>(null);
@@ -98,7 +102,41 @@ export function PipelineDetail({
                 : "Not used since the server started"}
             </p>
           </div>
-          <IconButton icon="delete" label="Delete pipeline" onClick={() => setConfirm(true)} />
+          <IconButton
+            ref={menuRef}
+            icon="more_horiz"
+            label="More"
+            className="mt-6"
+            onClick={() => setMenu(true)}
+          />
+          <Popover
+            open={menu}
+            onClose={() => setMenu(false)}
+            anchorRef={menuRef}
+            side="bottom-end"
+            className="w-44 py-1"
+          >
+            <MenuItem
+              icon="content_copy"
+              onClick={() => {
+                setMenu(false);
+                onDuplicate();
+              }}
+            >
+              Duplicate
+            </MenuItem>
+            <MenuSeparator />
+            <MenuItem
+              icon="delete"
+              danger
+              onClick={() => {
+                setMenu(false);
+                setConfirm(true);
+              }}
+            >
+              Delete
+            </MenuItem>
+          </Popover>
         </div>
         <Input
           value={p.description ?? ""}

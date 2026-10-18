@@ -144,6 +144,9 @@ export function PipelinesWorkbench() {
               api.update(current.name, { ...current, name });
               select(name);
             }}
+            onDuplicate={() =>
+              create({ ...current, name: `${current.name}-copy`, attach: undefined })
+            }
             onDelete={() => {
               api.change(list.filter((p) => p !== current));
               select(null);
