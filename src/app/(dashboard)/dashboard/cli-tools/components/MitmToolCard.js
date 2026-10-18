@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Card, Button, Badge, Input, ModelSelectModal } from "@/shared/components";
 import { TOOL_HOSTS } from "@/shared/constants/mitmToolHosts";
 import Image from "next/image";
+import { DISPLAY_NAME } from "@/shared/constants/brand.js";
 
 /**
  * Per-tool MITM card — shows DNS status + model mappings.
@@ -183,7 +184,7 @@ export default function MitmToolCard({
             )}
             {/* Info */}
             <div className="flex flex-col gap-0.5 text-[11px] text-text-muted px-1">
-              <p>Toggle DNS to redirect {tool.name} traffic through 9Router via MITM.</p>
+              <p>Toggle DNS to redirect {tool.name} traffic through {DISPLAY_NAME} via MITM.</p>
               {!dnsActive && (
                 <p className="text-amber-600 text-[10px] mt-1">
                   ⚠️ Enable DNS to edit model mappings

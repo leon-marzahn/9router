@@ -64,7 +64,6 @@ export const NAV: NavGroup[] = [
 ];
 
 export const EXTERNAL_LINKS = [
-  { href: "https://9remote.cc", label: "9Remote", icon: "computer" },
   { href: "https://9english.net/", label: "9English", icon: "translate" },
 ];
 

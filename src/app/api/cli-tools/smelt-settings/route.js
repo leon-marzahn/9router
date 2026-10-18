@@ -1,6 +1,7 @@
 "use server";
 
 import { NextResponse } from "next/server";
+import { DISPLAY_NAME, PROVIDER_KEY, PROVIDER_KEYS } from "@/shared/constants/brand.js";
 import { resolveCliApiKey } from "../resolveApiKey.js";
 import fs from "fs/promises";
 import path from "path";
@@ -32,7 +33,7 @@ const checkSmeltInstalled = async () => {
 const has9RouterConfig = (settings) => {
   if (!settings) return false;
   return (
-    settings._managedBy === "9router" ||
+    PROVIDER_KEYS.includes(settings._managedBy) ||
     (typeof settings.baseUrl === "string" && settings.baseUrl.length > 0 && settings.baseUrl.includes("20128"))
   );
 };
@@ -99,7 +100,7 @@ export async function POST(request) {
       baseUrl: normalizedBaseUrl,
       apiKey: await resolveCliApiKey(apiKey),
       model: model || existing.model || "provider/model-id",
-      _managedBy: "9router",
+      _managedBy: PROVIDER_KEY,
     };
 
     await fs.writeFile(configPath, JSON.stringify(updated, null, 2), "utf-8");
@@ -136,7 +137,7 @@ export async function DELETE() {
       await fs.writeFile(configPath, JSON.stringify(existing, null, 2), "utf-8");
     }
 
-    return NextResponse.json({ success: true, message: "Smelt 9Router settings removed" });
+    return NextResponse.json({ success: true, message: `Smelt ${DISPLAY_NAME} settings removed` });
   } catch (err) {
     return NextResponse.json({ error: { message: err.message } }, { status: 500 });
   }

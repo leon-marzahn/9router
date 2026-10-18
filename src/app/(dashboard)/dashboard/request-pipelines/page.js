@@ -94,7 +94,7 @@ export default function RequestPipelinesPage() {
         <h1 className="text-2xl font-semibold text-text-main">Request Pipelines</h1>
         <p className="text-sm text-text-muted mt-2">
           Apply regex rules before a chat request is routed to a provider. Select one saved pipeline with the header{" "}
-          <code>X-9Router-Pipeline: agentic</code>. Requests without the header are unchanged.
+          <code>X-Regent-Pipeline: agentic</code> (the old <code>X-9Router-Pipeline</code> still works). Requests without the header are unchanged.
         </p>
       </div>
       {error && <p role="alert" className="text-sm text-red-500">{error}</p>}
@@ -114,7 +114,7 @@ export default function RequestPipelinesPage() {
                 onChange={(event) => change(pipelines.map((item, index) => index === pipelineIndex ? { ...item, name: event.target.value } : item))} />
               <Button variant="ghost" onClick={() => { change(pipelines.filter((_, index) => index !== pipelineIndex)); setPreviewIndex(0); }}>Remove pipeline</Button>
             </div>
-            <code className="text-xs text-text-muted break-all">X-9Router-Pipeline: {pipeline.name || "pipeline-name"}</code>
+            <code className="text-xs text-text-muted break-all">X-Regent-Pipeline: {pipeline.name || "pipeline-name"}</code>
             {pipeline.rules.map((rule, ruleIndex) => (
               <div key={ruleIndex} className="border border-border rounded-lg p-4 flex flex-col gap-3">
                 <div className="flex flex-wrap items-center gap-2">

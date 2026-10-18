@@ -1,8 +1,12 @@
-export const GROK_MAIN_MODEL_SLOT = "9router";
+import { DISPLAY_NAME, PROVIDER_KEY, LEGACY_PROVIDER_KEY } from "@/shared/constants/brand.js";
+
+export const GROK_MAIN_MODEL_SLOT = PROVIDER_KEY;
+const LEGACY_MAIN_MODEL_SLOT = LEGACY_PROVIDER_KEY;
 export const GROK_BUILTIN_DEFAULT = "grok-build";
 export const GROK_SUBAGENT_TYPES = ["general-purpose", "explore", "plan"];
 
-const UNSET_SENTINEL = "__9router_unset__";
+const UNSET_SENTINEL = `__${PROVIDER_KEY}_unset__`;
+const LEGACY_UNSET_SENTINEL = `__${LEGACY_PROVIDER_KEY}_unset__`;
 const MODELS_SECTION = "models";
 const SUBAGENT_MODELS_SECTION = "subagents.models";
 
@@ -17,10 +21,13 @@ const sectionRegExp = (section) =>
 
 const modelSlot = (type) => `${GROK_MAIN_MODEL_SLOT}-${type}`;
 
-const previousDefaultRegExp = /^# 9router-prev-default = "([^"]*)"[ \t]*\r?\n?/m;
+const previousDefaultRegExp = new RegExp(
+  `^# ${escapeRegExp(PROVIDER_KEY)}-prev-default = "([^"]*)"[ \\t]*\\r?\\n?`,
+  "m",
+);
 const previousSubagentRegExp = (type) =>
   new RegExp(
-    `^# 9router-prev-subagent-${escapeRegExp(type)} = "([^"]*)"[ \\t]*\\r?\\n?`,
+    `^# ${escapeRegExp(PROVIDER_KEY)}-prev-subagent-${escapeRegExp(type)} = "([^"]*)"[ \\t]*\\r?\\n?`,
     "m",
   );
 
@@ -97,7 +104,7 @@ function buildModelSection({ slot, model, baseUrl, apiKey, contextWindow, name }
     `model = ${tomlString(model)}`,
     `base_url = ${tomlString(baseUrl)}`,
     `name = ${tomlString(name)}`,
-    `description = ${tomlString("Routed via 9Router gateway")}`,
+    `description = ${tomlString(`Routed via ${DISPLAY_NAME} gateway`)}`,
     `api_backend = "chat_completions"`,
   ];
   if (apiKey) lines.push(`api_key = ${tomlString(apiKey)}`);
@@ -132,7 +139,7 @@ function rememberPreviousDefault(toml) {
   if (previousDefaultRegExp.test(toml)) return toml;
   const current = getSectionField(toml, MODELS_SECTION, "default");
   if (!current || current === GROK_MAIN_MODEL_SLOT) return toml;
-  return insertMarker(toml, `# 9router-prev-default = ${tomlString(current)}\n`);
+  return insertMarker(toml, `# ${PROVIDER_KEY}-prev-default = ${tomlString(current)}\n`);
 }
 
 function restorePreviousDefault(toml) {
@@ -151,7 +158,7 @@ function rememberPreviousSubagent(toml, type) {
   const previous = current == null ? UNSET_SENTINEL : current;
   return insertMarker(
     toml,
-    `# 9router-prev-subagent-${type} = ${tomlString(previous)}\n`,
+    `# ${PROVIDER_KEY}-prev-subagent-${type} = ${tomlString(previous)}\n`,
   );
 }
 
@@ -168,7 +175,42 @@ function restorePreviousSubagent(toml, type) {
   return setSectionField(next, SUBAGENT_MODELS_SECTION, type, previous);
 }
 
-export function parseGrokBuildConfig(toml) {
+/**
+ * Rename everything a pre-rebrand install wrote under the legacy `9router` slot names
+ * (`[model.9router]`, `[model.9router-<type>]`, `default = "9router"`, subagent mappings,
+ * `# 9router-prev-*` markers) to the current `regent` names, so parse/apply/reset only
+ * deal with one set of names. When a current-named section already exists the legacy
+ * duplicate is dropped instead. No-op for configs without legacy names.
+ */
+export function migrateLegacyGrokBuildConfig(toml) {
+  if (!toml || !toml.includes(LEGACY_MAIN_MODEL_SLOT)) return toml;
+  let next = toml;
+  const slots = [
+    [LEGACY_MAIN_MODEL_SLOT, GROK_MAIN_MODEL_SLOT],
+    ...GROK_SUBAGENT_TYPES.map((type) => [`${LEGACY_MAIN_MODEL_SLOT}-${type}`, modelSlot(type)]),
+  ];
+  for (const [legacy, current] of slots) {
+    const legacySection = sectionRegExp(`model.${legacy}`);
+    if (!legacySection.test(next)) continue;
+    next = sectionRegExp(`model.${current}`).test(next)
+      ? removeModelSection(next, legacy)
+      : next.replace(new RegExp(`^\\[model\\.${escapeRegExp(legacy)}\\]`, "m"), `[model.${current}]`);
+  }
+  if (getSectionField(next, MODELS_SECTION, "default") === LEGACY_MAIN_MODEL_SLOT) {
+    next = setSectionField(next, MODELS_SECTION, "default", GROK_MAIN_MODEL_SLOT);
+  }
+  for (const type of GROK_SUBAGENT_TYPES) {
+    if (getSectionField(next, SUBAGENT_MODELS_SECTION, type) === `${LEGACY_MAIN_MODEL_SLOT}-${type}`) {
+      next = setSectionField(next, SUBAGENT_MODELS_SECTION, type, modelSlot(type));
+    }
+  }
+  const legacyMarker = new RegExp(`^# ${escapeRegExp(LEGACY_MAIN_MODEL_SLOT)}-prev-`, "gm");
+  next = next.replace(legacyMarker, `# ${GROK_MAIN_MODEL_SLOT}-prev-`);
+  return next.split(tomlString(LEGACY_UNSET_SENTINEL)).join(tomlString(UNSET_SENTINEL));
+}
+
+export function parseGrokBuildConfig(rawToml) {
+  const toml = migrateLegacyGrokBuildConfig(rawToml);
   const subagentModels = {};
   const subagentMappings = {};
   for (const type of GROK_SUBAGENT_TYPES) {
@@ -195,14 +237,14 @@ export function applyGrokBuildConfig(
   toml,
   { baseUrl, apiKey, model, contextWindow, subagentModels },
 ) {
-  let next = rememberPreviousDefault(toml);
+  let next = rememberPreviousDefault(migrateLegacyGrokBuildConfig(toml));
   next = upsertModelSection(next, {
     slot: GROK_MAIN_MODEL_SLOT,
     model,
     baseUrl,
     apiKey,
     contextWindow,
-    name: "9Router",
+    name: DISPLAY_NAME,
   });
   next = setSectionField(next, MODELS_SECTION, "default", GROK_MAIN_MODEL_SLOT);
 
@@ -218,7 +260,7 @@ export function applyGrokBuildConfig(
           baseUrl,
           apiKey,
           contextWindow: selected.contextWindow,
-          name: `9Router ${type}`,
+          name: `${DISPLAY_NAME} ${type}`,
         });
         next = setSectionField(next, SUBAGENT_MODELS_SECTION, type, slot);
       } else {
@@ -232,7 +274,7 @@ export function applyGrokBuildConfig(
 }
 
 export function resetGrokBuildConfig(toml) {
-  let next = toml;
+  let next = migrateLegacyGrokBuildConfig(toml);
   for (const type of GROK_SUBAGENT_TYPES) {
     next = restorePreviousSubagent(next, type);
     next = removeModelSection(next, modelSlot(type));

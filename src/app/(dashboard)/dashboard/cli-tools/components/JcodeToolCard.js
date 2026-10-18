@@ -7,6 +7,7 @@ import BaseUrlSelect from "./BaseUrlSelect";
 import { rememberEndpoint } from "./cliEndpointPresets";
 import ApiKeySelect from "./ApiKeySelect";
 import { matchKnownEndpoint } from "./cliEndpointMatch";
+import { DISPLAY_NAME, PROVIDER_KEY, pickProvider } from "@/shared/constants/brand.js";
 
 export default function JcodeToolCard({
   tool,
@@ -36,12 +37,12 @@ export default function JcodeToolCard({
   const [customBaseUrl, setCustomBaseUrl] = useState("");
   const hasInitializedModel = useRef(false);
 
-  const currentBaseUrl = jcodeStatus?.config?.providers?.["9router"]?.base_url || "";
+  const currentBaseUrl = pickProvider(jcodeStatus?.config?.providers)?.base_url || "";
 
   const getConfigStatus = () => {
     if (!jcodeStatus?.installed) return null;
     if (!jcodeStatus?.has9Router) return "not_configured";
-    const currentProvider = jcodeStatus.config?.providers?.["9router"];
+    const currentProvider = pickProvider(jcodeStatus.config?.providers);
     if (!currentProvider) return "not_configured";
     return matchKnownEndpoint(currentProvider.base_url, { tunnelPublicUrl, tailscaleUrl }) ? "configured" : "other";
   };
@@ -78,7 +79,7 @@ export default function JcodeToolCard({
   useEffect(() => {
     if (jcodeStatus?.installed && !hasInitializedModel.current) {
       hasInitializedModel.current = true;
-      const provider = jcodeStatus.config?.providers?.["9router"];
+      const provider = pickProvider(jcodeStatus.config?.providers);
       if (provider) {
         if (provider.default_model) {
           setSelectedModel(provider.default_model);
@@ -188,16 +189,16 @@ export default function JcodeToolCard({
       ? selectedApiKey
       : (!cloudEnabled ? "sk_9router" : "<API_KEY_FROM_DASHBOARD>");
 
-    const configToml = `[providers.9router]
+    const configToml = `[providers.${PROVIDER_KEY}]
 type = "openai-compatible"
 base_url = "${getEffectiveBaseUrl()}"
 auth = "bearer"
 api_key_env = "JCODE_9ROUTER_API_KEY"
-env_file = "provider-9router.env"
+env_file = "provider-${PROVIDER_KEY}.env"
 default_model = "${selectedModel || "cc/claude-opus-4-7"}"
 requires_api_key = true
 
-[[providers.9router.models]]
+[[providers.${PROVIDER_KEY}.models]]
 id = "${selectedModel || "cc/claude-opus-4-7"}"`;
 
     const envContent = `JCODE_9ROUTER_API_KEY="${keyToUse}"`;
@@ -208,7 +209,7 @@ id = "${selectedModel || "cc/claude-opus-4-7"}"`;
         content: configToml,
       },
       {
-        filename: "~/.config/jcode/provider-9router.env",
+        filename: `~/.config/jcode/provider-${PROVIDER_KEY}.env`,
         content: envContent,
       },
     ];
@@ -254,7 +255,7 @@ id = "${selectedModel || "cc/claude-opus-4-7"}"`;
                     <code className="block mt-2 p-2 bg-black/20 rounded text-xs font-mono">
                       curl -fsSL https://raw.githubusercontent.com/1jehuang/jcode/master/scripts/install.sh | bash
                     </code>
-                    <p className="text-sm text-text-muted mt-2">Manual configuration is still available if 9router is deployed on a remote server.</p>
+                    <p className="text-sm text-text-muted mt-2">Manual configuration is still available if {DISPLAY_NAME} is deployed on a remote server.</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 pl-9">
@@ -305,12 +306,12 @@ id = "${selectedModel || "cc/claude-opus-4-7"}"`;
                 </div>
 
                 {/* Current configured */}
-                {jcodeStatus?.config?.providers?.["9router"]?.base_url && (
+                {pickProvider(jcodeStatus?.config?.providers)?.base_url && (
                   <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-[8rem_auto_1fr_auto] sm:items-center sm:gap-2">
                     <span className="text-xs font-semibold text-text-main sm:text-right sm:text-sm">Current</span>
                     <span className="material-symbols-outlined hidden text-text-muted text-[14px] sm:inline">arrow_forward</span>
                     <span className="min-w-0 truncate rounded bg-surface/40 px-2 py-2 text-xs text-text-muted sm:py-1.5">
-                      {jcodeStatus.config.providers["9router"].base_url}
+                      {pickProvider(jcodeStatus.config.providers).base_url}
                     </span>
                   </div>
                 )}
@@ -336,8 +337,8 @@ id = "${selectedModel || "cc/claude-opus-4-7"}"`;
                 {/* Usage hint */}
                 <div className="flex flex-col gap-1 p-3 bg-blue-500/5 border border-blue-500/20 rounded-lg">
                   <p className="text-xs font-medium text-blue-600 dark:text-blue-400">Usage:</p>
-                  <code className="text-xs font-mono text-text-muted">jcode --provider-profile 9router</code>
-                  <code className="text-xs font-mono text-text-muted">jcode --provider-profile 9router --model {selectedModel || "cc/claude-opus-4-7"}</code>
+                  <code className="text-xs font-mono text-text-muted">jcode --provider-profile {PROVIDER_KEY}</code>
+                  <code className="text-xs font-mono text-text-muted">jcode --provider-profile {PROVIDER_KEY} --model {selectedModel || "cc/claude-opus-4-7"}</code>
                 </div>
               </div>
 

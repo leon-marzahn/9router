@@ -7,6 +7,7 @@ import BaseUrlSelect from "./BaseUrlSelect";
 import { rememberEndpoint } from "./cliEndpointPresets";
 import ApiKeySelect from "./ApiKeySelect";
 import { matchKnownEndpoint } from "./cliEndpointMatch";
+import { DISPLAY_NAME, LEGACY_DISPLAY_NAME } from "@/shared/constants/brand.js";
 
 export default function CopilotToolCard({ tool, isExpanded, onToggle, baseUrl, apiKeys, activeProviders, cloudEnabled, initialStatus, tunnelEnabled, tunnelPublicUrl, tailscaleEnabled, tailscaleUrl }) {
   const [status, setStatus] = useState(initialStatus || null);
@@ -46,7 +47,7 @@ export default function CopilotToolCard({ tool, isExpanded, onToggle, baseUrl, a
   // Pre-fill from existing config
   useEffect(() => {
     if (status?.config && Array.isArray(status.config) && selectedModels.length === 0) {
-      const entry = status.config.find((e) => e.name === "9Router");
+      const entry = (status.config.find((e) => e.name === DISPLAY_NAME) || status.config.find((e) => e.name === LEGACY_DISPLAY_NAME));
       if (entry?.models?.length > 0) {
         setSelectedModels(entry.models.map((m) => m.id));
       }
@@ -170,7 +171,7 @@ export default function CopilotToolCard({ tool, isExpanded, onToggle, baseUrl, a
     return [{
       filename: "~/Library/Application Support/Code/User/chatLanguageModels.json",
       content: JSON.stringify([{
-        name: "9Router",
+        name: DISPLAY_NAME,
         vendor: "azure",
         apiKey: keyToUse,
         models: modelsToShow.map((id) => ({

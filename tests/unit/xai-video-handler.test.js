@@ -112,6 +112,7 @@ describe("handleVideoCreate", () => {
     global.fetch.mockResolvedValueOnce(jsonResponse({ request_id: "r1" }));
 
     const res = await handleVideoCreate(makeRequest({ prompt: "x" }), "generations");
+    expect(res.headers.get("x-regent-connection-id")).toBe("conn-77");
     expect(res.headers.get("x-9router-connection-id")).toBe("conn-77");
     expect(await res.json()).toEqual({ request_id: "r1" });
   });

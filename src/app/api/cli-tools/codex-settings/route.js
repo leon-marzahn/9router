@@ -5,6 +5,7 @@ import fs from "fs/promises";
 import path from "path";
 import os from "os";
 import { parseTOML, stringifyTOML } from "confbox";
+import { DISPLAY_NAME, PROVIDER_KEY, LEGACY_PROVIDER_KEY, PROVIDER_KEYS } from "@/shared/constants/brand.js";
 
 export const dynamic = "force-dynamic";
 
@@ -73,10 +74,35 @@ const readConfig = async () => {
   }
 };
 
-// Check if config has 9Router settings
+// Check if config has our provider settings (current `regent` key or legacy `9router`)
 const has9RouterConfig = (config) => {
   if (!config) return false;
-  return config.includes("model_provider = \"9router\"") || config.includes("[model_providers.9router]");
+  return PROVIDER_KEYS.some(
+    (key) => config.includes(`model_provider = "${key}"`) || config.includes(`[model_providers.${key}]`),
+  );
+};
+
+// Point `codex -p <name>` profile files (~/.codex/<name>.config.toml) that still use the
+// legacy provider key at the current one — the legacy section is dropped on apply.
+const migrateLegacyProfiles = async (codexDir) => {
+  let files = [];
+  try {
+    files = await fs.readdir(codexDir);
+  } catch { return; }
+  const legacyLine = new RegExp(`^(\\s*model_provider\\s*=\\s*)(["'])${LEGACY_PROVIDER_KEY}\\2`, "m");
+  await Promise.all(
+    files
+      .filter((f) => f.endsWith(".config.toml") && f !== "config.toml")
+      .map(async (f) => {
+        const file = path.join(codexDir, f);
+        try {
+          const content = await fs.readFile(file, "utf-8");
+          if (legacyLine.test(content)) {
+            await fs.writeFile(file, content.replace(legacyLine, `$1"${PROVIDER_KEY}"`), "utf-8");
+          }
+        } catch { /* unreadable profile — leave it */ }
+      }),
+  );
 };
 
 // GET - Check codex CLI and read current settings
@@ -106,7 +132,7 @@ export async function GET() {
   }
 }
 
-// POST - Update 9Router settings (merge with existing config)
+// POST - Update our provider settings (merge with existing config)
 export async function POST(request) {
   try {
     const { baseUrl, apiKey, model, subagentModel } = await request.json();
@@ -128,16 +154,17 @@ export async function POST(request) {
       parsed = parsedToWritable(parseTOML(existingConfig));
     } catch { /* No existing config */ }
 
-    // Update only 9Router related fields (api_key goes to auth.json, not config.toml)
+    // Update only our provider fields (api_key goes to auth.json, not config.toml)
     parsed.model = model;
-    parsed.model_provider = "9router";
+    parsed.model_provider = PROVIDER_KEY;
 
-    // Update or create 9router provider section (no api_key - Codex reads from auth.json)
+    // Update or create the provider section; drop the legacy `9router` one so it migrates (no api_key - Codex reads from auth.json)
     // Ensure /v1 suffix is added only once
     const normalizedBaseUrl = baseUrl.endsWith("/v1") ? baseUrl : `${baseUrl}/v1`;
     // Custom providers ignore auth.json - the key must travel as a static header
-    setNestedSection(parsed, "model_providers.9router", {
-      name: "9Router",
+    deleteNestedSection(parsed, `model_providers.${LEGACY_PROVIDER_KEY}`);
+    setNestedSection(parsed, `model_providers.${PROVIDER_KEY}`, {
+      name: DISPLAY_NAME,
       base_url: normalizedBaseUrl,
       wire_api: "responses",
       http_headers: { Authorization: `Bearer ${apiKey}` },
@@ -150,6 +177,7 @@ export async function POST(request) {
     // Write merged config
     const configContent = stringifyTOML(parsed);
     await fs.writeFile(configPath, configContent);
+    await migrateLegacyProfiles(codexDir);
 
     return NextResponse.json({
       success: true,
@@ -162,7 +190,7 @@ export async function POST(request) {
   }
 }
 
-// DELETE - Remove 9Router settings only (keep other settings)
+// DELETE - Remove our provider settings only (keep other settings)
 export async function DELETE() {
   try {
     const configPath = getCodexConfigPath();
@@ -182,14 +210,14 @@ export async function DELETE() {
       throw error;
     }
 
-    // Remove 9Router related root fields only if they point to 9router
-    if (parsed.model_provider === "9router") {
+    // Remove root fields only if they point to us (current or legacy key)
+    if (PROVIDER_KEYS.includes(parsed.model_provider)) {
       delete parsed.model;
       delete parsed.model_provider;
     }
 
-    // Remove 9router provider section
-    deleteNestedSection(parsed, "model_providers.9router");
+    // Remove both the current and the legacy provider sections
+    for (const key of PROVIDER_KEYS) deleteNestedSection(parsed, `model_providers.${key}`);
 
     // Remove subagent configuration (both the current key and the legacy role form)
     deleteNestedSection(parsed, "agents.default_subagent_model");
@@ -217,7 +245,7 @@ export async function DELETE() {
 
     return NextResponse.json({
       success: true,
-      message: "9Router settings removed successfully",
+      message: `${DISPLAY_NAME} settings removed successfully`,
     });
   } catch (error) {
     console.log("Error resetting codex settings:", error);

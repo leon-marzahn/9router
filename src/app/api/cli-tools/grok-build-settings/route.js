@@ -1,6 +1,7 @@
 "use server";
 
 import { NextResponse } from "next/server";
+import { DISPLAY_NAME } from "@/shared/constants/brand.js";
 import { resolveCliApiKey } from "../resolveApiKey.js";
 import { exec } from "child_process";
 import { promisify } from "util";
@@ -10,6 +11,7 @@ import os from "os";
 import { getCapabilitiesForModel } from "open-sse/providers/capabilities.js";
 import {
   applyGrokBuildConfig,
+  GROK_MAIN_MODEL_SLOT,
   GROK_SUBAGENT_TYPES,
   parseGrokBuildConfig,
   resetGrokBuildConfig,
@@ -120,7 +122,7 @@ export async function POST(request) {
       success: true,
       message: "Grok Build settings applied successfully!",
       configPath: getGrokConfigPath(),
-      modelSlot: "9router",
+      modelSlot: GROK_MAIN_MODEL_SLOT,
     });
   } catch (error) {
     console.log("Error updating grok-build settings:", error);
@@ -144,7 +146,7 @@ export async function DELETE() {
     await fs.writeFile(configPath, resetGrokBuildConfig(toml));
     return NextResponse.json({
       success: true,
-      message: "9router model slots removed from Grok Build",
+      message: `${DISPLAY_NAME} model slots removed from Grok Build`,
     });
   } catch (error) {
     console.log("Error resetting grok-build settings:", error);

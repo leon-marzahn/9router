@@ -105,7 +105,7 @@ rl.on("line", (line) => {
 `.trimStart();
 
 function ensureClientToolsScript() {
-  const scriptPath = path.join(os.tmpdir(), "9router-devin-client-tools.mjs");
+  const scriptPath = path.join(os.tmpdir(), "regent-devin-client-tools.mjs");
   // Always rewrite so script upgrades land without a process restart.
   fs.writeFileSync(scriptPath, CLIENT_TOOLS_MCP_SCRIPT);
   return scriptPath;
@@ -789,7 +789,7 @@ export class DevinCliExecutor extends BaseExecutor {
         // ── Send initialize ───────────────────────────────────────────────
         sendRpc("initialize", {
           protocolVersion: "0.3",
-          clientInfo: { name: "9router", version: "1.0" },
+          clientInfo: { name: "regent", version: "1.0" },
           capabilities: {},
         });
       },

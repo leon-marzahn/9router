@@ -1,5 +1,6 @@
 "use client";
 
+import { Logo } from "../Logo";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTheme } from "@/shared/hooks/useTheme";
@@ -57,10 +58,8 @@ export function MobileNav({
         )}
       >
         <div className="mb-3 flex items-center gap-2 px-2">
-          <span className="grid size-8 place-items-center rounded-lg bg-accent text-sm font-bold text-accent-fg">
-            9
-          </span>
-          <span className="font-display text-lg">9Router</span>
+          <Logo size={32} />
+          <span className="font-display text-lg">Elizabeth&rsquo;s Proxy</span>
           <button
             type="button"
             onClick={onClose}

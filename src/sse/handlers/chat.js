@@ -25,7 +25,7 @@ import * as log from "../utils/logger.js";
 import { updateProviderCredentials, checkAndRefreshToken } from "../services/tokenRefresh.js";
 import { getProjectIdForConnection } from "open-sse/services/projectId.js";
 import { stripModelContextMarker } from "open-sse/utils/modelMarkers.js";
-import { PIPELINE_HEADER } from "@/lib/request-pipelines/config.js";
+import { PIPELINE_HEADER, LEGACY_PIPELINE_HEADER } from "@/lib/request-pipelines/config.js";
 import { runRequestPipeline } from "@/lib/request-pipelines/run.js";
 import { getKeyAccessContext, enforceKeyAccess, filterAdapterModels } from "../services/keyAccess.js";
 
@@ -97,7 +97,7 @@ export async function handleChat(request, clientRawRequest = null) {
   if (keyAccessDenied) return keyAccessDenied;
 
   try {
-    const processed = await runRequestPipeline(body, request.headers.get(PIPELINE_HEADER), settings.requestPipelines);
+    const processed = await runRequestPipeline(body, request.headers.get(PIPELINE_HEADER) ?? request.headers.get(LEGACY_PIPELINE_HEADER), settings.requestPipelines);
     body = processed.body;
   } catch (error) {
     return errorResponse(HTTP_STATUS.BAD_REQUEST, error.message);
@@ -105,7 +105,7 @@ export async function handleChat(request, clientRawRequest = null) {
   // This is a router control header; keep it out of forwarded provider headers.
   if (clientRawRequest?.headers) {
     clientRawRequest = { ...clientRawRequest, headers: Object.fromEntries(
-      Object.entries(clientRawRequest.headers).filter(([key]) => key.toLowerCase() !== PIPELINE_HEADER)
+      Object.entries(clientRawRequest.headers).filter(([key]) => ![PIPELINE_HEADER, LEGACY_PIPELINE_HEADER].includes(key.toLowerCase()))
     ) };
   }
 

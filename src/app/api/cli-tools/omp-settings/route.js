@@ -1,6 +1,7 @@
 "use server";
 
 import { NextResponse } from "next/server";
+import { DISPLAY_NAME, PROVIDER_KEY, PROVIDER_KEYS } from "@/shared/constants/brand.js";
 import { resolveCliApiKey } from "../resolveApiKey.js";
 import fs from "fs/promises";
 import path from "path";
@@ -10,7 +11,10 @@ import { promisify } from "util";
 
 const execAsync = promisify(exec);
 
-const PROVIDER_ID = "9router";
+const PROVIDER_ID = PROVIDER_KEY;
+// Matches our provider block under either the current or the legacy key
+const providerBlockRegex = () =>
+  new RegExp(`\\s*(?:${PROVIDER_KEYS.join("|")}):[\\s\\S]*?(?=\\n\\s*\\w+:|$)`, "g");
 const getOmpDir = () => path.join(os.homedir(), ".omp", "agent");
 const getOmpDbPath = () => path.join(getOmpDir(), "agent.db");
 const getOmpModelsYmlPath = () => path.join(getOmpDir(), "models.yml");
@@ -46,10 +50,10 @@ const readModelsYml = async () => {
 
 const has9RouterInYml = (content) => {
   if (!content) return false;
-  return content.includes("9router:") || content.includes("localhost:20128");
+  return PROVIDER_KEYS.some((k) => content.includes(`${k}:`)) || content.includes("localhost:20128");
 };
 
-// Build standard 9Router provider block for models.yml
+// Build our standard provider block for models.yml
 const buildOmpProviderYaml = (baseUrl, apiKey) => {
   const normalizedBaseUrl = baseUrl.endsWith("/v1") ? baseUrl : `${baseUrl}/v1`;
   const key = apiKey || "";
@@ -108,9 +112,8 @@ export async function POST(request) {
     let ymlContent = await readModelsYml();
     const providerBlock = buildOmpProviderYaml(baseUrl, resolvedKey);
 
-    // Remove existing 9router provider if present
-    const regex = new RegExp(`\\s*${PROVIDER_ID}:[\\s\\S]*?(?=\\n\\s*\\w+:|$)`, "g");
-    ymlContent = ymlContent.replace(regex, "");
+    // Remove an existing provider block (current or legacy key) if present
+    ymlContent = ymlContent.replace(providerBlockRegex(), "");
 
     if (!ymlContent.trim()) {
       ymlContent = `providers:\n${providerBlock}\n`;
@@ -134,7 +137,7 @@ export async function POST(request) {
       if (Database) {
         const dbPath = getOmpDbPath();
         const db = new Database(dbPath);
-        db.prepare("DELETE FROM auth_credentials WHERE provider = ?").run(PROVIDER_ID);
+        for (const key of PROVIDER_KEYS) db.prepare("DELETE FROM auth_credentials WHERE provider = ?").run(key);
         db.prepare(
           "INSERT INTO auth_credentials (provider, credential_type, data, disabled_cause, identity_key, created_at, updated_at) VALUES (?, ?, ?, NULL, NULL, ?, ?)"
         ).run(
@@ -152,7 +155,7 @@ export async function POST(request) {
 
     return NextResponse.json({
       success: true,
-      message: "Oh My Pi settings applied! Run 'omp' and all 9Router models appear under 9router in /model.",
+      message: `Oh My Pi settings applied! Run 'omp' and all ${DISPLAY_NAME} models appear under ${PROVIDER_ID} in /model.`,
       configPath: getOmpModelsYmlPath(),
     });
   } catch (err) {
@@ -163,8 +166,7 @@ export async function POST(request) {
 export async function DELETE() {
   try {
     let ymlContent = await readModelsYml();
-    const regex = new RegExp(`\\s*${PROVIDER_ID}:[\\s\\S]*?(?=\\n\\s*\\w+:|$)`, "g");
-    ymlContent = ymlContent.replace(regex, "");
+    ymlContent = ymlContent.replace(providerBlockRegex(), "");
 
     if (ymlContent.trim() === "providers:") {
       await fs.rm(getOmpModelsYmlPath(), { force: true });
@@ -174,7 +176,7 @@ export async function DELETE() {
 
     return NextResponse.json({
       success: true,
-      message: "9Router removed from Oh My Pi",
+      message: `${DISPLAY_NAME} removed from Oh My Pi`,
     });
   } catch (err) {
     return NextResponse.json({ error: { message: err.message } }, { status: 500 });

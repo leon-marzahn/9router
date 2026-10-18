@@ -1,5 +1,7 @@
 # Design system — "warm workbench"
 
+The dashboard of **Elizabeth's Proxy**. The mark is a crowned serif E on the accent tile (`Logo` in `src/ui/Logo.tsx`; `public/favicon.svg` and `public/icons/*` are generated from the same paths).
+
 The dashboard's look and interaction rules. New UI code lives in `src/ui/` (TypeScript) and follows this doc. Older pages under `src/app/(dashboard)/` still use `src/shared/components/` and are migrated page by page.
 
 ## Principles
