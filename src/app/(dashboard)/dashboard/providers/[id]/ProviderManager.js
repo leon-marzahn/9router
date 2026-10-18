@@ -1044,7 +1044,7 @@ export default function ProviderManager({ providerId, embedded = false, liveVers
     <div className="flex min-w-0 flex-col divide-y divide-border">
       {connections
         .map((conn, index) => (
-          <div key={conn.id} className={cn("flex min-w-0 items-stretch", isSelected(conn.id) && "bg-accent-soft")}>
+          <div key={conn.id} className={cn("group flex min-w-0 items-stretch transition-colors", isSelected(conn.id) ? "bg-accent-soft" : "hover:bg-surface-2/60")}>
             <label className="flex shrink-0 cursor-pointer items-center pl-3">
               <input
                 type="checkbox"

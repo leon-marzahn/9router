@@ -190,7 +190,7 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
   const hasProxyPools = (proxyPools || []).length > 0;
 
   return (
-    <div className={cn("group flex min-w-0 items-center gap-3 px-3 py-2.5 transition-colors hover:bg-surface-2/60", connection.isActive === false && "opacity-55")}>
+    <div className={cn("group flex min-w-0 items-center gap-3 px-3 py-2.5", connection.isActive === false && "opacity-55")}>
       {/* Priority */}
       <div className="flex shrink-0 flex-col text-text-subtle">
         <button type="button" onClick={onMoveUp} disabled={isFirst} aria-label="Move up" className="rounded leading-none hover:text-text disabled:opacity-25">
