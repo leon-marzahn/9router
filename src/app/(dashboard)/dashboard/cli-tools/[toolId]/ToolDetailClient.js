@@ -15,7 +15,8 @@ import RestoreBackupButton from "../components/RestoreBackupButton";
 
 const CLOUD_URL = process.env.NEXT_PUBLIC_CLOUD_URL;
 
-export default function ToolDetailClient({ toolId }) {
+/** `embedded`: rendered inside the CLI Tools workbench (no back link or title); `onWrite` fires after the card may have changed the config. */
+export default function ToolDetailClient({ toolId, embedded = false, onWrite }) {
   const tool = CLI_TOOLS[toolId];
   const [connections, setConnections] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -195,21 +196,25 @@ export default function ToolDetailClient({ toolId }) {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-1 sm:px-0">
-      <Link href="/dashboard/cli-tools" className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-primary w-fit">
-        <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-        Back to CLI Tools
-      </Link>
-      <div className="flex flex-col gap-1">
-        <h1 className="text-xl font-semibold text-text-main sm:text-2xl">{tool.name}</h1>
-        <p className="text-sm text-text-muted">{tool.description}</p>
-      </div>
+    <div className={embedded ? "flex flex-col gap-4" : "mx-auto flex w-full max-w-5xl flex-col gap-4 px-1 sm:px-0"}>
+      {!embedded && (
+        <>
+          <Link href="/dashboard/cli-tools" className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-primary w-fit">
+            <span className="material-symbols-outlined text-[18px]">arrow_back</span>
+            Back to CLI Tools
+          </Link>
+          <div className="flex flex-col gap-1">
+            <h1 className="text-xl font-semibold text-text-main sm:text-2xl">{tool.name}</h1>
+            <p className="text-sm text-text-muted">{tool.description}</p>
+          </div>
+        </>
+      )}
       {loading ? <CardSkeleton /> : (
         <>
-          <div key={cardKey} onClickCapture={() => setTimeout(() => setWriteSignal((n) => n + 1), 1500)}>
+          <div key={cardKey} onClickCapture={() => setTimeout(() => { setWriteSignal((n) => n + 1); onWrite?.(); }, 1500)}>
             {renderToolCard()}
           </div>
-          <RestoreBackupButton toolId={toolId} refreshSignal={writeSignal} onRestored={() => setCardKey((n) => n + 1)} />
+          <RestoreBackupButton toolId={toolId} refreshSignal={writeSignal} onRestored={() => { setCardKey((n) => n + 1); onWrite?.(); }} />
         </>
       )}
     </div>
