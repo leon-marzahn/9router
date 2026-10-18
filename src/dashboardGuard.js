@@ -87,6 +87,9 @@ const LOCAL_ONLY_PATHS = [
   "/api/headroom/start",
   "/api/headroom/stop",
   "/api/headroom/proxy",
+  // pip install/uninstall and process restart, same as start/stop.
+  "/api/headroom/extras",
+  "/api/headroom/restart",
 ];
 
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);

@@ -1,3 +1,4 @@
+import { translatorDisabledResponse, redactHeaders, redactUrl } from "@/lib/translatorDebug.js";
 import { NextResponse } from "next/server";
 import { detectFormat, getTargetFormat } from "open-sse/services/provider.js";
 import { translateRequest } from "open-sse/translator/index.js";
@@ -7,6 +8,8 @@ import { getProviderConnections } from "@/lib/localDb.js";
 import { getExecutor } from "open-sse/executors/index.js";
 
 export async function POST(request) {
+  const disabled = translatorDisabledResponse();
+  if (disabled) return disabled;
   try {
     const { step, body } = await request.json();
 
@@ -77,7 +80,7 @@ export async function POST(request) {
         const headers = executor.buildHeaders(credentials, stream);
         const finalBody = executor.transformRequest(model, translated, stream, credentials);
 
-        return NextResponse.json({ success: true, result: { url, headers, body: finalBody } });
+        return NextResponse.json({ success: true, result: { url: redactUrl(url), headers: redactHeaders(headers), body: finalBody } });
       }
 
       default:

@@ -1,8 +1,11 @@
+import { translatorDisabledResponse } from "@/lib/translatorDebug.js";
 import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 
 export async function POST(request) {
+  const disabled = translatorDisabledResponse();
+  if (disabled) return disabled;
   try {
     const { file, content } = await request.json();
 
