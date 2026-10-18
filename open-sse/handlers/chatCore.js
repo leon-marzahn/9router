@@ -32,6 +32,7 @@ import { stripUnsupportedModalities } from "../translator/concerns/modality.js";
 import { prefetchRemoteImages } from "../translator/concerns/prefetch.js";
 import { defaultClaudeToolType, shouldDefaultClaudeToolType } from "../translator/concerns/toolCall.js";
 import { resolveSessionId, clientIpFromHeaders } from "../utils/sessionManager.js";
+import { resolveTlsImpersonation } from "../utils/tlsImpersonation.js";
 
 /**
  * Core chat handler - shared between SSE and Worker
@@ -356,6 +357,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     // honored on the Cursor AgentService h2 path and in proxyFetch (#4333).
     proxyPoolId: credentials?.providerSpecificData?.connectionProxyPoolId || null,
     strictProxy: credentials?.providerSpecificData?.strictProxy === true,
+    tlsImpersonation: resolveTlsImpersonation(provider),
   };
 
   if (proxyOptions.vercelRelayUrl) {
