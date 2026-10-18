@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 // Cut a release: bump root + cli versions, prepend the git-cliff changelog
 // entry, commit "chore(release): vX" and tag it. Pushing is left to you:
-//   vp run release 100.1.0 && git push --follow-tags
+//   vp run release 100.1.0, then: git push && git push origin v100.1.0
+// Push the tag on its own: pushed together with the branch (--follow-tags),
+// GitHub did not start the tag workflows (Docker image, release notes).
 // The tag push builds the Docker image and writes the GitHub release notes.
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
@@ -37,4 +39,6 @@ execFileSync(
 git("add", "-A");
 git("commit", "-m", `chore(release): ${tag}`);
 git("tag", "-a", tag, "-m", tag);
-console.log(`\nTagged ${tag}. Review the CHANGELOG.md diff, then: git push --follow-tags`);
+console.log(
+  `\nTagged ${tag}. Review the CHANGELOG.md diff, then:\n  git push && git push origin ${tag}\n(push the tag separately so GitHub starts the Docker and release-notes workflows)`,
+);
