@@ -5,6 +5,7 @@ import {
   updateProviderConnection,
   deleteProviderConnection,
 } from "@/models";
+import { normalizeTlsImpersonation } from "open-sse/config/tlsImpersonation.js";
 import { toProviderConnectionResponse, usesAwsCredentialForm } from "@/lib/providerConnectionResponse";
 
 function normalizeProxyConfig(body = {}) {
@@ -110,6 +111,7 @@ export async function PUT(request, { params }) {
       return NextResponse.json({ error: proxyPoolResult.error }, { status: 400 });
     }
 
+    const hasTlsField = Object.prototype.hasOwnProperty.call(body, "tlsImpersonation");
     const updateData = {};
     if (name !== undefined) updateData.name = name;
     if (priority !== undefined) updateData.priority = priority;
@@ -126,7 +128,7 @@ export async function PUT(request, { params }) {
         existing.providerSpecificData,
         providerSpecificData,
         proxyConfig.hasAnyProxyField,
-        proxyPoolResult.hasProxyPoolField
+        proxyPoolResult.hasProxyPoolField || hasTlsField
       )
     ) {
       const incomingProviderSpecificData = { ...(providerSpecificData || {}) };
@@ -149,6 +151,12 @@ export async function PUT(request, { params }) {
         updateData.providerSpecificData.connectionProxyUrl = proxyConfig.connectionProxyUrl;
         updateData.providerSpecificData.connectionNoProxy = proxyConfig.connectionNoProxy;
       }
+
+      // Only store a validated { browser, os } — whether it came top-level or inside providerSpecificData.
+      const tlsInput = hasTlsField ? body.tlsImpersonation : updateData.providerSpecificData.tlsImpersonation;
+      const tls = normalizeTlsImpersonation(tlsInput);
+      if (tls) updateData.providerSpecificData.tlsImpersonation = tls;
+      else delete updateData.providerSpecificData.tlsImpersonation;
 
       if (proxyPoolResult.hasProxyPoolField) {
         if (proxyPoolResult.proxyPoolId === null) {

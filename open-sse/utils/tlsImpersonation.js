@@ -1,13 +1,10 @@
 // Optional TLS/HTTP2 fingerprint impersonation for upstream requests via wreq-js.
 //
-// Opt-in only (TLS_IMPERSONATE env) and fail-open: if the native binding is
+// Opt-in per connection (providerSpecificData.tlsImpersonation) and fail-open: if the native binding is
 // missing or a request errors before a response arrives, callers fall back to
 // the normal undici fetch path. Impersonating a client can break provider ToS.
 import { dbg } from "./debugLog.js";
 
-const ALL = "all";
-const DEFAULT_PROFILE = "chrome";
-const DEFAULT_OS = "macos";
 const NULL_BODY_STATUSES = new Set([101, 204, 205, 304]);
 const STALE_AFTER_DECODE = new Set(["content-encoding", "content-length"]);
 
@@ -15,29 +12,6 @@ let loader = () => import("wreq-js");
 let wreqPromise = null;
 let loadFailureLogged = false;
 const loggedHosts = new Set();
-
-function parseProviderList(value) {
-  return String(value || "")
-    .split(",")
-    .map((s) => s.trim().toLowerCase())
-    .filter(Boolean);
-}
-
-/**
- * Impersonation settings for a provider, or null when it is not opted in.
- * TLS_IMPERSONATE: comma-separated provider ids, or "all".
- * TLS_IMPERSONATE_PROFILE / TLS_IMPERSONATE_OS: wreq-js browser profile and OS.
- */
-export function resolveTlsImpersonation(provider, env = process.env) {
-  const list = parseProviderList(env.TLS_IMPERSONATE);
-  if (list.length === 0 || !provider) return null;
-  const id = String(provider).toLowerCase();
-  if (!list.includes(ALL) && !list.includes(id)) return null;
-  return {
-    browser: env.TLS_IMPERSONATE_PROFILE?.trim() || DEFAULT_PROFILE,
-    os: env.TLS_IMPERSONATE_OS?.trim() || DEFAULT_OS,
-  };
-}
 
 async function loadWreq() {
   if (!wreqPromise) {

@@ -217,6 +217,11 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
               <Icon name="lan" size={11} /> {boundProxyPool ? boundProxyPool.name : "Proxy"}
             </Tag>
           )}
+          {connection.providerSpecificData?.tlsImpersonation && (
+            <Tag tone="neutral" title={`Browser TLS fingerprint: ${connection.providerSpecificData.tlsImpersonation.browser} / ${connection.providerSpecificData.tlsImpersonation.os}`}>
+              <Icon name="fingerprint" size={11} /> TLS
+            </Tag>
+          )}
           {isCooldown && connection.isActive !== false && <CooldownTimer until={modelLockUntil} />}
           {oneByOneLabel && <Tag tone={oneByOneTone}>{oneByOneLabel}</Tag>}
           {connection.lastError && connection.isActive !== false && (

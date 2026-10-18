@@ -1,4 +1,4 @@
-// Opt-in wreq-js TLS impersonation: provider selection, fail-open fallback to
+// Opt-in wreq-js TLS impersonation: per-connection config, fail-open fallback to
 // native fetch, and SSE streaming through the real binding when installed.
 import http from "node:http";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vite-plus/test";
@@ -6,8 +6,9 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vite-plus/test";
 const nativeFetch = vi.fn(async () => new Response("native", { status: 200 }));
 globalThis.fetch = nativeFetch;
 
-const { resolveTlsImpersonation, wreqFetch, __setWreqLoaderForTests } =
+const { wreqFetch, __setWreqLoaderForTests } =
   await import("../../open-sse/utils/tlsImpersonation.js");
+const { normalizeTlsImpersonation } = await import("../../open-sse/config/tlsImpersonation.js");
 const { proxyAwareFetch } = await import("../../open-sse/utils/proxyFetch.js");
 
 const CHROME = { browser: "chrome", os: "macos" };
@@ -24,28 +25,19 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("resolveTlsImpersonation", () => {
-  it("is off unless TLS_IMPERSONATE lists the provider", () => {
-    expect(resolveTlsImpersonation("claude", {})).toBeNull();
-    expect(resolveTlsImpersonation("openai", { TLS_IMPERSONATE: "claude,codex" })).toBeNull();
+describe("normalizeTlsImpersonation", () => {
+  it("is off for missing, non-object or disabled values", () => {
+    expect(normalizeTlsImpersonation(undefined)).toBeNull();
+    expect(normalizeTlsImpersonation("chrome")).toBeNull();
+    expect(normalizeTlsImpersonation({ enabled: false, browser: "chrome" })).toBeNull();
   });
 
-  it("matches listed providers case-insensitively with default profile", () => {
-    expect(resolveTlsImpersonation("Codex", { TLS_IMPERSONATE: " claude , codex " })).toEqual(
-      CHROME,
-    );
-  });
-
-  it("supports all and custom profile/os", () => {
-    const env = {
-      TLS_IMPERSONATE: "all",
-      TLS_IMPERSONATE_PROFILE: "firefox_151",
-      TLS_IMPERSONATE_OS: "windows",
-    };
-    expect(resolveTlsImpersonation("cursor", env)).toEqual({
-      browser: "firefox_151",
+  it("keeps known profile/os and defaults unknown ones", () => {
+    expect(normalizeTlsImpersonation({ browser: "firefox", os: "windows" })).toEqual({
+      browser: "firefox",
       os: "windows",
     });
+    expect(normalizeTlsImpersonation({ browser: "--evil", os: 1 })).toEqual(CHROME);
   });
 });
 
