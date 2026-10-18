@@ -10,7 +10,8 @@ import {
 import { handleAntigravityQuotaError, clearAntigravityStrikes } from "../services/antigravityQuota.js";
 import { deriveAffinityKey } from "../services/cacheAffinity.js";
 import { getSettings } from "@/lib/localDb";
-import { getModelInfo, getComboModels } from "../services/model.js";
+import { getModelInfo, getComboModels, stripComboPrefix } from "../services/model.js";
+import { isStepReady } from "../services/stepReadiness.js";
 import { handleChatCore } from "open-sse/handlers/chatCore.js";
 import { DEFAULT_HEADROOM_URL } from "@/lib/headroom/detect";
 import { getTransform as getPxpipeTransform } from "@/lib/pxpipe/loader.js";
@@ -56,8 +57,10 @@ export async function handleChat(request, clientRawRequest = null) {
   // Claude Code marks a 1M-context request as `<model>[1m]`; the marker matches
   // no combo, alias or provider/model pair, so it must not reach resolution.
   // The capability travels in the anthropic-beta header, forwarded as-is.
-  const { model: modelStr, contextMarker } = stripModelContextMarker(body.model);
-  if (contextMarker) body.model = modelStr;
+  const { model: rawModelStr, contextMarker } = stripModelContextMarker(body.model);
+  // "combo/<name>" always means the combo, even when a model has the same name.
+  const modelStr = stripComboPrefix(rawModelStr);
+  if (contextMarker || modelStr !== rawModelStr) body.model = modelStr;
 
   // Request summary is emitted as the unified "▶" line in chatCore (has fmt/thinking/account)
 
@@ -119,6 +122,9 @@ export async function handleChat(request, clientRawRequest = null) {
 
   // Check if model is a combo (has multiple models with fallback)
   const comboModels = await getComboModels(modelStr);
+  if (!comboModels && modelStr !== rawModelStr) {
+    return errorResponse(HTTP_STATUS.NOT_FOUND, `No combo named "${modelStr}"`);
+  }
   if (comboModels) {
     // Check for combo-specific strategy first, fallback to global
     const comboStrategies = settings.comboStrategies || {};
@@ -159,7 +165,8 @@ export async function handleChat(request, clientRawRequest = null) {
       log,
       comboName: modelStr,
       comboStrategy,
-      comboStickyLimit
+      comboStickyLimit,
+      ...comboAffinityOptions(comboStrategies[modelStr], comboStrategy, body, request),
     });
   }
 
@@ -239,7 +246,8 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
         log,
         comboName: modelStr,
         comboStrategy,
-        comboStickyLimit
+        comboStickyLimit,
+        ...comboAffinityOptions(comboStrategies[modelStr], comboStrategy, body, request),
       });
     }
     log.warn("CHAT", "Invalid model format", { model: modelStr });
@@ -371,3 +379,19 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
     return result.response;
   }
 }
+
+/**
+ * Per-combo "Per chat" / "after a fallback" options for handleComboChat.
+ * stickAfterFallback defaults on for per-chat (warm cache) and off for in-order
+ * (go back to the top step), and can be set per combo in comboStrategies.
+ */
+function comboAffinityOptions(entry, strategy, body, request) {
+  const stick = typeof entry?.stickAfterFallback === "boolean" ? entry.stickAfterFallback : strategy === "per-chat";
+  const needsKey = strategy === "per-chat" || (stick && strategy === "fallback");
+  return {
+    affinityKey: needsKey ? deriveAffinityKey(body, request?.headers) : null,
+    stickAfterFallback: stick,
+    isStepReady,
+  };
+}
+

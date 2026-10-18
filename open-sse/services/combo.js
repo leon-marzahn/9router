@@ -2,6 +2,7 @@
  * Shared combo (model combo) handling with fallback support
  */
 
+import { bringToFront, forgetStep, orderForConversation, readyFirst, rememberStep, rememberedStep, resetComboAffinity } from "./comboAffinity.js";
 import { checkFallbackError, formatRetryAfter } from "./accountFallback.js";
 import { unavailableResponse } from "../utils/error.js";
 import { getCapabilitiesForModel } from "../providers/capabilities.js";
@@ -241,6 +242,7 @@ export function getRotatedModels(models, comboName, strategy, stickyLimit = 1) {
  * @param {string} [comboName] - Combo name to reset; omit to clear all
  */
 export function resetComboRotation(comboName) {
+  resetComboAffinity(comboName);
   if (comboName) comboRotationState.delete(comboName);
   else comboRotationState.clear();
 }
@@ -317,9 +319,16 @@ export function isZeroContentResponse(data) {
  * @param {number|string} [options.comboStickyLimit=1] - Requests per combo model before switching
  * @returns {Promise<Response>}
  */
-export async function handleComboChat({ body, models, handleSingleModel, log, comboName, comboStrategy, comboStickyLimit = 1, autoSwitch = true }) {
-  // Apply rotation strategy if enabled
-  let rotatedModels = getRotatedModels(models, comboName, comboStrategy, comboStickyLimit);
+export async function handleComboChat({ body, models, handleSingleModel, log, comboName, comboStrategy, comboStickyLimit = 1, autoSwitch = true, affinityKey = null, stickAfterFallback = false, isStepReady = null }) {
+  // "per-chat" orders steps per conversation; without a key it behaves like round-robin.
+  const perChat = comboStrategy === "per-chat" && !!affinityKey;
+  const baseOrder = perChat
+    ? orderForConversation(models, affinityKey)
+    : getRotatedModels(models, comboName, comboStrategy === "per-chat" ? "round-robin" : comboStrategy, comboStickyLimit);
+  const stick = stickAfterFallback && !!affinityKey && (comboStrategy === "fallback" || perChat);
+  let rotatedModels = stick ? bringToFront(baseOrder, rememberedStep(comboName, affinityKey)) : baseOrder;
+  // Skip steps that are known to be down (locked/cooling) before trying them.
+  rotatedModels = await readyFirst(rotatedModels, isStepReady);
 
   // Auto-switch: float models that satisfy the request's required capabilities to the front.
   if (autoSwitch) {
@@ -365,6 +374,10 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
         }
 
         log.info("COMBO", `Model ${modelStr} succeeded`);
+        if (stick) {
+          if (modelStr !== baseOrder[0]) rememberStep(comboName, affinityKey, modelStr);
+          else forgetStep(comboName, affinityKey);
+        }
         return result;
       }
 

@@ -82,6 +82,15 @@ export async function getModelInfo(modelStr) {
  * Check if model is a combo and get models list
  * @returns {Promise<string[]|null>} Array of models or null if not a combo
  */
+const COMBO_PREFIX = "combo/";
+
+/** "combo/<name>" → "<name>"; anything else unchanged. */
+export function stripComboPrefix(modelStr) {
+  return typeof modelStr === "string" && modelStr.startsWith(COMBO_PREFIX) && modelStr.length > COMBO_PREFIX.length
+    ? modelStr.slice(COMBO_PREFIX.length)
+    : modelStr;
+}
+
 export async function getComboModels(modelStr) {
   // Only check if it's not in provider/model format
   if (modelStr.includes("/")) return null;

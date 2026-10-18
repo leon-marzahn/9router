@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { getComboById, updateCombo, deleteCombo, getComboByName } from "@/lib/localDb";
+import { getComboById, updateCombo, deleteCombo, getComboByName, getSettings, updateSettings } from "@/lib/localDb";
 import { resetComboRotation } from "open-sse/services/combo.js";
+import { shadowWarning } from "@/lib/comboNames.js";
 
 // Validate combo name: only a-z, A-Z, 0-9, -, _
 const VALID_NAME_REGEX = /^[a-zA-Z0-9_.\-]+$/;
@@ -53,7 +54,18 @@ export async function PUT(request, { params }) {
     if (prev?.name) resetComboRotation(prev.name);
     if (combo.name && combo.name !== prev?.name) resetComboRotation(combo.name);
 
-    return NextResponse.json(combo);
+    // Per-combo routing settings are keyed by name: carry them over on rename.
+    if (prev?.name && combo.name && combo.name !== prev.name) {
+      const settings = await getSettings();
+      const strategies = { ...(settings.comboStrategies || {}) };
+      if (strategies[prev.name]) {
+        strategies[combo.name] = strategies[prev.name];
+        delete strategies[prev.name];
+        await updateSettings({ comboStrategies: strategies });
+      }
+    }
+
+    return NextResponse.json({ ...combo, warning: shadowWarning(combo.name) });
   } catch (error) {
     console.log("Error updating combo:", error);
     return NextResponse.json({ error: "Failed to update combo" }, { status: 500 });

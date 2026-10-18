@@ -1,3 +1,4 @@
+import { shadowWarning } from "@/lib/comboNames.js";
 import { NextResponse } from "next/server";
 import { getCombos, createCombo, getComboByName } from "@/lib/localDb";
 
@@ -10,7 +11,10 @@ const VALID_NAME_REGEX = /^[a-zA-Z0-9_.\-]+$/;
 export async function GET() {
   try {
     const combos = await getCombos();
-    return NextResponse.json({ combos });
+    // `shadows`: the real model id this combo's name also matches, if any.
+    return NextResponse.json({
+      combos: combos.map((c) => ({ ...c, shadows: shadowWarning(c.name)?.model ?? null })),
+    });
   } catch (error) {
     console.log("Error fetching combos:", error);
     return NextResponse.json({ error: "Failed to fetch combos" }, { status: 500 });
@@ -40,7 +44,7 @@ export async function POST(request) {
 
     const combo = await createCombo({ name, models: models || [], kind: kind || null });
 
-    return NextResponse.json(combo, { status: 201 });
+    return NextResponse.json({ ...combo, warning: shadowWarning(combo.name) }, { status: 201 });
   } catch (error) {
     console.log("Error creating combo:", error);
     return NextResponse.json({ error: "Failed to create combo" }, { status: 500 });
