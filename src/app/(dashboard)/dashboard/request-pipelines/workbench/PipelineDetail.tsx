@@ -106,7 +106,9 @@ export function PipelineDetail({
             ref={menuRef}
             icon="more_horiz"
             label="More"
-            className="mt-6"
+            variant="secondary"
+            size="md"
+            className="mt-[22px]"
             onClick={() => setMenu(true)}
           />
           <Popover
