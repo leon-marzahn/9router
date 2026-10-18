@@ -5,8 +5,10 @@ cd "${CLAUDE_PROJECT_DIR:-.}" || exit 0
 [ -d node_modules ] && exit 0
 echo "node_modules missing; installing dependencies (fresh worktree)…"
 if command -v vp >/dev/null 2>&1; then
-  vp install >/dev/null 2>&1 && echo "Installed with vp." && exit 0
+  vp install --frozen-lockfile >/dev/null 2>&1 && echo "Installed with vp (bun)." && exit 0
 fi
-npm ci --no-audit --no-fund >/dev/null 2>&1 && echo "Installed with npm ci." && exit 0
-echo "Dependency install failed; run 'vp install' (or 'npm install') before typechecking or testing."
+if command -v bun >/dev/null 2>&1; then
+  bun install --frozen-lockfile >/dev/null 2>&1 && echo "Installed with bun." && exit 0
+fi
+echo "Dependency install failed; install bun (https://bun.sh) and run 'bun install' before typechecking or testing."
 exit 0

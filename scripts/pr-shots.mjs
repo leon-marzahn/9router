@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Screenshot dashboard routes against a throwaway instance seeded with demo data.
 //
-//   node scripts/pr-shots.mjs --routes /dashboard/usage,/dashboard/profile [--out pr-shots] [--dark] [--label after]
+//   node scripts/pr-shots.mjs --routes /dashboard/usage,/dashboard/profile#routing [--out pr-shots] [--dark] [--label after]
 //
 // Boots `next dev` on a free port with DATA_DIR and HOME in a fresh temp dir
 // (usage/log files ignore DATA_DIR, so HOME must move too), seeds demo data
@@ -25,7 +25,7 @@
 // branch with `--label after` into the same --out dir.
 //
 // Needs Chromium for playwright-core 1.63 (revision 1243). Agent environments
-// have it under PLAYWRIGHT_BROWSERS_PATH; otherwise `npx playwright@1.63.0 install chromium`.
+// have it under PLAYWRIGHT_BROWSERS_PATH; otherwise `bunx playwright@1.63.0 install chromium`.
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
@@ -57,8 +57,8 @@ const routes = (args.routes ?? "")
   .map((r) => r.trim())
   .filter(Boolean);
 for (const r of routes) {
-  if (!/^\/[\w\-/]*$/.test(r))
-    throw new Error(`route must be a plain path like /dashboard/usage: ${r}`);
+  if (!/^\/[\w\-/]*(#[\w-]+)?$/.test(r))
+    throw new Error(`route must be a plain path like /dashboard/usage[#section]: ${r}`);
 }
 
 const shots = args.shots ? JSON.parse(readFileSync(resolve(args.shots), "utf8")) : [];
@@ -94,7 +94,7 @@ let browser;
 try {
   await run("node", ["--import", "./scripts/pr-shots/register.mjs", "scripts/pr-shots/seed.mjs"]);
 
-  server = spawn("npx", ["next", "dev", "--webpack", "--port", String(port)], {
+  server = spawn("bunx", ["next", "dev", "--webpack", "--port", String(port)], {
     cwd: root,
     env,
     stdio: ["ignore", "pipe", "pipe"],
@@ -136,9 +136,18 @@ try {
       for (const route of routes) {
         await page.goto(base + route, { waitUntil: "load", timeout: 180_000 });
         await settle();
-        const slug = route.replace(/^\/|\/$/g, "").replace(/\//g, "-") || "root";
+        // A `#id` route frames that section instead of the (inner-scrolling) full page.
+        const hash = route.includes("#") ? route.slice(route.indexOf("#") + 1) : "";
+        const section = hash ? page.locator(`[id="${hash}"]`) : null;
+        if (section) await section.scrollIntoViewIfNeeded();
+        const slug =
+          route
+            .replace(/^\/|\/$/g, "")
+            .replace(/[/#]/g, "-")
+            .replace(/[^\w.-]/g, "") || "root";
         const file = fileFor(slug);
-        await page.screenshot({ path: file, fullPage: true });
+        if (section) await section.screenshot({ path: file });
+        else await page.screenshot({ path: file, fullPage: true });
         console.log(file);
       }
       for (const shot of shots) {
