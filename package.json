@@ -68,6 +68,9 @@
     "eslint-config-next": "16.1.6",
     "postcss": "^8.5.6",
     "tailwindcss": "^4",
-    "typescript": "~6.0.3"
+    "typescript": "npm:typescript-native-bridge@6.0.3-bridge.18.tsgo.7.0.2"
+  },
+  "overrides": {
+    "typescript": "$typescript"
   }
 }
