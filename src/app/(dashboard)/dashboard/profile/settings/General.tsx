@@ -397,7 +397,7 @@ export function Backup({ api }: { api: SettingsApi }) {
         hint="Replaces everything here with the file's contents. 9router backups work too."
       >
         <Button size="sm" icon="upload" onClick={() => file.current?.click()}>
-          Restore…
+          Restore
         </Button>
         <input
           ref={file}
@@ -502,7 +502,7 @@ export function About() {
         hint="Shuts down the gateway and this dashboard. Nothing can use it until you start it again."
       >
         <Button size="sm" variant="danger" icon="power_settings_new" onClick={() => setStop(true)}>
-          Stop…
+          Stop
         </Button>
       </Row>
       <ConfirmModal
