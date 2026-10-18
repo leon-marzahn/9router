@@ -485,6 +485,7 @@ export default function ProviderManager({ providerId, embedded = false, liveVers
   }, [liveVersion, fetchConnections]);
 
   useEffect(() => {
+    // eslint-disable-next-line react/set-state-in-effect -- initial data load on mount; the fetchers set loading state before awaiting
     fetchConnections();
     fetchAliases();
     fetchCustomModels();
@@ -498,6 +499,7 @@ export default function ProviderManager({ providerId, embedded = false, liveVers
   useEffect(() => {
     const isLiveCatalog = providerId === "cursor" || providerId === "zed";
     if (!isLiveCatalog) {
+      // eslint-disable-next-line react/set-state-in-effect -- clears a catalog fetched for a previous provider id
       setLiveModels([]);
       return;
     }
@@ -989,6 +991,7 @@ export default function ProviderManager({ providerId, embedded = false, liveVers
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react/set-state-in-effect -- drops selections for connections that were removed
     setSelectedConnectionIds((prev) => prev.filter((id) => connections.some((conn) => conn.id === id)));
   }, [connections]);
 
@@ -1788,6 +1791,7 @@ export default function ProviderManager({ providerId, embedded = false, liveVers
       )}
       {!isCompatible && (
         <AddCustomModelModal
+          key={editingCustomModel ? `edit-${editingCustomModel.providerAlias}-${editingCustomModel.id}` : showAddCustomModel ? "add" : "closed"}
           isOpen={showAddCustomModel || !!editingCustomModel}
           providerAlias={providerStorageAlias}
           providerDisplayAlias={providerDisplayAlias}

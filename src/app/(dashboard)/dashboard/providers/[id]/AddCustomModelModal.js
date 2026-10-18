@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import PropTypes from "prop-types";
 import { Button, Modal, Select, Toggle } from "@/shared/components";
 import { CAPACITY_META, STT_TRANSPORT_META, STT_TRANSPORTS } from "@/shared/constants/models";
@@ -11,26 +11,16 @@ const defaultCaps = () => Object.fromEntries(Object.keys(CAPACITY_META).map((key
 // and STT type are the record's key so they stay locked; name/caps/transport are editable.
 export default function AddCustomModelModal({ isOpen, providerAlias, providerDisplayAlias, providerId, model, onSave, onClose }) {
   const isEdit = !!model;
-  const [modelId, setModelId] = useState("");
-  const [name, setName] = useState("");
-  const [caps, setCaps] = useState(defaultCaps);
+  // The parent remounts the dialog (key) per open/record, so state starts from props.
+  const [modelId, setModelId] = useState(() => model?.id || "");
+  // Records default name to the id; only a real custom name fills the field.
+  const [name, setName] = useState(() => (model?.name && model.name !== model.id ? model.name : ""));
+  const [caps, setCaps] = useState(() => ({ ...defaultCaps(), ...(model?.caps || {}), ...(model && (model.kind || model.type) === "stt" ? { stt: true } : {}) }));
   const [testStatus, setTestStatus] = useState(null); // null | "testing" | "ok" | "error"
   const [testError, setTestError] = useState("");
   const [saving, setSaving] = useState(false);
   // Realtime dispatch marker for the transport select; "" = provider default REST.
-  const [transport, setTransport] = useState("");
-
-  // Reset state when modal opens
-  useEffect(() => {
-    if (!isOpen) return;
-    setModelId(model?.id || "");
-    // Records default name to the id; only a real custom name fills the field.
-    setName(model?.name && model.name !== model.id ? model.name : "");
-    setCaps({ ...defaultCaps(), ...(model?.caps || {}), ...(model && (model.kind || model.type) === "stt" ? { stt: true } : {}) });
-    setTransport(model?.transport || "");
-    setTestStatus(null);
-    setTestError("");
-  }, [isOpen, model]);
+  const [transport, setTransport] = useState(() => model?.transport || "");
 
   // The provider is fixed, so the field takes the bare model id. A pasted
   // "kr/model" (display alias, storage alias or provider id) is stripped.
