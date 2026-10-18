@@ -12,7 +12,7 @@
 // branch with `--label after` into the same --out dir.
 //
 // Needs Chromium for playwright-core 1.63 (revision 1243). Agent environments
-// have it under PLAYWRIGHT_BROWSERS_PATH; otherwise `npx playwright@1.63.0 install chromium`.
+// have it under PLAYWRIGHT_BROWSERS_PATH; otherwise `bunx playwright@1.63.0 install chromium`.
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
@@ -74,7 +74,7 @@ let browser;
 try {
   await run("node", ["--import", "./scripts/pr-shots/register.mjs", "scripts/pr-shots/seed.mjs"]);
 
-  server = spawn("npx", ["next", "dev", "--port", String(port)], {
+  server = spawn("bunx", ["next", "dev", "--port", String(port)], {
     cwd: root,
     env,
     stdio: ["ignore", "pipe", "pipe"],

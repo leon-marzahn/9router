@@ -14,4 +14,4 @@ if [ "${#files[@]}" -eq 0 ]; then
 fi
 printf 'Linting %s changed file(s):\n' "${#files[@]}"
 printf '  %s\n' "${files[@]}"
-npx vp lint "${files[@]}"
+bunx vp lint "${files[@]}"

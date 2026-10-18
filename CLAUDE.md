@@ -17,22 +17,24 @@ The code lives in `src/` (Next.js app + dashboard/compat APIs), `open-sse/` (the
 Dashboard/gateway (run from repo root):
 ```bash
 cp .env.example .env
-npm install
-PORT=20128 NEXT_PUBLIC_BASE_URL=http://localhost:20128 npm run dev   # dev (webpack, port 20127 by default via next dev)
-npm run build && PORT=20128 HOSTNAME=0.0.0.0 npm run start           # production
+bun install                                                          # or `vp install` (picks bun)
+PORT=20128 NEXT_PUBLIC_BASE_URL=http://localhost:20128 bun run dev   # dev (webpack, port 20127 by default via next dev)
+bun run build && PORT=20128 HOSTNAME=0.0.0.0 bun run start           # production
 ```
-- Bun variants: `npm run dev:bun` / `build:bun` / `start:bun`.
+- **Package manager is Bun** (`packageManager` in `package.json`, lockfile `bun.lock`), for installs only: `bun run <script>` still executes Next/tsc/vitest on Node. The `dev:bun` / `build:bun` / `start:bun` scripts are the separate, optional Bun *runtime* variants.
+- Install scripts run only for `trustedDependencies` in `package.json` (currently just `better-sqlite3`). Add a package there only if it can't work without its script, and say why in the PR.
+- After an upstream 9router sync (upstream is on npm), don't merge their `package-lock.json`: take the merged `package.json`, run `bun install`, and commit the regenerated `bun.lock`.
 - Default runtime port is **20128** (dashboard at `/dashboard`, API at `/v1`).
-- Toolchain is **Vite+** (`vp`, global install; it manages Node — pinned in `.node-version`). Config lives in `vite.config.ts` (`test`, `lint`, `fmt` blocks). Next.js still owns dev/build (`npm run dev` / `npm run build`), not `vp dev`/`vp build`.
+- Toolchain is **Vite+** (`vp`, global install; it manages Node — pinned in `.node-version`). Config lives in `vite.config.ts` (`test`, `lint`, `fmt` blocks). Next.js still owns dev/build (`bun run dev` / `bun run build`), not `vp dev`/`vp build`.
 - `vp check` = format + lint (Oxlint, type-aware via tsgolint) + type-check. ~150 pre-existing React Compiler lint errors in upstream pages make it exit non-zero; judge your change by not adding new ones (`vp lint <paths>`).
 - Formatting (`vp fmt`) is scoped by an allow-list in `vite.config.ts` `fmt.ignorePatterns` to fork-owned files only, so upstream files keep their style and merges stay clean. Add new fork-owned files/dirs there.
 
 ### Working in a fresh worktree (agents)
-A new git worktree has no `node_modules`, so `npm run typecheck`, `vp lint`, `vp test` and the dev server fail until you install. The `SessionStart` hook in `.claude/settings.json` runs `.claude/hooks/ensure-deps.sh` to do this automatically; if it didn't (or failed), run `vp install` (fallback `npm install`) first.
+A new git worktree has no `node_modules`, so `bun run typecheck`, `vp lint`, `vp test` and the dev server fail until you install. The `SessionStart` hook in `.claude/settings.json` runs `.claude/hooks/ensure-deps.sh` to do this automatically; if it didn't (or failed), run `vp install` (fallback `bun install`) first.
 
-To check UI in a browser from a worktree, don't use `npm run dev`: it always binds port 20127 (likely the user's own dev server) and reads the real `~/.regent` data. Start your own instance on a free port with a throwaway data dir:
+To check UI in a browser from a worktree, don't use `bun run dev`: it always binds port 20127 (likely the user's own dev server) and reads the real `~/.regent` data. Start your own instance on a free port with a throwaway data dir:
 ```bash
-DATA_DIR="$(mktemp -d)" PORT=20137 NEXT_PUBLIC_BASE_URL=http://localhost:20137 npx next dev --port 20137
+DATA_DIR="$(mktemp -d)" PORT=20137 NEXT_PUBLIC_BASE_URL=http://localhost:20137 bunx next dev --port 20137
 ```
 Pick another port if 20137 is taken. Usage/log files ignore `DATA_DIR` and still go to `~/.regent` (see Persistence), so avoid generating traffic you don't want in the user's usage history. The scratch data starts empty (default password, no providers), so seed what the check needs through the dashboard or API.
 
@@ -42,7 +44,7 @@ CI (`.github/workflows/pr.yml`) runs typecheck, `vp lint` on the files the PR ch
 node scripts/pr-shots.mjs --routes /dashboard/usage,/dashboard/providers --label after [--dark]
 node scripts/pr-shots-publish.mjs --pr <number>
 ```
-The first boots its own seeded instance (temp `DATA_DIR` + `HOME`, random password) and writes PNGs (1440×900 and 375×812) to `pr-shots/`; for before/after, also run it on the base branch with `--label before`. The second pushes them to the orphan `pr-assets` branch under `pr-<number>/` and prints Markdown links for the PR's Evidence section. Needs Chromium for playwright-core 1.63 (`npx playwright@1.63.0 install chromium` if not preinstalled).
+The first boots its own seeded instance (temp `DATA_DIR` + `HOME`, random password) and writes PNGs (1440×900 and 375×812) to `pr-shots/`; for before/after, also run it on the base branch with `--label before`. The second pushes them to the orphan `pr-assets` branch under `pr-<number>/` and prints Markdown links for the PR's Evidence section. Needs Chromium for playwright-core 1.63 (`bunx playwright@1.63.0 install chromium` if not preinstalled).
 
 CLI package (`cli/`):
 ```bash
@@ -52,7 +54,7 @@ cd cli && npm run dev  # nodemon watch
 
 Tests (Vitest 5 via Vite+, files in `tests/`; config is the `test` block of the root `vite.config.ts`):
 ```bash
-vp install                              # root deps (tests import from src/ and open-sse/)
+bun install                             # root deps (tests import from src/ and open-sse/)
 vp test                                 # all tests, run from the repo root
 vp test run tests/unit/capabilities.test.js   # single file
 ```
@@ -101,7 +103,7 @@ Pre-translate hooks that compress `tool_result` content in-place to cut tokens. 
 
 - **Naming.** Display name is "Elizabeth's Proxy"; machine names (data dir, CLI command, package, headers, keys written into tool configs, User-Agents) use `regent`. This fork split from upstream 9Router: legacy `9router` names are still *read* (data-dir migration, `X-9Router-*` headers, `9router` provider keys in tool configs, autostart entries) but never written. Intentionally unchanged: the MITM root CA name and password salt (renaming breaks trusted certs/stored secrets), the SAML issuer default `urn:9router:sp`, and `NINE_ROUTER_*` env vars.
 
-- JavaScript (ESM) everywhere except the redesigned UI: **new UI code is TypeScript** in `src/ui/` (design system + app frame) following `docs/DESIGN.md`. Backend, `open-sse/`, and not-yet-migrated pages stay JS. `@/*` → `src/*` (`tsconfig.json`, `allowJs`). TypeScript is **7 (tsgo)**, plain `typescript@7` (no bridge needed since ESLint was replaced by Oxlint). Typecheck with `npm run typecheck`; `next build` also type-checks, including Next's route-export rules (route files may only export handlers/config).
+- JavaScript (ESM) everywhere except the redesigned UI: **new UI code is TypeScript** in `src/ui/` (design system + app frame) following `docs/DESIGN.md`. Backend, `open-sse/`, and not-yet-migrated pages stay JS. `@/*` → `src/*` (`tsconfig.json`, `allowJs`). TypeScript is **7 (tsgo)**, plain `typescript@7` (no bridge needed since ESLint was replaced by Oxlint). Typecheck with `bun run typecheck`; `next build` also type-checks, including Next's route-export rules (route files may only export handlers/config).
 - UI redesign: the fork is rewriting the dashboard UI (diverges from upstream UI on purpose). Build pages from `src/ui` components and tokens; don't hard-code colors.
 - `custom-server.js` wraps the Next standalone server to derive client IP from the TCP socket and strip attacker-controlled `X-Forwarded-For` — trusting forwarding headers only from a loopback reverse proxy. Preserve this when touching request/IP/rate-limit code.
 - Security-sensitive env: `JWT_SECRET` (session cookie), `INITIAL_PASSWORD` (default `123456` — must override), `API_KEY_SECRET`, `MACHINE_ID_SALT`. Full env contract in `.env.example` and ARCHITECTURE.md's env matrix.
