@@ -1,6 +1,11 @@
 {
   "name": "regent-app",
-  "version": "0.5.104",
+  "version": "100.0.0",
+  "forkedFrom": {
+    "repo": "decolua/9router",
+    "version": "0.5.104",
+    "commit": "87a74e1b"
+  },
   "private": true,
   "description": "9Router web dashboard",
   "scripts": {

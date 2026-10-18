@@ -5,6 +5,7 @@ export const APP_CONFIG = {
   name: "9Router Proxy",
   description: "AI Infrastructure Management",
   version: pkg.version,
+  forkedFrom: pkg.forkedFrom,
 };
 
 // Local app port (used to build loopback URLs). Name kept for existing imports.
