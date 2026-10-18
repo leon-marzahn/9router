@@ -67,7 +67,7 @@ export const SETTINGS_HREF = "/dashboard/profile";
 
 /** Pages that manage their own panes/scrolling (no padding, no max-width). */
 const FULL_BLEED_PREFIXES = ["/dashboard/basic-chat"];
-const FULL_BLEED_EXACT = ["/dashboard/providers", "/dashboard/quota", "/dashboard/combos"];
+const FULL_BLEED_EXACT = ["/dashboard/providers", "/dashboard/quota", "/dashboard/combos", "/dashboard/cli-tools"];
 
 export function isFullBleed(pathname: string): boolean {
   return (

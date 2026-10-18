@@ -1,9 +1,7 @@
-import { notFound } from "next/navigation";
-import { CLI_TOOLS } from "@/shared/constants/cliTools";
-import ToolDetailClient from "./ToolDetailClient";
+import { redirect } from "next/navigation";
 
+// Old per-tool URLs open the tool in the workbench.
 export default async function ToolDetailPage({ params }) {
   const { toolId } = await params;
-  if (!CLI_TOOLS[toolId]) notFound();
-  return <ToolDetailClient toolId={toolId} />;
+  redirect(`/dashboard/cli-tools?tool=${encodeURIComponent(toolId)}`);
 }
