@@ -15,7 +15,8 @@ import {
 } from "@/ui";
 import { cn } from "@/ui/cn";
 import { ConfirmModal, Modal } from "@/shared/components";
-import { CopyButton, KeyCard } from "./KeyCard";
+import { CopyButton } from "@/ui";
+import { KeyCard } from "./KeyCard";
 import { TailscaleSetup, tailscaleReady } from "./TailscaleSetup";
 import { useEndpoint, type Security } from "./useEndpoint";
 import { useTunnels, type TunnelKind, type TunnelState } from "./useTunnels";

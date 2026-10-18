@@ -9,7 +9,7 @@ import { useEffect, useState } from "react";
 import { Button, EmptyState, Eyebrow, Icon, ListRow, Panel, Tag } from "@/ui";
 import { cn } from "@/ui/cn";
 import { useTheme as useThemeJs } from "@/shared/hooks/useTheme";
-import { Note } from "../profile/settings/parts";
+import { Note } from "@/ui";
 import { notify } from "../profile/settings/useSettings";
 
 const Editor = dynamic(() => import("@monaco-editor/react"), { ssr: false });

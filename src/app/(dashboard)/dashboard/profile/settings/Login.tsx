@@ -3,22 +3,22 @@
 import { useState } from "react";
 import { Button, Field, Input, Switch } from "@/ui";
 import { ConfirmModal, Modal } from "@/shared/components";
-import { Note, Row, RowSkeleton, SectionCard } from "./parts";
+import { Note, SettingRow, SettingRowSkeleton, SettingsSection } from "@/ui";
 import { notify, type SettingsApi } from "./useSettings";
 
 export function Login({ api }: { api: SettingsApi }) {
   const s = api.settings;
   const [turnOff, setTurnOff] = useState(false);
   return (
-    <SectionCard id="login" icon="lock" title="Login & password">
+    <SettingsSection id="login" icon="lock" title="Login & password">
       {!s ? (
         <>
-          <RowSkeleton />
-          <RowSkeleton />
+          <SettingRowSkeleton />
+          <SettingRowSkeleton />
         </>
       ) : (
         <>
-          <Row
+          <SettingRow
             title="Require login"
             hint="Ask for the password before anyone can open this dashboard. Tunnels can't go public while it's off."
           >
@@ -29,7 +29,7 @@ export function Login({ api }: { api: SettingsApi }) {
                 v ? void api.save({ requireLogin: true }).catch(() => {}) : setTurnOff(true)
               }
             />
-          </Row>
+          </SettingRow>
           <PasswordForm api={api} />
           {s.hasPassword ? (
             <TurnOffWithPassword open={turnOff} onClose={() => setTurnOff(false)} api={api} />
@@ -48,7 +48,7 @@ export function Login({ api }: { api: SettingsApi }) {
           )}
         </>
       )}
-    </SectionCard>
+    </SettingsSection>
   );
 }
 
@@ -142,7 +142,7 @@ function PasswordForm({ api }: { api: SettingsApi }) {
   };
 
   return (
-    <Row
+    <SettingRow
       stack
       title="Password"
       hint={
@@ -203,6 +203,6 @@ function PasswordForm({ api }: { api: SettingsApi }) {
           {msg && <Note tone={msg.tone}>{msg.text}</Note>}
         </div>
       </form>
-    </Row>
+    </SettingRow>
   );
 }

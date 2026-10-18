@@ -1,11 +1,13 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Icon, Panel, Skeleton } from "@/ui";
-import { cn } from "@/ui/cn";
+import { Icon } from "./Icon";
+import { Panel } from "./Panel";
+import { Skeleton } from "./Skeleton";
+import { cn } from "./cn";
 
 /** One setting: label + explanation on the left, control on the right (or below when `stack`). */
-export function Row({
+export function SettingRow({
   title,
   hint,
   children,
@@ -32,7 +34,7 @@ export function Row({
   );
 }
 
-export function SectionCard({
+export function SettingsSection({
   id,
   icon,
   title,
@@ -54,7 +56,7 @@ export function SectionCard({
   );
 }
 
-export function RowSkeleton() {
+export function SettingRowSkeleton() {
   return (
     <div className="flex items-start justify-between gap-6 py-4">
       <div className="space-y-1.5">

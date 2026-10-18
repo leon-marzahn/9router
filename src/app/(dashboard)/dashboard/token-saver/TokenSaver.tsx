@@ -13,7 +13,7 @@ import {
 import { Button, Icon, Input, Segmented, Switch, Tag } from "@/ui";
 import { ConfirmModal } from "@/shared/components";
 import { getCurrentLocale, onLocaleChange } from "@/i18n/runtime";
-import { Note, Row, RowSkeleton, SectionCard } from "../profile/settings/parts";
+import { Note, SettingRow, SettingRowSkeleton, SettingsSection } from "@/ui";
 import { notify, useSettings, type Settings } from "../profile/settings/useSettings";
 import { CAVEMAN_LEVELS, PONYTAIL_LEVELS, WENYAN_LOCALES, type Level } from "./levels";
 
@@ -130,15 +130,15 @@ export function TokenSaver() {
         </p>
       </div>
 
-      <SectionCard id="requests" icon="input" title="Shorter requests">
+      <SettingsSection id="requests" icon="input" title="Shorter requests">
         {!s ? (
           <>
-            <RowSkeleton />
-            <RowSkeleton />
+            <SettingRowSkeleton />
+            <SettingRowSkeleton />
           </>
         ) : (
           <>
-            <Row
+            <SettingRow
               title={
                 <>
                   Shrink tool output
@@ -152,8 +152,8 @@ export function TokenSaver() {
                 checked={value("rtkEnabled") !== false}
                 onChange={(v) => set({ rtkEnabled: v })}
               />
-            </Row>
-            <Row
+            </SettingRow>
+            <SettingRow
               title={
                 <>
                   Compress the whole conversation
@@ -169,18 +169,18 @@ export function TokenSaver() {
                   set({ headroomEnabled: v, headroomUrl: s.headroomUrl || DEFAULT_URL })
                 }
               />
-            </Row>
+            </SettingRow>
           </>
         )}
-      </SectionCard>
+      </SettingsSection>
 
       {s && <Headroom settings={s} set={set} value={value} />}
 
-      <SectionCard id="answers" icon="short_text" title="Shorter answers">
+      <SettingsSection id="answers" icon="short_text" title="Shorter answers">
         {!s ? (
           <>
-            <RowSkeleton />
-            <RowSkeleton />
+            <SettingRowSkeleton />
+            <SettingRowSkeleton />
           </>
         ) : (
           <>
@@ -214,7 +214,7 @@ export function TokenSaver() {
             />
           </>
         )}
-      </SectionCard>
+      </SettingsSection>
     </div>
   );
 }
@@ -243,9 +243,9 @@ function StyleRow({
   );
   return (
     <div>
-      <Row title={title} hint={hint}>
+      <SettingRow title={title} hint={hint}>
         <Switch label={label} checked={enabled} onChange={onEnabled} />
-      </Row>
+      </SettingRow>
       {enabled && (
         <div className="-mt-1 space-y-1.5 pb-4">
           {groups.map((g, i) => (
@@ -413,8 +413,8 @@ function Headroom({
 
   return (
     <>
-      <SectionCard id="headroom" icon="dns" title="Headroom server">
-        <Row
+      <SettingsSection id="headroom" icon="dns" title="Headroom server">
+        <SettingRow
           title="Status"
           hint={
             status.error ??
@@ -463,15 +463,15 @@ function Headroom({
               </a>
             )}
           </div>
-        </Row>
+        </SettingRow>
 
         {local && !status.loading && !status.installed && !!status.python && (
-          <Row
+          <SettingRow
             title="Install"
             hint="Run this in a terminal on this machine, then press Check again."
           >
             <CopyCommand text={PIP_INSTALL} />
-          </Row>
+          </SettingRow>
         )}
 
         {error && (
@@ -480,7 +480,7 @@ function Headroom({
           </div>
         )}
 
-        <Row
+        <SettingRow
           title="Address"
           hint="Where the Headroom server listens. A local address can be started and stopped here; for a separate server (for example a Docker sidecar like http://headroom:8787), start it yourself."
           stack
@@ -494,8 +494,8 @@ function Headroom({
             aria-label="Headroom address"
             className="max-w-md"
           />
-        </Row>
-        <Row
+        </SettingRow>
+        <SettingRow
           title="Time limit"
           hint="How long to wait for Headroom, in milliseconds, before sending the request uncompressed."
         >
@@ -508,13 +508,13 @@ function Headroom({
             aria-label="Headroom time limit in milliseconds"
             className="w-32 tabular-nums"
           />
-        </Row>
+        </SettingRow>
 
         {status.installed &&
           (Object.keys(EXTRAS) as Extra[]).map((x) => {
             const installed = !!extras.extras[x];
             return (
-              <Row
+              <SettingRow
                 key={x}
                 title={
                   <>
@@ -579,7 +579,7 @@ function Headroom({
                     Install
                   </Button>
                 )}
-              </Row>
+              </SettingRow>
             );
           })}
 
@@ -593,7 +593,7 @@ function Headroom({
         {status.installed && extras.version && (
           <p className="py-3 text-[11px] text-text-subtle">Headroom v{extras.version}</p>
         )}
-      </SectionCard>
+      </SettingsSection>
       {/* Outside the card: its (hidden) wrapper would get a divider line from divide-y. */}
       <ConfirmModal
         isOpen={!!confirm}

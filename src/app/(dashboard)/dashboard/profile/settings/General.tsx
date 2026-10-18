@@ -9,7 +9,7 @@ import { APP_CONFIG } from "@/shared/constants/config";
 import { STOP_APP, stopApp } from "@/ui/frame/stopApp";
 import { logout } from "@/ui/frame/useFrameData";
 import { useUpdate } from "@/ui/frame/useUpdate";
-import { Note, Row, RowSkeleton, SectionCard } from "./parts";
+import { Note, SettingRow, SettingRowSkeleton, SettingsSection } from "@/ui";
 import { notify, type SettingsApi } from "./useSettings";
 
 const LanguageSwitcher = LanguageSwitcherJs as unknown as React.ComponentType<{
@@ -27,8 +27,8 @@ export function Appearance() {
   const [lang, setLang] = useState(false);
   return (
     <>
-      <SectionCard id="appearance" icon="palette" title="Appearance">
-        <Row title="Theme">
+      <SettingsSection id="appearance" icon="palette" title="Appearance">
+        <SettingRow title="Theme">
           <Segmented
             value={theme ?? "system"}
             onChange={setTheme}
@@ -38,16 +38,16 @@ export function Appearance() {
               { value: "system", label: "System" },
             ]}
           />
-        </Row>
-        <Row
+        </SettingRow>
+        <SettingRow
           title="Language"
           hint="Dashboard text only. Requests through the gateway aren't affected."
         >
           <Button size="sm" icon="translate" onClick={() => setLang(true)}>
             Change
           </Button>
-        </Row>
-      </SectionCard>
+        </SettingRow>
+      </SettingsSection>
       {/* Outside the card: its (hidden) wrapper would get a divider line from divide-y. */}
       <LanguageSwitcher hideTrigger isOpen={lang} onClose={() => setLang(false)} />
     </>
@@ -65,15 +65,15 @@ export function Routing({ api }: { api: SettingsApi }) {
   const combos =
     s?.comboStrategy === "round-robin" ? "rr" : s?.comboStrategy === "per-chat" ? "chat" : "fallback";
   return (
-    <SectionCard id="routing" icon="alt_route" title="Routing">
+    <SettingsSection id="routing" icon="alt_route" title="Routing">
       {!s ? (
         <>
-          <RowSkeleton />
-          <RowSkeleton />
+          <SettingRowSkeleton />
+          <SettingRowSkeleton />
         </>
       ) : (
         <>
-          <Row
+          <SettingRow
             title="Accounts of one provider"
             hint={
               accounts === "fill"
@@ -103,9 +103,9 @@ export function Routing({ api }: { api: SettingsApi }) {
                 { value: "affinity", label: "By chat" },
               ]}
             />
-          </Row>
+          </SettingRow>
           {accounts === "rr" && (
-            <Row
+            <SettingRow
               title="Requests per turn"
               hint="Keeping a few in a row on one account helps prompt caching."
             >
@@ -113,9 +113,9 @@ export function Routing({ api }: { api: SettingsApi }) {
                 value={s.stickyRoundRobinLimit ?? 3}
                 onSave={(n) => api.save({ stickyRoundRobinLimit: n })}
               />
-            </Row>
+            </SettingRow>
           )}
-          <Row
+          <SettingRow
             title="Models in a combo"
             hint={
               combos === "fallback"
@@ -138,18 +138,18 @@ export function Routing({ api }: { api: SettingsApi }) {
                 { value: "chat", label: "Per chat" },
               ]}
             />
-          </Row>
+          </SettingRow>
           {combos === "rr" && (
-            <Row title="Requests per model">
+            <SettingRow title="Requests per model">
               <NumberSave
                 value={s.comboStickyRoundRobinLimit ?? 1}
                 onSave={(n) => api.save({ comboStickyRoundRobinLimit: n })}
               />
-            </Row>
+            </SettingRow>
           )}
         </>
       )}
-    </SectionCard>
+    </SettingsSection>
   );
 }
 
@@ -205,12 +205,12 @@ export function Network({ api }: { api: SettingsApi }) {
   };
 
   return (
-    <SectionCard id="network" icon="lan" title="Network">
+    <SettingsSection id="network" icon="lan" title="Network">
       {!s ? (
-        <RowSkeleton />
+        <SettingRowSkeleton />
       ) : (
         <>
-          <Row
+          <SettingRow
             title="Send provider traffic through a proxy"
             hint="For networks that block AI providers directly. Takes effect immediately."
           >
@@ -219,9 +219,9 @@ export function Network({ api }: { api: SettingsApi }) {
               onChange={(v) => void api.save({ outboundProxyEnabled: v }).catch(() => {})}
               label="Outbound proxy"
             />
-          </Row>
+          </SettingRow>
           {s.outboundProxyEnabled === true && (
-            <Row stack title="Proxy">
+            <SettingRow stack title="Proxy">
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field label="Proxy URL">
                   <Input
@@ -266,11 +266,11 @@ export function Network({ api }: { api: SettingsApi }) {
                   {test && <Note tone={test.tone}>{test.text}</Note>}
                 </div>
               </div>
-            </Row>
+            </SettingRow>
           )}
         </>
       )}
-    </SectionCard>
+    </SettingsSection>
   );
 }
 
@@ -286,12 +286,12 @@ export function RequestLogging({ api }: { api: SettingsApi }) {
   const on = envLocked ? s?.enableRequestLogs === true : s?.enableObservability === true;
   const keep = String(s?.observabilityMaxRecords ?? 1000);
   return (
-    <SectionCard id="request-logging" icon="receipt_long" title="Request logging">
+    <SettingsSection id="request-logging" icon="receipt_long" title="Request logging">
       {!s ? (
-        <RowSkeleton />
+        <SettingRowSkeleton />
       ) : (
         <>
-          <Row
+          <SettingRow
             title="Save request and response bodies"
             hint={
               <>
@@ -307,7 +307,7 @@ export function RequestLogging({ api }: { api: SettingsApi }) {
               onChange={(v) => void api.save({ enableObservability: v }).catch(() => {})}
               label="Save request bodies"
             />
-          </Row>
+          </SettingRow>
           {envLocked && (
             <div className="py-3">
               <Note tone="warning">
@@ -319,7 +319,7 @@ export function RequestLogging({ api }: { api: SettingsApi }) {
           )}
           {on && (
             <>
-              <Row title="Keep the last" hint="Older requests are deleted as new ones come in.">
+              <SettingRow title="Keep the last" hint="Older requests are deleted as new ones come in.">
                 <Segmented
                   value={KEEP.some((k) => k.value === keep) ? keep : "1000"}
                   onChange={(v) =>
@@ -327,8 +327,8 @@ export function RequestLogging({ api }: { api: SettingsApi }) {
                   }
                   options={KEEP}
                 />
-              </Row>
-              <Row
+              </SettingRow>
+              <SettingRow
                 title="What's saved"
                 hint="Prompts and replies can contain anything you or your tools sent, including secrets pasted into a chat. They stay on this machine."
               >
@@ -337,12 +337,12 @@ export function RequestLogging({ api }: { api: SettingsApi }) {
                   <Tag>Reply</Tag>
                   <Tag>Headers</Tag>
                 </span>
-              </Row>
+              </SettingRow>
             </>
           )}
         </>
       )}
-    </SectionCard>
+    </SettingsSection>
   );
 }
 
@@ -401,8 +401,8 @@ export function Backup({ api }: { api: SettingsApi }) {
   };
 
   return (
-    <SectionCard id="backup" icon="save" title="Backup">
-      <Row
+    <SettingsSection id="backup" icon="save" title="Backup">
+      <SettingRow
         title="Download a backup"
         hint="Everything: providers, accounts, keys, combos and settings. It contains your secrets, so keep it safe."
       >
@@ -414,8 +414,8 @@ export function Backup({ api }: { api: SettingsApi }) {
         >
           Download
         </Button>
-      </Row>
-      <Row
+      </SettingRow>
+      <SettingRow
         title="Restore from a backup"
         hint="Replaces everything here with the file's contents. 9router backups work too."
       >
@@ -433,10 +433,10 @@ export function Backup({ api }: { api: SettingsApi }) {
             if (f) setRestoreConfirm(f);
           }}
         />
-      </Row>
-      <Row title="Stored in" hint="Set DATA_DIR when starting the app to keep it somewhere else.">
+      </SettingRow>
+      <SettingRow title="Stored in" hint="Set DATA_DIR when starting the app to keep it somewhere else.">
         <code className="font-mono text-[12px] text-text-muted">~/.regent/db/data.sqlite</code>
-      </Row>
+      </SettingRow>
 
       <ConfirmModal
         isOpen={!!restoreConfirm}
@@ -486,7 +486,7 @@ export function Backup({ api }: { api: SettingsApi }) {
           />
         </Field>
       </Modal>
-    </SectionCard>
+    </SettingsSection>
   );
 }
 
@@ -496,8 +496,8 @@ export function About() {
   const base = (APP_CONFIG as { forkedFrom?: { version: string } }).forkedFrom;
   const update = useUpdate().info?.update;
   return (
-    <SectionCard id="about" icon="info" title="About">
-      <Row
+    <SettingsSection id="about" icon="info" title="About">
+      <SettingRow
         title="Elizabeth's Proxy"
         hint={
           <>
@@ -533,20 +533,20 @@ export function About() {
         >
           Release notes
         </Button>
-      </Row>
-      <Row title="Sign out" hint="Ends this dashboard session in this browser.">
+      </SettingRow>
+      <SettingRow title="Sign out" hint="Ends this dashboard session in this browser.">
         <Button size="sm" icon="logout" onClick={() => void logout()}>
           Sign out
         </Button>
-      </Row>
-      <Row
+      </SettingRow>
+      <SettingRow
         title="Stop Elizabeth's Proxy"
         hint="Shuts down the gateway and this dashboard. Nothing can use it until you start it again."
       >
         <Button size="sm" variant="danger" icon="power_settings_new" onClick={() => setStop(true)}>
           Stop
         </Button>
-      </Row>
+      </SettingRow>
       <ConfirmModal
         isOpen={stop}
         onClose={() => setStop(false)}
@@ -562,6 +562,6 @@ export function About() {
           setStop(false);
         }}
       />
-    </SectionCard>
+    </SettingsSection>
   );
 }
