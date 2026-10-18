@@ -74,10 +74,13 @@ export function QuotaWorkbench({
   accounts,
   actions,
   onRefreshAll,
+  loading = false,
 }: {
   accounts: QuotaAccount[];
   actions: Actions;
   onRefreshAll: () => Promise<void>;
+  /** No account list yet: keep the real frame, shimmer only where data goes. */
+  loading?: boolean;
 }) {
   const now = useNow();
   // Selection lives in the URL (?provider=claude or ?account=<id>) so views can be linked.
@@ -217,9 +220,12 @@ export function QuotaWorkbench({
               </div>
             );
           })}
-          {!groups.length && (
-            <p className="px-3 py-6 text-sm text-text-muted">No accounts match.</p>
-          )}
+          {!groups.length &&
+            (loading ? (
+              <ListSkeleton />
+            ) : (
+              <p className="px-3 py-6 text-sm text-text-muted">No accounts match.</p>
+            ))}
         </div>
       </aside>
 
@@ -237,7 +243,7 @@ export function QuotaWorkbench({
               actions={actions}
               onPick={(id) => setSel({ kind: "account", id })}
             />
-          ) : selProvider ? (
+          ) : selProvider && allGroups.some((g) => g.provider === selProvider) ? (
             <ProviderDetail
               group={allGroups.find((g) => g.provider === selProvider)!}
               now={now}
@@ -259,6 +265,7 @@ export function QuotaWorkbench({
                 onHover={setHover}
                 onPick={(id) => setSel({ kind: "account", id })}
                 title="Coming back"
+                loading={loading}
               />
               <section className="space-y-3">
                 <div>
@@ -269,6 +276,7 @@ export function QuotaWorkbench({
                   </p>
                 </div>
                 <div className="grid gap-4 lg:grid-cols-2">
+                  {loading && !allGroups.length && [0, 1].map((i) => <CapacitySkeleton key={i} />)}
                   {allGroups.map((g) => (
                     <CapacityCard
                       key={g.provider}
@@ -341,7 +349,10 @@ function AccountRow({
         </span>
       ) : (
         <span
-          className="grid gap-x-3 gap-y-1 pl-3.5"
+          className={cn(
+            "grid gap-x-3 gap-y-1 pl-3.5 transition-opacity duration-300",
+            a.loading && "opacity-60",
+          )}
           style={{ gridTemplateColumns: `repeat(${Math.max(1, shown.length)}, minmax(0, 1fr))` }}
         >
           {shown.map((w) => (
@@ -814,5 +825,44 @@ function BulkMenu({ accounts, actions }: { accounts: QuotaAccount[]; actions: Ac
         }}
       />
     </>
+  );
+}
+
+function ListSkeleton() {
+  return (
+    <div className="space-y-1" aria-hidden>
+      <div className="flex items-center gap-2 py-2 pl-8">
+        <Skeleton className="size-5 rounded-md" />
+        <Skeleton className="h-3.5 w-24" />
+      </div>
+      {[0, 1, 2].map((i) => (
+        <div key={i} className="ml-7 space-y-1.5 px-2.5 py-2">
+          <Skeleton className="h-[18px] w-36" />
+          <div className="grid grid-cols-2 gap-x-3 pl-3.5">
+            <Skeleton className="h-[19px]" />
+            <Skeleton className="h-[19px]" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function CapacitySkeleton() {
+  return (
+    <Panel className="space-y-4 p-4" aria-hidden>
+      <div className="flex items-center gap-2">
+        <Skeleton className="size-[22px] rounded-md" />
+        <Skeleton className="h-4 w-28" />
+      </div>
+      <div className="space-y-3">
+        {[0, 1].map((i) => (
+          <div key={i} className="space-y-1">
+            <Skeleton className="h-[15px] w-1/2" />
+            <Skeleton className="h-2.5 rounded-[3px]" />
+          </div>
+        ))}
+      </div>
+    </Panel>
   );
 }

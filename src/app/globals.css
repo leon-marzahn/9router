@@ -641,9 +641,21 @@ button:disabled,
   0% { background-color: var(--color-accent-soft); box-shadow: inset 2px 0 0 var(--color-accent); }
   100% { background-color: transparent; box-shadow: inset 2px 0 0 transparent; }
 }
+/* Skeletons stay invisible for the first 250ms, then fade in: fast loads never flash them. */
+.skeleton {
+  opacity: 0;
+  animation:
+    skeleton-in 200ms ease-out 250ms forwards,
+    pulse 2s cubic-bezier(0.4, 0, 0.6, 1) 450ms infinite;
+}
+@keyframes skeleton-in {
+  to { opacity: 1; }
+}
+
 @keyframes live-ping {
   75%, 100% { transform: scale(2.2); opacity: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
   .animate-live-flash, .animate-live-ping { animation: none !important; }
+  .skeleton { animation: skeleton-in 0s 250ms forwards !important; }
 }

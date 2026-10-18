@@ -135,6 +135,52 @@ export const sortAccounts = (list: QuotaAccount[]) =>
 
 const json = (r: Response) => r.json().catch(() => ({}));
 
+// Last view, so a return visit paints real (slightly stale) numbers at once and
+// updates them in place instead of flashing skeletons. Browser-local; holds the
+// same account names and limits the page shows, no credentials.
+const CACHE_KEY = "regent.quotaView.v1";
+const CONN_FIELDS = ["id", "provider", "authType", "name", "email", "displayName", "isActive"];
+
+function readCache(): { order: string[] | null; entries: Record<string, Entry> } {
+  try {
+    const c = JSON.parse(localStorage.getItem(CACHE_KEY) || "null");
+    if (!c || !Array.isArray(c.order)) return { order: null, entries: {} };
+    const entries: Record<string, Entry> = {};
+    for (const [id, e] of Object.entries(c.entries ?? {}) as [string, Raw][])
+      entries[id] = {
+        conn: e.conn,
+        rows: e.rows ?? [],
+        plan: e.plan,
+        resetsLeft: e.resetsLeft,
+        error: e.error,
+        loading: true,
+        fetchedAt: 0,
+      };
+    return { order: c.order, entries };
+  } catch {
+    return { order: null, entries: {} };
+  }
+}
+
+function writeCache(order: string[], entries: Record<string, Entry>) {
+  try {
+    const out: Record<string, Raw> = {};
+    for (const id of order) {
+      const e = entries[id];
+      if (!e || e.fetchedAt === 0) continue;
+      const conn: Raw = {};
+      for (const k of CONN_FIELDS) if (e.conn[k] != null) conn[k] = e.conn[k];
+      out[id] = { conn, rows: e.rows, plan: e.plan, resetsLeft: e.resetsLeft, error: e.error };
+    }
+    localStorage.setItem(
+      CACHE_KEY,
+      JSON.stringify({ order: order.filter((id) => out[id]), entries: out }),
+    );
+  } catch {
+    // Storage full or blocked: the page still works, it just won't start warm.
+  }
+}
+
 async function settingsPatch(body: Raw) {
   const r = await fetch("/api/settings", {
     method: "PATCH",
@@ -145,8 +191,10 @@ async function settingsPatch(body: Raw) {
 }
 
 export function useQuota() {
-  const [entries, setEntries] = useState<Record<string, Entry>>({});
-  const [order, setOrder] = useState<string[] | null>(null);
+  // Client-only component (see page.tsx), so the cache can seed the first render.
+  const [cached] = useState(readCache);
+  const [entries, setEntries] = useState<Record<string, Entry>>(cached.entries);
+  const [order, setOrder] = useState<string[] | null>(cached.order);
   const [visibility, setVisibility] = useState<Raw>({});
   const [autoPing, setAutoPing] = useState<Record<string, Raw>>({ claude: {}, codex: {} });
   const [error, setError] = useState<string | null>(null);
@@ -241,6 +289,12 @@ export function useQuota() {
       clearInterval(t);
     };
   }, [load]);
+
+  useEffect(() => {
+    if (!order) return;
+    const t = setTimeout(() => writeCache(order, entries), 500);
+    return () => clearTimeout(t);
+  }, [order, entries]);
 
   const accounts =
     order?.filter((id) => entries[id]).map((id) => build(entries[id], visibility)) ?? null;

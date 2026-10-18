@@ -4,7 +4,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { ProviderLogo, Segmented } from "@/ui";
+import { ProviderLogo, Segmented, Skeleton } from "@/ui";
 import { cn } from "@/ui/cn";
 import {
   barTone,
@@ -41,6 +41,7 @@ export function ResetTimeline({
   onHover,
   onPick,
   title,
+  loading = false,
 }: {
   accounts: QuotaAccount[];
   now: number;
@@ -50,6 +51,7 @@ export function ResetTimeline({
   onHover?: (id: string | null) => void;
   onPick?: (id: string) => void;
   title: string;
+  loading?: boolean;
 }) {
   const range = span * 3600_000;
   const events = useMemo<Event[]>(
@@ -95,7 +97,9 @@ export function ResetTimeline({
         <div>
           <h2 className="font-display text-xl">{title}</h2>
           <p className="text-xs text-text-muted">
-            {events.length ? (
+            {loading ? (
+              <Skeleton className="mt-0.5 h-3 w-64" />
+            ) : events.length ? (
               <>
                 {events.length} reset{events.length === 1 ? "" : "s"} in the next {spanText} · next:{" "}
                 <b className="text-text">{events[0].a.label}</b>{" "}
