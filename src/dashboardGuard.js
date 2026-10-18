@@ -68,9 +68,11 @@ const PROTECTED_API_PATHS = [
 ];
 
 // Routes that spawn child processes or read host secrets — restrict to localhost.
+// All of /api/cli-tools/ is local-only, GETs included: the handlers write config files
+// in the user's home, exec `which`, and the status GETs read those files back (they can
+// contain API keys). all-statuses calls the same GET handlers in-process.
 const LOCAL_ONLY_PATHS = [
-  "/api/cli-tools/cowork-settings",
-  "/api/cli-tools/antigravity-mitm",
+  "/api/cli-tools/",
   "/api/mcp/",
   "/api/tunnel/tailscale-install",
   "/api/tunnel/tailscale-enable",
