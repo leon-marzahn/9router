@@ -27,6 +27,8 @@ export async function GET() {
     return NextResponse.json({ 
       ...safeSettings, 
       enableRequestLogs,
+      // ENABLE_REQUEST_LOGS (any value) overrides the "save request bodies" switch.
+      requestLogsEnvOverride: process.env.ENABLE_REQUEST_LOGS !== undefined,
       enableTranslator,
       hasPassword: !!password
     }, { headers: SETTINGS_RESPONSE_HEADERS });
@@ -34,6 +36,34 @@ export async function GET() {
     console.log("Error getting settings:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+}
+
+const SSO_MODES = new Set(["sso", "saml", "oidc", "both"]);
+
+/**
+ * Guards for changes that can lock someone out or open the dashboard:
+ * - turning "Require login" off needs the current password (when one is set);
+ * - an SSO sign-in mode needs that SSO type to be configured.
+ */
+async function checkSignInChange(body) {
+  const settings = await getSettings();
+  if (body.requireLogin === false && settings.requireLogin !== false && settings.password) {
+    if (!body.currentPassword) return { status: 400, error: "Enter your password to turn off login" };
+    if (!(await bcrypt.compare(String(body.currentPassword), settings.password))) {
+      return { status: 401, error: "Wrong password" };
+    }
+  }
+  if (Object.prototype.hasOwnProperty.call(body, "authMode") && SSO_MODES.has(body.authMode)) {
+    const next = { ...settings, ...body };
+    const ready =
+      next.ssoType === "saml"
+        ? !!(next.samlEntryPoint && next.samlCert)
+        : !!(next.oidcIssuerUrl && next.oidcClientId && (body.oidcClientSecret || settings.oidcClientSecret));
+    if (!ready) {
+      return { status: 400, error: "Finish setting up single sign-on before turning it on" };
+    }
+  }
+  return null;
 }
 
 export async function PATCH(request) {
@@ -50,6 +80,9 @@ export async function PATCH(request) {
 
     // Strip protected secrets before any internal handling sets them
     for (const key of PROTECTED_SETTING_KEYS) delete body[key];
+
+    const lockout = await checkSignInChange(body);
+    if (lockout) return NextResponse.json({ error: lockout.error }, { status: lockout.status });
 
     // If updating password, hash it
     if (body.newPassword) {
@@ -78,6 +111,10 @@ export async function PATCH(request) {
       delete body.newPassword;
       delete body.currentPassword;
     }
+
+    // Never store the plain-text password fields.
+    delete body.currentPassword;
+    delete body.newPassword;
 
     if (Object.prototype.hasOwnProperty.call(body, "oidcClientSecret")) {
       if (!body.oidcClientSecret || !String(body.oidcClientSecret).trim()) {

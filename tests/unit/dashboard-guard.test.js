@@ -324,3 +324,14 @@ describe("dashboard guard helpers", () => {
     expect(__test__.extractApiKey(apiRequest)).toBe("header-key");
   });
 });
+
+describe("SSO test endpoints", () => {
+  it("are not public even though the rest of /api/auth/oidc and /api/auth/saml is", async () => {
+    const { __test__ } = await import("../../src/dashboardGuard.js");
+    expect(__test__.isPublicApi("/api/auth/oidc/callback")).toBe(true);
+    expect(__test__.isPublicApi("/api/auth/saml/acs")).toBe(true);
+    expect(__test__.isPublicApi("/api/auth/oidc/test")).toBe(false);
+    expect(__test__.isPublicApi("/api/auth/saml/test")).toBe(false);
+  });
+});
+
