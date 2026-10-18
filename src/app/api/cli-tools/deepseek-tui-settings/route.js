@@ -4,7 +4,8 @@ import { NextResponse } from "next/server";
 import { configWriter } from "../configFile.js";
 import { DISPLAY_NAME } from "@/shared/constants/brand.js";
 import { resolveCliApiKey } from "../resolveApiKey.js";
-import { tomlString } from "../configText.js";
+import { stringifyTOML } from "confbox";
+import { parseExistingToml, applyRegentConfig, removeRegentConfig } from "./deepseekConfig.js";
 import { exec } from "child_process";
 import { promisify } from "util";
 import fs from "fs/promises";
@@ -56,22 +57,6 @@ const parseToml = (content) => {
 
     return result;
 };
-
-// Build TOML config for 9Router (openai provider mode)
-const build9RouterConfig = (baseUrl, apiKey, model) => {
-    const normalizedBaseUrl = baseUrl.endsWith("/v1") ? baseUrl : `${baseUrl}/v1`;
-    return `provider = "openai"
-
-[providers.openai]
-base_url = ${tomlString(normalizedBaseUrl, "Base URL")}
-api_key = ${tomlString(apiKey, "API key")}
-model = ${tomlString(model, "Model")}
-`;
-};
-
-// Default DeepSeek config (reset state)
-const DEFAULT_CONFIG = `provider = "deepseek"
-`;
 
 const checkDeepSeekInstalled = async () => {
     try {
@@ -138,8 +123,9 @@ export async function POST(request) {
         const dir = getDeepSeekDir();
         await fs.mkdir(dir, { recursive: true });
 
-        const newConfig = build9RouterConfig(baseUrl, await resolveCliApiKey(apiKey), model);
-        await writeConfigFile(getDeepSeekConfigPath(), newConfig);
+        const existing = parseExistingToml(await readConfigToml());
+        const next = applyRegentConfig(existing, baseUrl, await resolveCliApiKey(apiKey), model);
+        await writeConfigFile(getDeepSeekConfigPath(), stringifyTOML(next));
 
         return NextResponse.json({
             success: true,
@@ -148,6 +134,7 @@ export async function POST(request) {
         });
     } catch (error) {
         console.log("Error updating deepseek-tui settings:", error);
+        if (error.status) return NextResponse.json({ error: error.message }, { status: error.status });
         return NextResponse.json({ error: "Failed to update deepseek-tui settings" }, { status: 500 });
     }
 }
@@ -161,10 +148,12 @@ export async function DELETE() {
             return NextResponse.json({ success: true, message: "No config file to reset" });
         }
 
-        await writeConfigFile(configPath, DEFAULT_CONFIG);
-        return NextResponse.json({ success: true, message: `${PROVIDER_NAME} config reset to DeepSeek defaults` });
+        const existing = parseExistingToml(await readConfigToml());
+        await writeConfigFile(configPath, stringifyTOML(removeRegentConfig(existing)));
+        return NextResponse.json({ success: true, message: `${PROVIDER_NAME} settings removed from DeepSeek TUI config` });
     } catch (error) {
         console.log("Error resetting deepseek-tui settings:", error);
+        if (error.status) return NextResponse.json({ error: error.message }, { status: error.status });
         return NextResponse.json({ error: "Failed to reset deepseek-tui settings" }, { status: 500 });
     }
 }
