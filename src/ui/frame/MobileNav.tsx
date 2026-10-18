@@ -31,9 +31,7 @@ export function MobileNav({
       className={cn(
         "flex items-center gap-3 rounded-lg px-3 py-2.5 text-[14px]",
         nested && "ml-4 py-2 text-[13px]",
-        active
-          ? "bg-bg font-medium text-text"
-          : "text-text-muted hover:bg-bg/60 hover:text-text",
+        active ? "bg-bg font-medium text-text" : "text-text-muted hover:bg-bg/60 hover:text-text",
       )}
     >
       <Icon
