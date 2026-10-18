@@ -2,6 +2,7 @@
 
 import { NextResponse } from "next/server";
 import { configWriter } from "../configFile.js";
+import { hermesCurrent } from "../currentSummary.js";
 import { resolveCliApiKey } from "../resolveApiKey.js";
 import { ConfigValueError } from "../configText.js";
 import { DISPLAY_NAME } from "@/shared/constants/brand.js";
@@ -133,6 +134,7 @@ export async function GET(request) {
       settings: { model, delegation, auxiliary, stt },
       hasRegent: hasRegentConfig(model) || hasRegentConfig(delegation) || Object.values(auxiliary).some(hasRegentConfig),
       hasRegentStt: isRegentStt(stt),
+      current: hasRegentConfig(model) ? hermesCurrent(model, await readEnvFile(home)) : null,
       configPath: home.configPath,
     });
   } catch (error) {

@@ -2,6 +2,7 @@
 
 import { NextResponse } from "next/server";
 import { configWriter } from "../configFile.js";
+import { forgeCurrent } from "../currentSummary.js";
 import { DISPLAY_NAME, LEGACY_DISPLAY_NAME } from "@/shared/constants/brand.js";
 import { resolveCliApiKey } from "../resolveApiKey.js";
 import fs from "fs/promises";
@@ -72,6 +73,7 @@ export async function GET() {
       installed: true,
       config,
       hasRegent: hasRegentConfig(content),
+      current: forgeCurrent(config, hasRegentConfig(content)),
       configPath: getForgeConfigPath(),
     });
   } catch (err) {

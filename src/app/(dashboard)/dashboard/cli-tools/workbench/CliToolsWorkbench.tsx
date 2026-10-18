@@ -7,6 +7,10 @@ import { Icon, SearchInput, Skeleton } from "@/ui";
 import { cn } from "@/ui/cn";
 import { CLI_TOOLS, MITM_TOOLS } from "@/shared/constants/cliTools.js";
 import ToolDetailClientJs from "../[toolId]/ToolDetailClient";
+import { ConnectPanel } from "../connect/ConnectPanel";
+import { PastePanel } from "../connect/PastePanel";
+import { SPECS } from "../connect/specs";
+import { ConnectAll } from "../connect/ConnectAll";
 
 const ToolDetailClient = ToolDetailClientJs as unknown as React.ComponentType<{
   toolId: string;
@@ -73,6 +77,7 @@ export function CliToolsWorkbench() {
   const sel = params.get("tool");
   const [q, setQ] = useState("");
   const [statuses, setStatuses] = useState<Record<string, Status> | null>(null);
+  const [connectAll, setConnectAll] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -93,6 +98,8 @@ export function CliToolsWorkbench() {
   const tool = TOOLS.find((t) => t.id === sel);
   const state = tool ? stateOf(tool, statuses?.[tool.id]) : null;
   const filter = (t: Tool) => !q || t.name.toLowerCase().includes(q.toLowerCase());
+  // Installed, not connected, and simple enough for the shared panel to configure.
+  const connectable = statuses ? TOOLS.filter((t) => SPECS[t.id] && stateOf(t, statuses[t.id]) === "installed") : [];
 
   return (
     <div className="flex min-h-0 flex-1">
@@ -114,8 +121,15 @@ export function CliToolsWorkbench() {
               );
             return (
               <div key={g.state} className="mb-3">
-                <div className="px-2.5 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wider text-text-subtle">
-                  {g.label} <span className="font-normal">{items.length}</span>
+                <div className="flex items-center justify-between px-2.5 pb-1 pt-2">
+                  <span className="text-[11px] font-medium uppercase tracking-wider text-text-subtle">
+                    {g.label} <span className="font-normal">{items.length}</span>
+                  </span>
+                  {g.state === "installed" && connectable.length > 1 && (
+                    <button type="button" onClick={() => setConnectAll(true)} className="text-[11px] font-medium text-accent-text hover:underline">
+                      Connect all
+                    </button>
+                  )}
                 </div>
                 <div className="space-y-1">
                   {items.map((t) => {
@@ -178,7 +192,13 @@ export function CliToolsWorkbench() {
                 {tool.description && <p className="mt-1 text-[13px] text-text-muted">{tool.description}</p>}
               </div>
             </header>
-            <ToolDetailClient key={tool.id} toolId={tool.id} embedded onWrite={() => void load()} />
+            {tool.configType === "guide" ? (
+              <PastePanel key={tool.id} toolId={tool.id} />
+            ) : SPECS[tool.id] ? (
+              <ConnectPanel key={tool.id} toolId={tool.id} toolName={tool.name} onChanged={() => void load()} />
+            ) : (
+              <ToolDetailClient key={tool.id} toolId={tool.id} embedded onWrite={() => void load()} />
+            )}
           </div>
         ) : (
           <div className="grid h-full place-items-center p-8 text-center text-[13px] text-text-muted">
@@ -189,6 +209,7 @@ export function CliToolsWorkbench() {
           </div>
         )}
       </section>
+      {connectAll && <ConnectAll tools={connectable} onClose={() => setConnectAll(false)} onDone={() => void load()} />}
     </div>
   );
 }

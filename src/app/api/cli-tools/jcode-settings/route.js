@@ -2,6 +2,7 @@
 
 import { NextResponse } from "next/server";
 import { configWriter } from "../configFile.js";
+import { jcodeCurrent } from "../currentSummary.js";
 import { resolveCliApiKey } from "../resolveApiKey.js";
 import { dotenvString, configErrorStatus } from "../configText.js";
 import fs from "fs/promises";
@@ -142,6 +143,7 @@ export async function GET() {
     installed: true,
     config,
     hasRegent,
+    current: jcodeCurrent(config, Boolean((await readProviderEnv())[envVarName()])),
     configPath: getConfigPath(),
   });
 }

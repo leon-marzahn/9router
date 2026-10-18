@@ -2,6 +2,7 @@
 
 import { NextResponse } from "next/server";
 import { configWriter } from "../configFile.js";
+import { kiloCurrent } from "../currentSummary.js";
 import { resolveCliApiKey } from "../resolveApiKey.js";
 import { DISPLAY_NAME, pickProvider, deleteProviderKeys, mentionsBrand } from "@/shared/constants/brand.js";
 import { exec } from "child_process";
@@ -88,6 +89,7 @@ export async function GET() {
       installed: true,
       settings: { auth: auth ? Object.keys(auth) : [] },
       hasRegent: hasRegentConfig(auth),
+      current: hasRegentConfig(auth) ? kiloCurrent(auth) : null,
       authPath: getAuthPath(),
     });
   } catch (error) {

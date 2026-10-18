@@ -2,6 +2,7 @@
 
 import { NextResponse } from "next/server";
 import { configWriter } from "../configFile.js";
+import { droidCurrent } from "../currentSummary.js";
 import { resolveCliApiKey } from "../resolveApiKey.js";
 import { DISPLAY_NAME, LEGACY_DISPLAY_NAME, PROVIDER_KEY } from "@/shared/constants/brand.js";
 import { exec } from "child_process";
@@ -80,6 +81,7 @@ export async function GET() {
       installed: true,
       settings,
       hasRegent: hasRegentConfig(settings),
+      current: droidCurrent(settings),
       settingsPath: getDroidSettingsPath(),
     });
   } catch (error) {

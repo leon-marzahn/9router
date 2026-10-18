@@ -2,6 +2,7 @@
 
 import { NextResponse } from "next/server";
 import { configWriter } from "../configFile.js";
+import { claudeCurrent } from "../currentSummary.js";
 import { RESET_ENV_KEYS } from "./claudeEnv.js";
 import { resolveCliApiKey } from "../resolveApiKey.js";
 import { exec } from "child_process";
@@ -113,6 +114,7 @@ export async function GET() {
       installed: true,
       settings: settings,
       hasRegent: hasRegent,
+      current: claudeCurrent(settings),
       exaMcpEnabled: !!claudeJson?.mcpServers?.exa,
       settingsPath: getClaudeSettingsPath(),
     });
