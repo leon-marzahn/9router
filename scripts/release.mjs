@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 // Cut a release: bump root + cli versions, prepend the git-cliff changelog
 // entry, commit "chore(release): vX" and tag it. Pushing is left to you:
-//   npm run release 100.1.0 && git push --follow-tags
+//   vp run release 100.1.0 && git push --follow-tags
 // The tag push builds the Docker image and writes the GitHub release notes.
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 
 const version = process.argv[2]?.replace(/^v/, "");
 if (!version || !/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/.test(version)) {
-  console.error("usage: npm run release <x.y.z>");
+  console.error("usage: vp run release <x.y.z>");
   process.exit(1);
 }
 const tag = `v${version}`;
