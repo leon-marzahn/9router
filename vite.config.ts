@@ -15,7 +15,12 @@ export default defineConfig({
   // Unit tests live in tests/ (ESM via tests/package.json "type": "module").
   test: {
     dir: "tests",
-    env: { DATA_DIR: join(testHome, ".9router"), HOME: testHome, USERPROFILE: testHome, APPDATA: testHome },
+    env: {
+      DATA_DIR: join(testHome, ".9router"),
+      HOME: testHome,
+      USERPROFILE: testHome,
+      APPDATA: testHome,
+    },
     environment: "node",
     globals: true,
     include: ["**/*.test.js"],
@@ -54,6 +59,7 @@ export default defineConfig({
       "!/src/lib",
       "/src/lib/*",
       "!/src/lib/liveEvents.js",
+      "!/src/lib/updates",
       "!/src/lib/tunnel",
       "/src/lib/tunnel/*",
       "!/src/lib/tunnel/exposureGuard.js",
@@ -61,6 +67,9 @@ export default defineConfig({
       "/src/app/*",
       "!/src/app/api",
       "/src/app/api/*",
+      "!/src/app/api/settings",
+      "/src/app/api/settings/*",
+      "!/src/app/api/settings/updates",
       "!/src/app/api/providers",
       "/src/app/api/providers/*",
       "!/src/app/api/providers/stream",
@@ -102,6 +111,8 @@ export default defineConfig({
       "!/tests/unit/providers-live-stream.test.js",
       "!/tests/unit/tls-impersonation.test.js",
       "!/tests/unit/tls-impersonation-connection-api.test.js",
+      "!/tests/unit/update-check.test.js",
+      "!/tests/unit/update-hook-secret.test.js",
     ],
   },
   lint: {

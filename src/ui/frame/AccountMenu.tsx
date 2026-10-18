@@ -12,6 +12,7 @@ import { cn } from "../cn";
 import { RailTooltip } from "./Tooltip";
 import { SETTINGS_HREF } from "./nav";
 import { logout, type AuthInfo } from "./useFrameData";
+import { useUpdate } from "./useUpdate";
 
 type Modal = null | "language" | "shutdown";
 
@@ -29,6 +30,7 @@ export function AccountMenu({
   const [open, setOpen] = useState(false);
   const [modal, setModal] = useState<Modal>(null);
   const [shuttingDown, setShuttingDown] = useState(false);
+  const update = useUpdate().info?.update;
   const sso = auth.displayName && (auth.loginMethod === "OIDC" || auth.loginMethod === "SAML");
   const openModal = (m: Modal) => {
     setOpen(false);
@@ -65,6 +67,16 @@ export function AccountMenu({
         <div className="px-3 pb-2 pt-1.5">
           <div className="text-xs font-medium">{APP_CONFIG.name}</div>
           <div className="font-mono text-[11px] text-text-muted">v{APP_CONFIG.version}</div>
+          {update && (
+            <a
+              href={update.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-0.5 flex items-center gap-1 text-[11px] text-accent-text hover:underline"
+            >
+              <Icon name="arrow_upward" size={12} />v{update.version} available
+            </a>
+          )}
           {APP_CONFIG.forkedFrom && (
             <div className="text-[11px] text-text-subtle">
               based on 9router {APP_CONFIG.forkedFrom.version}

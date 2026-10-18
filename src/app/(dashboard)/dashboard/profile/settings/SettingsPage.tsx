@@ -6,6 +6,7 @@ import { cn } from "@/ui/cn";
 import { About, Appearance, Backup, Network, RequestLogging, Routing } from "./General";
 import { Login } from "./Login";
 import { Sso } from "./Sso";
+import { Updates } from "./Updates";
 import { useSettings } from "./useSettings";
 
 const INDEX = [
@@ -16,6 +17,7 @@ const INDEX = [
   { id: "network", icon: "lan", title: "Network" },
   { id: "request-logging", icon: "receipt_long", title: "Request logging" },
   { id: "backup", icon: "save", title: "Backup" },
+  { id: "updates", icon: "update", title: "Updates" },
   { id: "about", icon: "info", title: "About" },
 ];
 
@@ -86,6 +88,7 @@ export function SettingsPage() {
         <Network api={api} />
         <RequestLogging api={api} />
         <Backup api={api} />
+        <Updates />
         <About />
       </div>
     </div>

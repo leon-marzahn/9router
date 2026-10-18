@@ -4,6 +4,7 @@ import { applyOutboundProxyEnv } from "@/lib/network/outboundProxy";
 import { resetComboRotation } from "open-sse/services/combo.js";
 import bcrypt from "bcryptjs";
 import { validatePipelines } from "@/lib/request-pipelines/config.js";
+import { UPDATE_STATE_KEYS, webhookHost } from "@/lib/updates/webhook.js";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -13,14 +14,22 @@ const SETTINGS_RESPONSE_HEADERS = {
 };
 
 // Secrets must never be mass-assigned from request body (CWE-915)
-const PROTECTED_SETTING_KEYS = ["password", "mitmSudoEncrypted"];
+// (the redeploy hook is set through /api/settings/updates, which validates it)
+const PROTECTED_SETTING_KEYS = ["password", "mitmSudoEncrypted", ...UPDATE_STATE_KEYS];
+
+/** Drop secrets; say only whether the redeploy hook is set and where it points. */
+function toPublicSettings({ password, oidcClientSecret, updateWebhookUrl, updateWebhookToken, ...safe }) {
+  safe.oidcConfigured = !!(safe.oidcIssuerUrl && safe.oidcClientId && oidcClientSecret);
+  safe.updateWebhookSet = !!updateWebhookUrl;
+  safe.updateWebhookHost = updateWebhookUrl ? webhookHost(updateWebhookUrl) : null;
+  return { safe, password };
+}
 
 export async function GET() {
   try {
     const settings = await getSettings();
-    const { password, oidcClientSecret, ...safeSettings } = settings;
-    safeSettings.oidcConfigured = !!(safeSettings.oidcIssuerUrl && safeSettings.oidcClientId && oidcClientSecret);
-    
+    const { safe: safeSettings, password } = toPublicSettings(settings);
+
     const enableRequestLogs = process.env.ENABLE_REQUEST_LOGS === "true";
     const enableTranslator = process.env.ENABLE_TRANSLATOR === "true";
     
@@ -154,8 +163,7 @@ export async function PATCH(request) {
         .catch((error) => console.warn("[AutoPing] settings update failed:", error.message));
     }
 
-    const { password, oidcClientSecret, ...safeSettings } = settings;
-    safeSettings.oidcConfigured = !!(safeSettings.oidcIssuerUrl && safeSettings.oidcClientId && oidcClientSecret);
+    const { safe: safeSettings } = toPublicSettings(settings);
     return NextResponse.json(safeSettings, { headers: SETTINGS_RESPONSE_HEADERS });
   } catch (error) {
     console.log("Error updating settings:", error);
