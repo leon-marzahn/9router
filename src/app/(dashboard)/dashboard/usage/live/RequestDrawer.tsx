@@ -143,6 +143,7 @@ export function RequestDrawer({
         ) : (
           <div className="space-y-2">
             {detail.response?.thinking && <Thinking text={detail.response.thinking} />}
+            <RegentHeaders headers={detail.request?.regentHeaders} />
             {SECTIONS.map((s, i) => (
               <Section
                 key={s.key}
@@ -215,6 +216,32 @@ function Section({
           {empty ? "Not captured." : text}
         </pre>
       )}
+    </div>
+  );
+}
+
+function RegentHeaders({ headers }: { headers?: Record<string, string> }) {
+  const entries = headers ? Object.entries(headers) : [];
+  return (
+    <div className="overflow-hidden rounded-xl border border-border">
+      <div className="px-4 py-2.5 text-[13px] font-medium">
+        Regent headers
+        <span className="ml-2 hidden text-[11px] font-normal text-text-subtle sm:inline">
+          control headers your tool sent
+        </span>
+      </div>
+      <dl className="border-t border-border bg-bg-alt px-4 py-3 font-mono text-[11px] leading-relaxed">
+        {entries.length === 0 ? (
+          <dd className="text-text-subtle">None sent.</dd>
+        ) : (
+          entries.map(([k, v]) => (
+            <div key={k} className="flex gap-3">
+              <dt className="shrink-0 text-text-muted">{k}</dt>
+              <dd className="min-w-0 break-all">{v}</dd>
+            </div>
+          ))
+        )}
+      </dl>
     </div>
   );
 }

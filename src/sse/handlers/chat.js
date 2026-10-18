@@ -27,6 +27,7 @@ import * as log from "../utils/logger.js";
 import { updateProviderCredentials, checkAndRefreshToken } from "../services/tokenRefresh.js";
 import { getProjectIdForConnection } from "open-sse/services/projectId.js";
 import { stripModelContextMarker } from "open-sse/utils/modelMarkers.js";
+import { pickRegentHeaders } from "open-sse/handlers/chatCore/requestDetail.js";
 import { PIPELINE_HEADER, LEGACY_PIPELINE_HEADER } from "@/lib/request-pipelines/config.js";
 import { runRequestPipeline } from "@/lib/request-pipelines/run.js";
 import { getKeyAccessContext, enforceKeyAccess, filterAdapterModels } from "../services/keyAccess.js";
@@ -108,9 +109,14 @@ export async function handleChat(request, clientRawRequest = null) {
   }
   // This is a router control header; keep it out of forwarded provider headers.
   if (clientRawRequest?.headers) {
-    clientRawRequest = { ...clientRawRequest, headers: Object.fromEntries(
-      Object.entries(clientRawRequest.headers).filter(([key]) => ![PIPELINE_HEADER, LEGACY_PIPELINE_HEADER].includes(key.toLowerCase()))
-    ) };
+    clientRawRequest = {
+      ...clientRawRequest,
+      // Captured before the strip so the request log still shows the pipeline header.
+      regentHeaders: pickRegentHeaders(clientRawRequest.headers),
+      headers: Object.fromEntries(
+        Object.entries(clientRawRequest.headers).filter(([key]) => ![PIPELINE_HEADER, LEGACY_PIPELINE_HEADER].includes(key.toLowerCase()))
+      ),
+    };
   }
 
   // Bypass naming/warmup requests before combo rotation to avoid wasting rotation slots
