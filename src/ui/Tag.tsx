@@ -19,14 +19,17 @@ export function Tag({
   mono,
   children,
   className,
+  title,
 }: {
   tone?: Tone;
   mono?: boolean;
   children: ReactNode;
   className?: string;
+  title?: string;
 }) {
   return (
     <span
+      title={title}
       className={cn(
         "inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded px-1.5 py-px text-[10px] font-medium",
         mono && "font-mono font-semibold",

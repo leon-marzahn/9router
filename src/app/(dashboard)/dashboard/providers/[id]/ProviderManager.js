@@ -14,6 +14,7 @@ import { useModelCaps } from "@/shared/hooks/useModelCaps";
 import { translate } from "@/i18n/runtime";
 import { fetchSuggestedModels } from "@/shared/utils/providerModelsFetcher";
 import { getProviderCustomModelRows } from "@/shared/utils/providerCustomModels";
+import { Button as UiButton, EmptyState, Eyebrow, Icon, Input as UiInput, Switch } from "@/ui";
 import ModelRow from "./ModelRow";
 import PassthroughModelsSection from "./PassthroughModelsSection";
 import CompatibleModelsSection from "./CompatibleModelsSection";
@@ -1038,18 +1039,19 @@ export default function ProviderManager({ providerId, embedded = false, liveVers
   const isSelected = (connectionId) => selectedConnectionIds.includes(connectionId);
 
   const connectionsList = (
-    <div className="flex min-w-0 flex-col divide-y divide-black/[0.03] dark:divide-white/[0.03] max-h-[500px] overflow-y-auto pr-1">
+    <div className="flex min-w-0 flex-col divide-y divide-border">
       {connections
         .map((conn, index) => (
           <div key={conn.id} className="flex min-w-0 items-stretch">
-            <div className="flex shrink-0 items-center pl-1 sm:pl-2">
+            <label className="flex shrink-0 cursor-pointer items-center pl-3">
               <input
                 type="checkbox"
+                aria-label={`Select ${conn.name || conn.email || "account"}`}
                 checked={isSelected(conn.id)}
                 onChange={() => toggleSelectConnection(conn.id)}
-                className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                className="size-3.5 accent-accent"
               />
-            </div>
+            </label>
             <div className="flex-1 min-w-0">
               <ConnectionRow
                 connection={conn}
@@ -1207,7 +1209,9 @@ export default function ProviderManager({ providerId, embedded = false, liveVers
     });
 
     return (
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-col gap-3">
+        <div className="overflow-hidden rounded-xl border border-border bg-surface">
+          <div className="flex min-w-0 flex-col divide-y divide-border">
         {/* Custom models first */}
         {customModelRows.map((model) => (
           <ModelRow
@@ -1262,42 +1266,29 @@ export default function ProviderManager({ providerId, embedded = false, liveVers
           );
         })}
 
-        {/* Add model button — inline, same style as model chips */}
-        <button
-          onClick={() => setShowAddCustomModel(true)}
-          className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-primary/40 px-3 py-2 text-xs text-primary transition-colors hover:border-primary hover:bg-primary/5 sm:w-auto"
-        >
-          <span className="material-symbols-outlined text-sm">add</span>
-          Add Model
-        </button>
+          </div>
+          {customModelRows.length === 0 && displayModels.length === 0 && (
+            <p className="px-3 py-4 text-[13px] text-text-muted">No models listed yet — add one by id.</p>
+          )}
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+        <UiButton icon="add" onClick={() => setShowAddCustomModel(true)}>Add model</UiButton>
 
         {/* Import Qoder models button — only show for qoder/qoder-cn provider */}
         {(providerId === "qoder" || providerId === "qoder-cn") && connections.some((conn) => conn.isActive !== false) && (
-          <button
-            onClick={handleImportQoderModels}
-            disabled={importingQoderModels}
-            className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-blue-500/40 px-3 py-2 text-xs text-blue-600 dark:text-blue-400 transition-colors hover:border-blue-500 hover:bg-blue-500/5 sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <span className="material-symbols-outlined text-sm" style={importingQoderModels ? { animation: "spin 1s linear infinite" } : undefined}>
-              {importingQoderModels ? "progress_activity" : "download"}
-            </span>
+          <UiButton icon="download" loading={importingQoderModels} onClick={handleImportQoderModels}>
             {importingQoderModels ? translate("Fetching...") : translate("Fetch Qoder Models")}
-          </button>
+          </UiButton>
         )}
 
         {/* Import Cline /models catalog button — only show for cline and clinepass providers */}
         {(providerId === "cline" || providerId === "clinepass") && connections.some((conn) => conn.isActive !== false) && (
-          <button
-            onClick={handleImportClineModels}
-            disabled={importingClineModels}
-            className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-blue-500/40 px-3 py-2 text-xs text-blue-600 dark:text-blue-400 transition-colors hover:border-blue-500 hover:bg-blue-500/5 sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <span className="material-symbols-outlined text-sm" style={importingClineModels ? { animation: "spin 1s linear infinite" } : undefined}>
-              {importingClineModels ? "progress_activity" : "download"}
-            </span>
+          <UiButton icon="download" loading={importingClineModels} onClick={handleImportClineModels}>
             {importingClineModels ? translate("Fetching...") : translate("Import from /models")}
-          </button>
+          </UiButton>
         )}
+        </div>
 
         {/* Suggested models from provider API — show only models not yet added */}
         {suggestedModels.length > 0 && (() => {
@@ -1311,8 +1302,8 @@ export default function ProviderManager({ providerId, embedded = false, liveVers
           );
           if (notAdded.length === 0) return null;
           return (
-            <div className="w-full mt-2">
-              <p className="text-xs text-text-muted mb-2">Suggested free models (≥200k context):</p>
+            <div className="w-full">
+              <Eyebrow className="mb-2">Suggested free models · ≥200k context</Eyebrow>
               <div className="flex flex-wrap gap-2">
                 {notAdded.map((m) => (
                   <button
@@ -1320,10 +1311,10 @@ export default function ProviderManager({ providerId, embedded = false, liveVers
                     onClick={async () => {
                       await handleAddCustomModel(m.id, "llm", providerStorageAlias);
                     }}
-                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-black/10 dark:border-white/10 text-xs text-text-muted hover:text-primary hover:border-primary/40 hover:bg-primary/5 transition-colors"
+                    className="flex items-center gap-1 rounded-lg border border-border bg-surface px-2.5 py-1.5 font-mono text-[11px] text-text-muted transition-colors hover:border-accent-ring hover:text-accent-text"
                     title={`${m.name} · ${(m.contextLength / 1000).toFixed(0)}k ctx`}
                   >
-                    <span className="material-symbols-outlined text-[13px]">add</span>
+                    <Icon name="add" size={13} />
                     {m.id.split("/").pop()}
                   </button>
                 ))}
@@ -1334,17 +1325,17 @@ export default function ProviderManager({ providerId, embedded = false, liveVers
 
         {/* Disabled models — restorable */}
         {disabledDisplayModels.length > 0 && (
-          <div className="w-full mt-2">
-            <p className="text-xs text-text-muted mb-2">Disabled models ({disabledDisplayModels.length}):</p>
+          <div className="w-full">
+            <Eyebrow className="mb-2">Disabled models · {disabledDisplayModels.length}</Eyebrow>
             <div className="flex flex-wrap gap-2">
               {disabledDisplayModels.map((m) => (
                 <button
                   key={m.id}
                   onClick={() => handleEnableModel(m.id)}
-                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-dashed border-black/10 dark:border-white/10 text-xs text-text-muted hover:text-primary hover:border-primary/40 hover:bg-primary/5 transition-colors"
+                  className="flex items-center gap-1 rounded-lg border border-dashed border-border-strong px-2.5 py-1.5 font-mono text-[11px] text-text-muted transition-colors hover:border-accent-ring hover:text-accent-text dark:border-border"
                   title="Restore model"
                 >
-                  <span className="material-symbols-outlined text-[13px]">add</span>
+                  <Icon name="add" size={13} />
                   {m.id}
                 </button>
               ))}
@@ -1472,41 +1463,24 @@ export default function ProviderManager({ providerId, embedded = false, liveVers
       )}
 
       {isCompatible && providerNode && (
-        <Card>
-          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div className="min-w-0">
-              <h2 className="text-lg font-semibold">{isAnthropicCompatible ? "Anthropic Compatible Details" : "OpenAI Compatible Details"}</h2>
-              <p className="break-all text-sm text-text-muted">
-                {isAnthropicCompatible ? "Messages API" : (providerNode.apiType === "responses" ? "Responses API" : "Chat Completions")} · {(providerNode.baseUrl || "").replace(/\/$/, "")}/
-                {isAnthropicCompatible ? "messages" : (providerNode.apiType === "responses" ? "responses" : "chat/completions")}
-              </p>
-            </div>
-            <div className="grid grid-cols-1 gap-2 sm:flex sm:items-center">
-              <Button
-                size="sm"
-                icon="add"
-                onClick={() => {
-                  setAddConnectionError("");
-                  setShowAddApiKeyModal(true);
-                }}
-                className="w-full sm:w-auto"
-              >
-                Add API Key
-              </Button>
-              <Button
-                size="sm"
-                variant="secondary"
-                icon="edit"
-                onClick={() => setShowEditNodeModal(true)}
-                className="w-full sm:w-auto"
-              >
-                Edit
-              </Button>
-              <Button
-                size="sm"
-                variant="secondary"
-                icon="delete"
-                onClick={async () => {
+        <section className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-surface px-4 py-3">
+          <div className="min-w-0 flex-1">
+            <Eyebrow>Endpoint</Eyebrow>
+            <code className="mt-1 block break-all font-mono text-xs">
+              {(providerNode.baseUrl || "").replace(/\/$/, "")}/
+              {isAnthropicCompatible ? "messages" : (providerNode.apiType === "responses" ? "responses" : "chat/completions")}
+            </code>
+            <p className="mt-0.5 text-[11px] text-text-muted">
+              {isAnthropicCompatible ? "Anthropic Messages API" : (providerNode.apiType === "responses" ? "OpenAI Responses API" : "OpenAI Chat Completions")}
+            </p>
+          </div>
+          <div className="flex gap-1">
+            <UiButton variant="ghost" icon="edit" onClick={() => setShowEditNodeModal(true)}>Edit</UiButton>
+            <UiButton
+              variant="ghost"
+              icon="delete"
+              className="hover:bg-danger-soft hover:text-danger-text"
+              onClick={async () => {
                   setConfirmState({
                     title: "Delete Compatible Node",
                     message: `Delete this ${isAnthropicCompatible ? "Anthropic" : "OpenAI"} Compatible node?`,
@@ -1523,274 +1497,129 @@ export default function ProviderManager({ providerId, embedded = false, liveVers
                     }
                   });
                 }}
-                className="w-full sm:w-auto"
-              >
-                Delete
-              </Button>
-            </div>
+            >
+              Delete
+            </UiButton>
           </div>
-        </Card>
+        </section>
       )}
 
       {/* Connections */}
       {isFreeNoAuth ? (
         <NoAuthProxyCard providerId={providerId} />
       ) : (
-        <Card>
-          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <h2 className="text-lg font-semibold">Connections</h2>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-              {connections.length > 0 && proxyPools.length > 0 && (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  icon="lan"
-                  onClick={() => setShowBulkProxyModal(true)}
-                >
-                  Apply Proxy
-                </Button>
-              )}
+        <section>
+          <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-2">
+            <Eyebrow>
+              Accounts {connections.length > 0 && <span className="font-normal text-text-subtle">{connections.length}</span>}
+            </Eyebrow>
+            <div className="ml-auto flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-2 text-xs text-text-muted" title="Rotate through accounts instead of always using the highest priority">
+                <span aria-hidden>Round robin</span>
+                <Switch label="Round robin" checked={providerStrategy === "round-robin"} onChange={handleRoundRobinToggle} />
+                {providerStrategy === "round-robin" && (
+                  <label className="flex items-center gap-1.5">
+                    <span>Sticky</span>
+                    <UiInput type="number" min={1} value={providerStickyLimit} onChange={(e) => handleStickyLimitChange(e.target.value)} placeholder="1" className="h-7 w-14 px-2 text-xs" />
+                  </label>
+                )}
+              </div>
               {connections.length > 0 && (
                 <>
-                  {selectedConnectionIds.length > 0 && (
-                    <Button
-                      size="sm"
-                      variant="danger"
-                      icon="delete"
-                      onClick={handleBulkDelete}
-                    >
-                      Delete Selected ({selectedConnectionIds.length})
-                    </Button>
+                  {oneByOneRunning ? (
+                    <UiButton variant="ghost" icon="stop" onClick={handleStopOneByOneTest} disabled={oneByOneStopping}>
+                      {oneByOneStopping ? "Stopping…" : "Stop test"}
+                    </UiButton>
+                  ) : (
+                    <UiButton icon="sync" onClick={handleRunOneByOneTest} title="Test each account in turn">Test one by one</UiButton>
                   )}
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    icon="sync"
-                    onClick={handleRunOneByOneTest}
-                    disabled={oneByOneRunning}
-                  >
-                    {oneByOneRunning ? "Testing Connection One-by-One..." : "Test Connection One-by-One"}
-                  </Button>
-                  {oneByOneRunning && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      icon="stop"
-                      onClick={handleStopOneByOneTest}
-                      disabled={oneByOneStopping}
-                    >
-                      {oneByOneStopping ? "Stopping..." : "Stop"}
-                    </Button>
+                  {proxyPools.length > 0 && (
+                    <UiButton icon="lan" onClick={() => setShowBulkProxyModal(true)}>Apply proxy</UiButton>
                   )}
                 </>
               )}
-              {/* Round Robin toggle */}
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs text-text-muted font-medium">Round Robin</span>
-                <Toggle
-                  checked={providerStrategy === "round-robin"}
-                  onChange={handleRoundRobinToggle}
-                />
-                {providerStrategy === "round-robin" && (
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs text-text-muted">Sticky:</span>
-                    <input
-                      type="number"
-                      min={1}
-                      value={providerStickyLimit}
-                      onChange={(e) => handleStickyLimitChange(e.target.value)}
-                      placeholder="1"
-                      className="w-14 px-2 py-1 text-xs border border-border rounded-md bg-background focus:outline-none focus:border-primary"
-                    />
-                  </div>
-                )}
-              </div>
             </div>
           </div>
 
           {connections.length === 0 ? (
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-3">
-                <div className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-primary/10 text-primary shrink-0">
-                  <span className="material-symbols-outlined text-[18px]">{isOAuth ? "lock" : "key"}</span>
-                </div>
-                <div className="min-w-0">
-                  <p className="text-sm text-text-muted">No connections yet</p>
-                  {hasDualAuthModes && (
-                    <p className="text-xs text-text-muted">
-                      Choose {oauthConnectionLabel} or {apiKeyConnectionLabel}.
-                    </p>
-                  )}
-                </div>
-              </div>
-              <div className="flex gap-2">
-                {hasDualAuthModes ? (
-                  <>
-                    <Button size="sm" icon="lock" variant="secondary" onClick={triggerOAuthConnection}>
-                      {oauthConnectionLabel}
-                    </Button>
-                    <Button size="sm" icon="key" onClick={triggerApiKeyConnection}>
-                      {apiKeyConnectionLabel}
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    {!isCompatible && providerId === "iflow" && (
-                      <Button size="sm" icon="cookie" variant="secondary" onClick={() => setShowIFlowCookieModal(true)}>
-                        Cookie
-                      </Button>
-                    )}
-                    {providerId === "codex" && (
-                      <Button size="sm" icon="playlist_add" variant="secondary" onClick={() => setShowBulkImportCodex(true)}>
-                        {translate("Bulk Add")}
-                      </Button>
-                    )}
-                    {providerId === "grok-cli" && (
-                      <Button size="sm" icon="playlist_add" variant="secondary" onClick={() => setShowBulkImportGrokCli(true)}>
-                        {translate("Bulk Add")}
-                      </Button>
-                    )}
-                    <Button
-                      size="sm"
-                      icon="add"
-                      onClick={triggerAddConnection}
-                    >
-                      {isCompatible ? "Add API Key" : (providerId === "iflow" ? "OAuth" : "Add Connection")}
-                    </Button>
-                  </>
-                )}
-              </div>
-            </div>
+            <EmptyState icon={isOAuth ? "lock" : "key"}>
+              Not connected yet.{hasDualAuthModes ? ` Choose ${oauthConnectionLabel} or ${apiKeyConnectionLabel}.` : ""}
+            </EmptyState>
           ) : (
             <>
               {oneByOneSummary && (
-                <div className="mb-4 rounded-lg border border-black/10 bg-black/[0.02] px-3 py-2 text-xs text-text-muted dark:border-white/10 dark:bg-white/[0.03]">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <span>Total: {oneByOneSummary.total}</span>
-                    <span>Completed: {oneByOneSummary.completed}</span>
-                    <span>Passed: {oneByOneSummary.passed}</span>
-                    <span>Failed: {oneByOneSummary.failed}</span>
-                    {oneByOneSummary.stopped && (
-                      <span className="text-amber-600 dark:text-amber-400">Stopped</span>
-                    )}
-                    {oneByOneRunning && oneByOneCurrentConnectionId && (
-                      <span>Running: {connections.find((conn) => conn.id === oneByOneCurrentConnectionId)?.name || oneByOneCurrentConnectionId}</span>
-                    )}
-                  </div>
+                <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-surface-2 px-3 py-2 text-xs text-text-muted">
+                  <span className="tabular-nums">{oneByOneSummary.completed}/{oneByOneSummary.total} tested</span>
+                  <span className="tabular-nums text-success-text">{oneByOneSummary.passed} passed</span>
+                  {oneByOneSummary.failed > 0 && <span className="tabular-nums text-danger-text">{oneByOneSummary.failed} failed</span>}
+                  {oneByOneSummary.stopped && <span className="text-warning-text">stopped</span>}
+                  {oneByOneRunning && oneByOneCurrentConnectionId && (
+                    <span className="truncate">now: {connections.find((conn) => conn.id === oneByOneCurrentConnectionId)?.name || oneByOneCurrentConnectionId}</span>
+                  )}
                 </div>
               )}
-              {connections.length > 0 && (
-                <div className="mb-3 flex items-center gap-2 border-b border-black/[0.03] pb-2 dark:border-white/[0.03]">
-                  <label className="flex cursor-pointer items-center gap-1.5 text-xs text-text-muted hover:text-primary">
-                    <input
-                      type="checkbox"
-                      checked={allSelected}
-                      onChange={toggleSelectAllConnections}
-                      className="h-3.5 w-3.5 rounded border-gray-300 text-primary focus:ring-primary"
-                    />
-                    Select All
+              <div className="overflow-hidden rounded-xl border border-border bg-surface">
+                <div className="flex h-9 items-center gap-2 border-b border-border px-3 text-xs text-text-muted">
+                  <label className="flex cursor-pointer items-center gap-2 hover:text-text">
+                    <input type="checkbox" checked={allSelected} onChange={toggleSelectAllConnections} className="size-3.5 accent-accent" />
+                    {selectedConnectionIds.length > 0 ? `${selectedConnectionIds.length} selected` : "Select all"}
                   </label>
-                </div>
-              )}
-              {connectionsList}
-              {!isCompatible && (
-                <div className="mt-4 grid grid-cols-1 gap-2 sm:flex">
-                  {providerId === "iflow" && (
-                    <Button
-                      size="sm"
-                      icon="cookie"
-                      variant="secondary"
-                      onClick={() => setShowIFlowCookieModal(true)}
-                      title="Add connection using browser cookie"
-                      className="w-full sm:w-auto"
-                    >
-                      Cookie
-                    </Button>
-                  )}
-                  {providerId === "codex" && (
-                    <Button
-                      size="sm"
-                      icon="playlist_add"
-                      variant="secondary"
-                      onClick={() => setShowBulkImportCodex(true)}
-                      title={translate("Bulk import codex accounts from JSON")}
-                      className="w-full sm:w-auto"
-                    >
-                      {translate("Bulk Add")}
-                    </Button>
-                  )}
-                  {providerId === "grok-cli" && (
-                    <Button
-                      size="sm"
-                      icon="playlist_add"
-                      variant="secondary"
-                      onClick={() => setShowBulkImportGrokCli(true)}
-                      title={translate("Bulk import Grok CLI accounts from JSON")}
-                      className="w-full sm:w-auto"
-                    >
-                      {translate("Bulk Add")}
-                    </Button>
-                  )}
-                  {hasDualAuthModes ? (
-                    <>
-                      <Button
-                        size="sm"
-                        icon="lock"
-                        variant="secondary"
-                        onClick={triggerOAuthConnection}
-                        className="w-full sm:w-auto"
-                      >
-                        {oauthConnectionLabel}
-                      </Button>
-                      <Button
-                        size="sm"
-                        icon="key"
-                        onClick={triggerApiKeyConnection}
-                        className="w-full sm:w-auto"
-                      >
-                        {apiKeyConnectionLabel}
-                      </Button>
-                    </>
-                  ) : (
-                    <Button
-                      size="sm"
-                      icon="add"
-                      onClick={triggerAddConnection}
-                      className="w-full sm:w-auto"
-                    >
-                      Add
-                    </Button>
+                  {selectedConnectionIds.length > 0 && (
+                    <UiButton variant="danger" icon="delete" onClick={handleBulkDelete} className="ml-auto h-7">
+                      Delete selected
+                    </UiButton>
                   )}
                 </div>
-              )}
+                {connectionsList}
+              </div>
             </>
           )}
-        </Card>
+
+          <div className="mt-3 flex flex-wrap gap-2">
+              {providerId === "iflow" && !isCompatible && (
+                <UiButton icon="cookie" onClick={() => setShowIFlowCookieModal(true)} title="Add connection using browser cookie">Cookie</UiButton>
+              )}
+              {providerId === "codex" && (
+                <UiButton icon="playlist_add" onClick={() => setShowBulkImportCodex(true)} title={translate("Bulk import codex accounts from JSON")}>{translate("Bulk Add")}</UiButton>
+              )}
+              {providerId === "grok-cli" && (
+                <UiButton icon="playlist_add" onClick={() => setShowBulkImportGrokCli(true)} title={translate("Bulk import Grok CLI accounts from JSON")}>{translate("Bulk Add")}</UiButton>
+              )}
+              {hasDualAuthModes ? (
+                <>
+                  <UiButton icon="lock" onClick={triggerOAuthConnection}>{oauthConnectionLabel}</UiButton>
+                  <UiButton icon="key" variant="primary" onClick={triggerApiKeyConnection}>{apiKeyConnectionLabel}</UiButton>
+                </>
+              ) : (
+                <UiButton icon="add" variant="primary" onClick={triggerAddConnection}>
+                  {connections.length === 0
+                    ? (isCompatible ? "Add API key" : providerId === "iflow" ? "Sign in" : isOAuth ? "Sign in to connect" : "Add API key")
+                    : (isCompatible || !isOAuth ? "Add key" : "Add account")}
+                </UiButton>
+              )}
+          </div>
+        </section>
       )}
 
       {/* Per-provider user overrides (custom headers / connect timeout) */}
       <CustomConfigCard providerId={providerId} />
 
       {/* Models */}
-      <Card>
-        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            <h2 className="text-lg font-semibold">
-              {"Available Models"}
-            </h2>
-            {providerThinkingLevels && (
-              <select
-                value={thinkingMode}
-                onChange={(e) => handleThinkingModeChange(e.target.value)}
-                title="Appends (level) suffix to copied model names"
-                className="rounded-md border border-border bg-background px-2 py-1 text-xs focus:border-primary focus:outline-none"
-              >
-                {providerThinkingLevels.map((opt) => (
-                  <option key={opt} value={opt}>{`Thinking: ${opt.charAt(0).toUpperCase() + opt.slice(1)}`}</option>
-                ))}
-              </select>
-            )}
-          </div>
+      <section>
+        <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-2">
+          <Eyebrow>Models</Eyebrow>
+          {providerThinkingLevels && (
+            <select
+              value={thinkingMode}
+              onChange={(e) => handleThinkingModeChange(e.target.value)}
+              title="Appends (level) suffix to copied model names"
+              className="h-7 rounded-lg border border-border bg-surface px-2 text-xs text-text outline-none focus:border-accent"
+            >
+              {providerThinkingLevels.map((opt) => (
+                <option key={opt} value={opt}>{`Thinking: ${opt.charAt(0).toUpperCase() + opt.slice(1)}`}</option>
+              ))}
+            </select>
+          )}
           {!isCompatible && (() => {
             const allIds = [
               ...models,
@@ -1798,24 +1627,20 @@ export default function ProviderManager({ providerId, embedded = false, liveVers
             ].filter((m) => { const k = getModelKind(m); return !k || k === "llm"; }).map((m) => m.id);
             const activeIds = allIds.filter((id) => !disabledModelIds.includes(id));
             return (
-              <div className="flex gap-2">
+              <div className="ml-auto flex gap-2">
                 {disabledModelIds.length > 0 && (
-                  <Button size="sm" variant="secondary" icon="restart_alt" onClick={handleEnableAll}>
-                    Active All
-                  </Button>
+                  <UiButton variant="ghost" icon="restart_alt" onClick={handleEnableAll}>Enable all</UiButton>
                 )}
                 {activeIds.length > 0 && (
-                  <Button size="sm" variant="secondary" icon="block" onClick={() => handleDisableAll(activeIds)}>
-                    Disable All
-                  </Button>
+                  <UiButton variant="ghost" icon="block" onClick={() => handleDisableAll(activeIds)}>Disable all</UiButton>
                 )}
               </div>
             );
           })()}
         </div>
         {!!modelsTestError && (
-          <div className="mb-3">
-            <p className="text-xs text-red-500 break-words">{modelsTestError}</p>
+          <div className="mb-2 rounded-lg border border-danger-border bg-danger-soft px-3 py-2">
+            <p className="break-words text-xs text-danger-text">{modelsTestError}</p>
             {/RegionError|hosted in China|regionNotAllowed/i.test(modelsTestError) && (() => {
               const str = typeof modelsTestError === "string" ? modelsTestError : JSON.stringify(modelsTestError);
               const linkMatch = str.match(/https:\/\/opencode\.ai\/workspace\/[^\s"')]+/);
@@ -1843,10 +1668,10 @@ export default function ProviderManager({ providerId, embedded = false, liveVers
           </div>
         )}
         {providerId === "zed" && !!liveModelsError && (
-          <p className="text-xs text-red-500 mb-3 break-words">{liveModelsError}</p>
+          <p className="mb-2 break-words rounded-lg border border-danger-border bg-danger-soft px-3 py-2 text-xs text-danger-text">{liveModelsError}</p>
         )}
         {renderModelsSection()}
-      </Card>
+      </section>
 
       {bulkActionModal}
 

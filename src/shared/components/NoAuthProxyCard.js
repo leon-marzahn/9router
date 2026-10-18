@@ -2,9 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import PropTypes from "prop-types";
-import Card from "./Card";
-import Select from "./Select";
-import Badge from "./Badge";
+import { Field, Icon, Tag } from "@/ui";
 
 const NONE_PROXY_POOL_VALUE = "__none__";
 const STRATEGIES = [
@@ -77,55 +75,57 @@ export default function NoAuthProxyCard({ providerId }) {
   const isRotation = rotateStrategy !== "none";
 
   return (
-    <Card>
-      <div className="flex items-center gap-3 mb-4">
-        <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-green-500/10 text-green-500">
-          <span className="material-symbols-outlined text-[20px]">lock_open</span>
+    <section className="rounded-xl border border-border bg-surface p-4">
+      <div className="mb-4 flex items-start gap-3">
+        <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-info/12 text-info-text">
+          <Icon name="lock_open" size={18} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[13px] font-medium">No authentication required</p>
+          <p className="text-xs text-text-muted">Ready to use. Optionally route requests through a proxy pool to get around IP-based limits.</p>
         </div>
-        <div className="flex-1">
-          <p className="text-sm font-medium">No authentication required</p>
-          <p className="text-xs text-text-muted">This provider is ready to use. Optionally route requests through a proxy pool to bypass IP-based limits.</p>
-        </div>
-        {savedFlash && <Badge variant="success" size="sm">Saved</Badge>}
+        {savedFlash && <Tag tone="success">saved</Tag>}
       </div>
 
-      <Select
-        label="Proxy Pool"
-        value={proxyPoolId}
-        onChange={(e) => handlePoolChange(e.target.value)}
-        disabled={saving || isRotation}
-        options={[
-          { value: NONE_PROXY_POOL_VALUE, label: "None (direct)" },
-          ...proxyPools.map((pool) => ({ value: pool.id, label: pool.name })),
-        ]}
-        hint={isRotation ? "Pool selector is ignored when rotation is active — all active pools are used." : undefined}
-      />
-
-      <div className="flex flex-col gap-2 mt-4">
-        <label className="text-sm font-medium text-text-main">Rotation Strategy</label>
-        <select
-          value={rotateStrategy}
-          onChange={(e) => handleStrategyChange(e.target.value)}
-          disabled={saving}
-          className="py-2 px-3 text-sm text-text-main bg-white dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-md focus:ring-1 focus:ring-primary/30 focus:border-primary/50 focus:outline-none transition-all disabled:opacity-50"
-        >
-          {STRATEGIES.map((s) => (
-            <option key={s.value} value={s.value} disabled={s.value !== "none" && !canRotate}>
-              {s.label}
-            </option>
-          ))}
-        </select>
-        <p className="text-xs text-text-muted">
-          {!canRotate
-            ? `Need at least 2 active proxy pools for rotation.`
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Proxy pool" hint={isRotation ? "Ignored while rotation is on — all active pools are used." : undefined}>
+          <select
+            value={proxyPoolId}
+            onChange={(e) => handlePoolChange(e.target.value)}
+            disabled={saving || isRotation}
+            className="h-9 w-full rounded-lg border border-border-strong bg-surface px-3 text-[13px] text-text outline-none focus:border-accent disabled:opacity-50 dark:border-border"
+          >
+            <option value={NONE_PROXY_POOL_VALUE}>None (direct)</option>
+            {proxyPools.map((pool) => (
+              <option key={pool.id} value={pool.id}>{pool.name}</option>
+            ))}
+          </select>
+        </Field>
+        <Field
+          label="Rotation"
+          hint={!canRotate
+            ? "Needs at least 2 active proxy pools."
             : isRotation
               ? rotateStrategy === "round-robin"
-                ? `Rotating through all ${proxyPools.length} active pools in order. State is in-memory (resets on restart).`
-                : `Picking a random pool from ${proxyPools.length} active pools each request.`
-              : `Uses the selected pool above. Set to Round-robin or Random to rotate across all active pools.`}
-        </p>
+                ? `Rotating through all ${proxyPools.length} active pools in order (resets on restart).`
+                : `Random pool from ${proxyPools.length} active pools per request.`
+              : "Uses the selected pool. Pick Round-robin or Random to rotate across all active pools."}
+        >
+          <select
+            value={rotateStrategy}
+            onChange={(e) => handleStrategyChange(e.target.value)}
+            disabled={saving}
+            className="h-9 w-full rounded-lg border border-border-strong bg-surface px-3 text-[13px] text-text outline-none focus:border-accent disabled:opacity-50 dark:border-border"
+          >
+            {STRATEGIES.map((s) => (
+              <option key={s.value} value={s.value} disabled={s.value !== "none" && !canRotate}>
+                {s.label}
+              </option>
+            ))}
+          </select>
+        </Field>
       </div>
-    </Card>
+    </section>
   );
 }
 

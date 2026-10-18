@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, EmptyState, Eyebrow, ProviderLogo, StatusLabel, Switch, Tag, cn } from "@/ui";
+import { Button, Eyebrow, ProviderLogo, StatusLabel, Switch, Tag, cn } from "@/ui";
 import { KIND_LABEL, cooldownsOf, type ProviderEntry } from "../model";
 import { Cooldowns } from "./Cooldowns";
 import ProviderManager from "../[id]/ProviderManager";
@@ -106,12 +106,6 @@ export function ProviderDetail({
       )}
 
       <Cooldowns cooldowns={cooldownsOf(p)} onClear={(model) => onClearCooldown(p.id, model)} />
-
-      {p.noAuth ? (
-        <EmptyState icon="verified" className="mt-10">
-          No authentication needed. This provider is routed automatically.
-        </EmptyState>
-      ) : null}
 
       {/* Accounts, overrides and models — the full management surface, inline */}
       <div className="mt-10">
