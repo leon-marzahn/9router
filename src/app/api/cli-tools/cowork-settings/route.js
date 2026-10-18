@@ -2,6 +2,7 @@
 
 import { NextResponse } from "next/server";
 import { configWriter } from "../configFile.js";
+import { mergeCoworkConfig, removeCoworkConfig } from "./coworkConfig.js";
 import { resolveCliApiKey } from "../resolveApiKey.js";
 import fs from "fs/promises";
 import path from "path";
@@ -348,7 +349,7 @@ export async function POST(request) {
     };
     if (managedMcpServers.length > 0) newConfig.managedMcpServers = managedMcpServers;
 
-    await writeConfigFile(configPath, JSON.stringify(newConfig, null, 2));
+    await writeConfigFile(configPath, JSON.stringify(mergeCoworkConfig(await readJson(configPath), newConfig), null, 2));
 
     let skipResult = null;
     try { skipResult = await writeSkipApprovals(managedMcpServers); } catch (e) { skipResult = { error: e.message }; }
@@ -380,8 +381,11 @@ export async function DELETE() {
       return NextResponse.json({ success: true, message: "No active config to reset" });
     }
     const configPath = path.join(await getConfigDir(), `${meta.appliedId}.json`);
-    try { await writeConfigFile(configPath, JSON.stringify({}, null, 2)); }
-    catch (error) { if (error.code !== "ENOENT") throw error; }
+    const existing = await readJson(configPath);
+    if (existing) {
+      const remaining = removeCoworkConfig(existing, { provider: PROVIDER, securityRelax: SECURITY_RELAX });
+      await writeConfigFile(configPath, JSON.stringify(remaining, null, 2));
+    }
     try { await writeSkipApprovals([]); } catch { /* ignore */ }
     try { await cleanup1pLegacy(); } catch { /* ignore */ }
     return NextResponse.json({ success: true, message: "Cowork config reset" });
