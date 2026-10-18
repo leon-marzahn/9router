@@ -206,7 +206,7 @@ export function QuotaWorkbench({
             ]}
           />
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-24 pt-1">
+        <div className="min-h-0 flex-1 overflow-y-auto px-2 py-1">
           {groups.map((g) => {
             const open = !collapsed.has(g.provider);
             const provActive = sel?.kind === "provider" && sel.id === g.provider;
@@ -286,7 +286,7 @@ export function QuotaWorkbench({
           !sel && mobileView !== "overview" && "hidden md:block",
         )}
       >
-        <div className="mx-auto max-w-4xl space-y-8 px-4 py-5 pb-24 md:space-y-10 md:px-8 md:py-8">
+        <div className="mx-auto max-w-4xl space-y-8 px-4 py-5 md:space-y-10 md:px-8 md:py-8">
           {sel ? (
             <button
               type="button"
