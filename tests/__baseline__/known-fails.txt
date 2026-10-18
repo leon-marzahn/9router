@@ -13,6 +13,7 @@ tests/translator/golden-url-header.test.js :: GOLDEN buildHeaders (default execu
 tests/translator/golden-url-header.test.js :: GOLDEN buildHeaders (default executor providers) minimax-code-global → headers (apiKey / oauth)
 tests/translator/thinking-unified.test.js :: applyThinking per provider format GLM-5.2 also gets reasoning_effort (supported from 5.2 onward)
 tests/unit/claude-header-forwarding.test.js :: proxyAwareFetch — api.anthropic.com routing routes api.anthropic.com to gotScraping (non-streaming) and returns ok response
+tests/unit/cli-connect.test.js :: connect run() each tool inherits its OWN server model, falling back to OpenCode's
 tests/unit/cline-auth.test.js
 tests/unit/cline-free-tier-models.test.js :: cline-free namespace pricing still bills the paid twin at its published rate
 tests/unit/codex-gpt6-lite.test.js :: Codex GPT-6 Sol/Luna transport lists gpt-6.1-sol with Codex capabilities
@@ -27,6 +28,8 @@ tests/unit/cursor-models.test.js :: Cursor live model catalog fetches the accoun
 tests/unit/db-concurrent.test.js :: DB Concurrency — atomic safety 100 parallel saveRequestUsage → no count loss
 tests/unit/db-concurrent.test.js :: DB Concurrency — atomic safety daily summary aggregates correctly under parallel writes
 tests/unit/db-concurrent.test.js :: DB Concurrency — atomic safety mixed concurrent: usage + details + connections + aliases
+tests/unit/devin-cli-executor.test.js :: DevinCliExecutor ACP session/new does not set XDG_CONFIG_HOME when DEVIN_MCP_SERVERS is absent
+tests/unit/devin-cli-executor.test.js :: DevinCliExecutor ACP session/new exposes body.tools as an MCP server (sets XDG_CONFIG_HOME + writes script)
 tests/unit/embeddings.cloud.test.js
 tests/unit/executor-const-guard.test.js :: antigravity retry (intentional change: 429=6, 503=3) 429 attempts = 6
 tests/unit/force-stream-config.test.js :: forceStream provider config keeps forced-stream providers streaming for JSON clients when body.stream is false
@@ -51,16 +54,6 @@ tests/unit/openai-to-commandcode.test.js :: openaiToCommandCodeRequest — nativ
 tests/unit/openai-to-kiro.test.js :: openaiToKiroRequest thinking budget clamps reasoning_effort max to Kiro max_thinking_length 32000
 tests/unit/request-details-tab.test.js :: getDistinctProviders — providers route (no full-row parse) returns unique provider list without parsing data blobs
 tests/unit/request-details-tab.test.js :: request details — tab crash-risk cases oversized field → stored truncated + reparseable (no circular)
-tests/unit/rtk.test.js :: RTK flag default off, toggle works
-tests/unit/rtk.test.js :: compressMessages (disabled) returns null when disabled
-tests/unit/rtk.test.js :: compressMessages (enabled) compresses Claude array-form tool_result text parts
-tests/unit/rtk.test.js :: compressMessages (enabled) compresses Claude string-form tool_result
-tests/unit/rtk.test.js :: compressMessages (enabled) compresses OpenAI tool message (string content)
-tests/unit/rtk.test.js :: compressMessages (enabled) handles mix of messages without crashing
-tests/unit/rtk.test.js :: compressMessages (enabled) never produces empty content (R14 guard)
-tests/unit/rtk.test.js :: compressMessages (enabled) skips below MIN_COMPRESS_SIZE (<500 bytes)
-tests/unit/rtk.test.js :: compressMessages (enabled) skips is_error tool_result
-tests/unit/rtk.test.js :: compressMessages (enabled) skips when body has no messages
 tests/unit/security-audit.test.js :: AUDIT-002: API key masking byApiKey object keys should use masked key, not raw key
 tests/unit/translator-helpers-edge.test.js :: normalizeClaudePassthrough — haiku adaptive thinking (docs 11 §1) hoists mid-conversation system messages into top-level system
 tests/unit/translator-request-normalization.test.js :: request normalization claudeToOpenAIRequest flattens text-only content arrays into string
