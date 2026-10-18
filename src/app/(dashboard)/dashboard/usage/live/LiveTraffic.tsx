@@ -5,7 +5,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   Button,
   Eyebrow,
@@ -122,15 +122,25 @@ function Feed({
       errorPct: live.length ? `${Math.round((errors / live.length) * 100)}%` : "—",
     };
   }, [live]);
+  const feedRef = useRef<HTMLDivElement>(null);
+  const [overlap, setOverlap] = useState(0);
+  const drawerOpen = !!selected;
+  useLayoutEffect(() => {
+    const measure = () => {
+      const el = feedRef.current;
+      if (!drawerOpen || !el || window.innerWidth < 1024) return setOverlap(0);
+      const drawerLeft = window.innerWidth - Math.min(560, window.innerWidth);
+      const contentRight = el.getBoundingClientRect().right; // padding-box, independent of paddingRight
+      setOverlap(Math.max(0, Math.ceil(contentRight - drawerLeft + 16)));
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [drawerOpen]);
   const hasCredits = u.totals.credits > 0 || u.chart.some((p) => p.credits > 0);
 
   return (
-    <div
-      className={cn(
-        "grid gap-6",
-        selected ? "lg:pr-[560px]" : "lg:grid-cols-[minmax(0,1fr)_300px]",
-      )}
-    >
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
       <TopBarContent>
         <span className="flex items-center gap-2 text-xs text-text-muted">
           <StatusDot status={inFlight ? "ok" : "none"} live={inFlight > 0} />
@@ -160,7 +170,9 @@ function Feed({
         </span>
       </TopBarContent>
 
-      <div className="min-w-0 space-y-4">
+      {/* While a request is open the drawer covers the stats column; the feed only
+          gives up the width the drawer actually overlaps (often none). */}
+      <div ref={feedRef} className="min-w-0 space-y-4" style={{ paddingRight: overlap }}>
         <div className="flex items-end justify-between gap-4">
           <div>
             <h1 className="font-display text-3xl tracking-tight">Live traffic</h1>
@@ -247,38 +259,45 @@ function Feed({
             )}
           </div>
 
-          <div className="grid grid-cols-[6px_minmax(0,1fr)_6.5rem_4rem_5rem_3.5rem_4rem] gap-3 border-b border-border px-4 py-2 text-[11px] uppercase tracking-wider text-text-muted">
-            <span />
-            <span>Model</span>
-            <span className="text-right">In → out</span>
-            <span className="text-right">Cached</span>
-            <span className="text-right">{hasCredits ? "Cost / cr" : "Cost"}</span>
-            <span className="text-right">Time</span>
-            <span className="text-right">When</span>
-          </div>
+          {/* Narrow screens scroll the table sideways instead of squeezing columns. */}
+          <div className="overflow-x-auto overscroll-x-contain">
+            <div className="min-w-[640px]">
+              <div className="grid grid-cols-[6px_minmax(0,1fr)_6.5rem_4rem_5rem_3.5rem_4rem] gap-3 border-b border-border px-4 py-2 text-[11px] uppercase tracking-wider text-text-muted">
+                <span />
+                <span>Model</span>
+                <span className="text-right">In → out</span>
+                <span className="text-right">Cached</span>
+                <span className="text-right">{hasCredits ? "Cost / cr" : "Cost"}</span>
+                <span className="text-right">Time</span>
+                <span className="text-right">When</span>
+              </div>
 
-          {shown.length ? (
-            shown.map((r) => (
-              <FeedRow
-                key={r.id}
-                r={r}
-                now={now}
-                active={r.id === selectedId}
-                onClick={
-                  r.logged
-                    ? () => {
-                        freeze();
-                        setSelectedId(r.id === selectedId ? null : r.id);
-                      }
-                    : undefined
-                }
-              />
-            ))
-          ) : (
-            <p className="px-4 py-10 text-center text-sm text-text-muted">
-              {filter === "errors" ? "No failed requests in this window." : "Waiting for traffic…"}
-            </p>
-          )}
+              {shown.length ? (
+                shown.map((r) => (
+                  <FeedRow
+                    key={r.id}
+                    r={r}
+                    now={now}
+                    active={r.id === selectedId}
+                    onClick={
+                      r.logged
+                        ? () => {
+                            freeze();
+                            setSelectedId(r.id === selectedId ? null : r.id);
+                          }
+                        : undefined
+                    }
+                  />
+                ))
+              ) : (
+                <p className="px-4 py-10 text-center text-sm text-text-muted">
+                  {filter === "errors"
+                    ? "No failed requests in this window."
+                    : "Waiting for traffic…"}
+                </p>
+              )}
+            </div>
+          </div>
 
           {logged && hasMore && <LoadOlder onLoad={loadOlder} />}
 
@@ -294,7 +313,9 @@ function Feed({
         </Panel>
       </div>
 
-      <aside className={cn("space-y-4 lg:sticky lg:top-0 lg:self-start", selected && "hidden")}>
+      <aside
+        className={cn("space-y-4 lg:sticky lg:top-0 lg:self-start", selected && "lg:invisible")}
+      >
         <Segmented<Period> value={period} onChange={setPeriod} options={PERIODS} />
         <div className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-border bg-border shadow-soft">
           <Kpi label="Requests" value={<LiveNumber value={u.totals.requests} />} />
