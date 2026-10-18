@@ -63,10 +63,6 @@ export const NAV: NavGroup[] = [
   },
 ];
 
-export const EXTERNAL_LINKS = [
-  { href: "https://9english.net/", label: "9English", icon: "translate" },
-];
-
 export const SETTINGS_HREF = "/dashboard/profile";
 
 /** Pages that manage their own panes/scrolling (no padding, no max-width). */
