@@ -149,7 +149,7 @@ export function RequestDrawer({
                 key={s.key}
                 title={s.title}
                 hint={s.hint}
-                value={detail[s.key]}
+                value={s.key === "request" ? withoutRegentHeaders(detail.request) : detail[s.key]}
                 defaultOpen={i === 0 || i === 3}
               />
             ))}
@@ -218,6 +218,13 @@ function Section({
       )}
     </div>
   );
+}
+
+// Shown in their own block above, so keep them out of the raw request JSON.
+function withoutRegentHeaders(request: Raw | undefined) {
+  if (!request) return request;
+  const { regentHeaders: _omit, ...rest } = request;
+  return rest;
 }
 
 function RegentHeaders({ headers }: { headers?: Record<string, string> }) {

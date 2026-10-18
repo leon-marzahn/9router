@@ -100,6 +100,7 @@ for (let i = 0; i < 6; i++) {
     request: {
       model,
       messages: [{ role: "user", content: "Demo prompt: summarize the release notes." }],
+      ...(i >= 4 && { regentHeaders: { "x-regent-pipeline": "demo-trim", "x-regent-token-saver": "off" } }),
     },
     providerRequest: {},
     providerResponse: {},
