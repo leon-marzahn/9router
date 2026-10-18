@@ -13,8 +13,18 @@ const OPTIONAL_PARAMS = [
   "user", "parallel_tool_calls"
 ];
 
-export function extractRequestConfig(body, stream) {
+// Router control headers (x-regent-*, plus the legacy x-9router-* names) the client sent.
+export function pickRegentHeaders(headers) {
+  const picked = {};
+  for (const [key, value] of Object.entries(headers || {})) {
+    if (/^x-(regent|9router)-/i.test(key)) picked[key.toLowerCase()] = String(value);
+  }
+  return picked;
+}
+
+export function extractRequestConfig(body, stream, regentHeaders) {
   const config = { messages: body.messages || [], model: body.model, stream };
+  if (regentHeaders && Object.keys(regentHeaders).length) config.regentHeaders = regentHeaders;
   for (const param of OPTIONAL_PARAMS) {
     if (body[param] !== undefined) config[param] = body[param];
   }

@@ -335,7 +335,7 @@ export async function handleNonStreamingResponse({ providerResponse, provider, m
     provider, model, connectionId,
     latency: { ttft: totalLatency, total: totalLatency },
     tokens: usage || { prompt_tokens: 0, completion_tokens: 0 },
-    request: extractRequestConfig(body, stream),
+    request: extractRequestConfig(body, stream, clientRawRequest?.regentHeaders),
     providerRequest: finalBody || translatedBody || null,
     providerResponse: responseBody || null,
     response: {
