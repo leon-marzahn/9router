@@ -77,7 +77,14 @@ export function Gatehouse() {
     });
 
   return (
-    <div className="mx-auto w-full max-w-6xl">
+    <div className="mx-auto w-full max-w-7xl space-y-6">
+      <div>
+        <h1 className="font-display text-3xl tracking-tight">Endpoint</h1>
+        <p className="mt-1 max-w-2xl text-sm text-text-muted">
+          The address apps use to reach the gateway, who can reach it, and the keys that let them
+          in.
+        </p>
+      </div>
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
         <section className="min-w-0 space-y-4">
           <SectionTitle icon="shield" title="Who can reach it" />

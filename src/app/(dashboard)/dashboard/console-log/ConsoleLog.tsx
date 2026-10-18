@@ -6,6 +6,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Button,
+  CopyButton,
   EmptyState,
   Panel,
   SearchInput,
@@ -126,15 +127,6 @@ export function ConsoleLog() {
     }
   };
 
-  const copyShown = async () => {
-    try {
-      await navigator.clipboard.writeText(shown.map((l) => l.text).join("\n"));
-      notify().success(`Copied ${shown.length} lines`);
-    } catch {
-      notify().error("Couldn't copy to the clipboard");
-    }
-  };
-
   return (
     <div className="space-y-4">
       <TopBarContent>
@@ -154,9 +146,9 @@ export function ConsoleLog() {
         </span>
       </TopBarContent>
       <TopBarActions>
-        <Button icon="content_copy" onClick={copyShown} disabled={!shown.length}>
-          Copy
-        </Button>
+        {shown.length > 0 && (
+          <CopyButton value={shown.map((l) => l.text).join("\n")} label="Copy shown lines" />
+        )}
         <Button icon="delete" onClick={clear} loading={clearing} disabled={!lines.length}>
           Clear
         </Button>

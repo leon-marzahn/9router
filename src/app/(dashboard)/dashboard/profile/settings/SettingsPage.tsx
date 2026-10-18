@@ -52,44 +52,52 @@ export function SettingsPage() {
   };
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl gap-10">
-      <nav
-        aria-label="Settings sections"
-        className="sticky top-8 hidden h-fit w-48 shrink-0 md:block"
-      >
-        {INDEX.map((x) => (
-          <a
-            key={x.id}
-            href={`#${x.id}`}
-            onClick={() => setAt(x.id)}
-            className={cn(
-              "flex items-center gap-2 rounded-lg px-3 py-1.5 text-[13px]",
-              at === x.id
-                ? "bg-surface font-medium text-text shadow-sm"
-                : "text-text-muted hover:text-text",
-            )}
-          >
-            <Icon name={x.icon} size={16} className={at === x.id ? "text-accent" : undefined} />
-            {x.title}
-            {attention[x.id] && (
-              <span
-                className="ml-auto size-1.5 rounded-full bg-warning"
-                aria-label="Needs attention"
-              />
-            )}
-          </a>
-        ))}
-      </nav>
-      <div className="min-w-0 flex-1 space-y-10">
-        <Appearance />
-        <Login api={api} />
-        <Sso api={api} />
-        <Routing api={api} />
-        <Network api={api} />
-        <RequestLogging api={api} />
-        <Backup api={api} />
-        <Updates />
-        <About />
+    <div className="mx-auto w-full max-w-3xl space-y-6">
+      <div>
+        <h1 className="font-display text-3xl tracking-tight">Settings</h1>
+        <p className="mt-1 max-w-2xl text-sm text-text-muted">
+          Appearance, sign-in, routing, network, backups and updates.
+        </p>
+      </div>
+      <div className="flex gap-10">
+        <nav
+          aria-label="Settings sections"
+          className="sticky top-8 hidden h-fit w-48 shrink-0 md:block"
+        >
+          {INDEX.map((x) => (
+            <a
+              key={x.id}
+              href={`#${x.id}`}
+              onClick={() => setAt(x.id)}
+              className={cn(
+                "flex items-center gap-2 rounded-lg px-3 py-1.5 text-[13px]",
+                at === x.id
+                  ? "bg-surface font-medium text-text shadow-sm"
+                  : "text-text-muted hover:text-text",
+              )}
+            >
+              <Icon name={x.icon} size={16} className={at === x.id ? "text-accent" : undefined} />
+              {x.title}
+              {attention[x.id] && (
+                <span
+                  className="ml-auto size-1.5 rounded-full bg-warning"
+                  aria-label="Needs attention"
+                />
+              )}
+            </a>
+          ))}
+        </nav>
+        <div className="min-w-0 flex-1 space-y-10">
+          <Appearance />
+          <Login api={api} />
+          <Sso api={api} />
+          <Routing api={api} />
+          <Network api={api} />
+          <RequestLogging api={api} />
+          <Backup api={api} />
+          <Updates />
+          <About />
+        </div>
       </div>
     </div>
   );
