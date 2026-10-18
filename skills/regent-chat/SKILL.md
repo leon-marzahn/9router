@@ -5,7 +5,7 @@ description: Chat / code generation via Elizabeth's Proxy using OpenAI /v1/chat/
 
 # Elizabeth's Proxy — Chat
 
-Requires `REGENT_URL` (and `REGENT_KEY` if auth enabled; the old `REGENT_URL`/`REGENT_KEY` names work too). See https://raw.githubusercontent.com/leon-marzahn/9router/refs/heads/master/skills/regent/SKILL.md for setup.
+Requires `REGENT_URL` (and `REGENT_KEY` if auth enabled; the old `REGENT_URL`/`REGENT_KEY` names work too). See https://raw.githubusercontent.com/leon-marzahn/regent/refs/heads/master/skills/regent/SKILL.md for setup.
 
 ## Endpoints
 

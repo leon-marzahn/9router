@@ -5,7 +5,7 @@ description: Text-to-speech via Elizabeth's Proxy /v1/audio/speech using OpenAI 
 
 # Elizabeth's Proxy — Text-to-Speech
 
-Requires `REGENT_URL` (and `REGENT_KEY` if auth enabled; the old `REGENT_URL`/`REGENT_KEY` names work too). See https://raw.githubusercontent.com/leon-marzahn/9router/refs/heads/master/skills/regent/SKILL.md for setup.
+Requires `REGENT_URL` (and `REGENT_KEY` if auth enabled; the old `REGENT_URL`/`REGENT_KEY` names work too). See https://raw.githubusercontent.com/leon-marzahn/regent/refs/heads/master/skills/regent/SKILL.md for setup.
 
 ## Discover
 

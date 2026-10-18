@@ -137,7 +137,7 @@ Any tool supporting OpenAI/Claude-compatible API works.
 
 ## 📚 Documentation
 
-- **Source**: https://github.com/leon-marzahn/9router
+- **Source**: https://github.com/leon-marzahn/regent
 - **Full README**: [../README.md](../README.md)
 
 ---

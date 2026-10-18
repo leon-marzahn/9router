@@ -5,7 +5,7 @@ description: Generate vector embeddings via Elizabeth's Proxy /v1/embeddings usi
 
 # Elizabeth's Proxy — Embeddings
 
-Requires `REGENT_URL` (and `REGENT_KEY` if auth enabled; the old `REGENT_URL`/`REGENT_KEY` names work too). See https://raw.githubusercontent.com/leon-marzahn/9router/refs/heads/master/skills/regent/SKILL.md for setup.
+Requires `REGENT_URL` (and `REGENT_KEY` if auth enabled; the old `REGENT_URL`/`REGENT_KEY` names work too). See https://raw.githubusercontent.com/leon-marzahn/regent/refs/heads/master/skills/regent/SKILL.md for setup.
 
 ## Discover
 

@@ -46,13 +46,13 @@ When the user needs a specific capability, fetch that skill's `SKILL.md` from it
 
 | Capability | Raw URL |
 |---|---|
-| Chat / code-gen | https://raw.githubusercontent.com/leon-marzahn/9router/refs/heads/master/skills/regent-chat/SKILL.md |
-| Image generation | https://raw.githubusercontent.com/leon-marzahn/9router/refs/heads/master/skills/regent-image/SKILL.md |
-| Text-to-speech | https://raw.githubusercontent.com/leon-marzahn/9router/refs/heads/master/skills/regent-tts/SKILL.md |
-| Speech-to-text | https://raw.githubusercontent.com/leon-marzahn/9router/refs/heads/master/skills/regent-stt/SKILL.md |
-| Embeddings | https://raw.githubusercontent.com/leon-marzahn/9router/refs/heads/master/skills/regent-embeddings/SKILL.md |
-| Web search | https://raw.githubusercontent.com/leon-marzahn/9router/refs/heads/master/skills/regent-web-search/SKILL.md |
-| Web fetch (URL → markdown) | https://raw.githubusercontent.com/leon-marzahn/9router/refs/heads/master/skills/regent-web-fetch/SKILL.md |
+| Chat / code-gen | https://raw.githubusercontent.com/leon-marzahn/regent/refs/heads/master/skills/regent-chat/SKILL.md |
+| Image generation | https://raw.githubusercontent.com/leon-marzahn/regent/refs/heads/master/skills/regent-image/SKILL.md |
+| Text-to-speech | https://raw.githubusercontent.com/leon-marzahn/regent/refs/heads/master/skills/regent-tts/SKILL.md |
+| Speech-to-text | https://raw.githubusercontent.com/leon-marzahn/regent/refs/heads/master/skills/regent-stt/SKILL.md |
+| Embeddings | https://raw.githubusercontent.com/leon-marzahn/regent/refs/heads/master/skills/regent-embeddings/SKILL.md |
+| Web search | https://raw.githubusercontent.com/leon-marzahn/regent/refs/heads/master/skills/regent-web-search/SKILL.md |
+| Web fetch (URL → markdown) | https://raw.githubusercontent.com/leon-marzahn/regent/refs/heads/master/skills/regent-web-fetch/SKILL.md |
 
 ## Errors
 

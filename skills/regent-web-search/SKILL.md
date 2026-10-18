@@ -5,7 +5,7 @@ description: Web and X search via Elizabeth's Proxy /v1/search using Tavily / Ex
 
 # Elizabeth's Proxy — Web Search
 
-Requires `REGENT_URL` (and `REGENT_KEY` if auth enabled; the old `REGENT_URL`/`REGENT_KEY` names work too). See https://raw.githubusercontent.com/leon-marzahn/9router/refs/heads/master/skills/regent/SKILL.md for setup.
+Requires `REGENT_URL` (and `REGENT_KEY` if auth enabled; the old `REGENT_URL`/`REGENT_KEY` names work too). See https://raw.githubusercontent.com/leon-marzahn/regent/refs/heads/master/skills/regent/SKILL.md for setup.
 
 ## Discover
 

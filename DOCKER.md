@@ -1,6 +1,6 @@
 # Docker
 
-Run Elizabeth's Proxy in a container. Published image: [`ghcr.io/leon-marzahn/9router`](https://github.com/leon-marzahn/9router/pkgs/container/9router) (built by `.github/workflows/docker-publish.yml`) — multi-platform `linux/amd64` + `linux/arm64`.
+Run Elizabeth's Proxy in a container. Published image: [`ghcr.io/leon-marzahn/regent`](https://github.com/leon-marzahn/regent/pkgs/container/regent) (built by `.github/workflows/docker-publish.yml`) — multi-platform `linux/amd64` + `linux/arm64`.
 
 ---
 
@@ -14,7 +14,7 @@ docker run -d \
   -v "$HOME/.regent:/app/data" \
   -e DATA_DIR=/app/data \
   --name regent \
-  ghcr.io/leon-marzahn/9router:latest
+  ghcr.io/leon-marzahn/regent:latest
 ```
 
 App listens on port `20128`. Open: http://localhost:20128
@@ -61,7 +61,7 @@ docker run -d \
   -e HOSTNAME=0.0.0.0 \
   -e DEBUG=true \
   --name regent \
-  ghcr.io/leon-marzahn/9router:latest
+  ghcr.io/leon-marzahn/regent:latest
 ```
 
 ## Optional Headroom sidecar
@@ -71,7 +71,7 @@ The Elizabeth's Proxy image does not bundle Python or Headroom. To use Headroom 
 ```yaml
 services:
   regent:
-    image: ghcr.io/leon-marzahn/9router:latest
+    image: ghcr.io/leon-marzahn/regent:latest
     ports:
       - "20128:20128"
     volumes:
@@ -95,7 +95,7 @@ If Headroom runs on the Docker host instead of as a sidecar, use `http://host.do
 ## Update to latest
 
 ```bash
-docker pull ghcr.io/leon-marzahn/9router:latest
+docker pull ghcr.io/leon-marzahn/regent:latest
 docker rm -f regent
 # re-run the quick start command
 ```
@@ -103,7 +103,7 @@ docker rm -f regent
 To pin a specific version instead of following `latest`, use a numbered image tag:
 
 ```bash
-docker pull ghcr.io/leon-marzahn/9router:0.5.81
+docker pull ghcr.io/leon-marzahn/regent:0.5.81
 ```
 
 ---
@@ -134,7 +134,7 @@ docker build \
 
 Push a Docker-safe semver git tag `vX.Y.Z` (or a prerelease such as `vX.Y.Z-rc.1`) → GitHub Actions builds `linux/amd64` and `linux/arm64` on native runners, health-checks each platform image, verifies the resulting manifest and `/api/health`, then publishes:
 
-- `ghcr.io/leon-marzahn/9router:X.Y.Z` + `:latest`
+- `ghcr.io/leon-marzahn/regent:X.Y.Z` + `:latest`
 
 The `v` prefix is used only for the git tag; image tags omit it. A stable tag push promotes `latest`, but a prerelease tag such as `vX.Y.Z-rc.1` publishes only its numbered image by default. Prereleases require an explicit manual `promote_latest` opt-in. Promotion happens only after both native platform builds, both platform health checks, manifest inspection, and the resolved-manifest smoke test succeed. A failed or timed-out platform build therefore cannot move `latest`.
 
@@ -165,7 +165,7 @@ promote_latest:  true
 Numbered image tags are mutable because a republish can replace their manifest. For a deployment that must be immutable, pin the image digest instead:
 
 ```bash
-docker pull ghcr.io/leon-marzahn/9router@sha256:<verified-digest>
+docker pull ghcr.io/leon-marzahn/regent@sha256:<verified-digest>
 ```
 
 The release workflow runs `/api/health` on each native `amd64` and `arm64` platform image before it uploads the digest artifact or assembles the multi-platform manifest. It then runs a second health check against the resolved version manifest before any requested `latest` promotion.
