@@ -6,14 +6,13 @@
 // narrows the same views to it.
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Button,
   EmptyState,
   Icon,
   IconButton,
-  MenuItem,
   Panel,
   Popover,
   ProviderLogo,
@@ -44,6 +43,10 @@ import {
 
 type Scope = "all" | "low" | "off";
 type Sel = { kind: "provider" | "account"; id: string } | null;
+
+const LAST_VIEW_KEY = "regent.quotaUrl.v1";
+const RANGE_TO_SPAN: Record<string, Span> = { "6h": 6, "24h": 24, "7d": 168 };
+const SPAN_TO_RANGE: Record<Span, string> = { 6: "6h", 24: "24h", 168: "7d" };
 
 interface Group {
   provider: string;
@@ -83,9 +86,12 @@ export function QuotaWorkbench({
   loading?: boolean;
 }) {
   const now = useNow();
-  // Selection lives in the URL (?provider=claude or ?account=<id>) so views can be linked.
+  // View state lives in the URL so it can be linked and survives reloads:
+  // ?provider=claude | ?account=<id>, ?range=6h|24h|7d, ?view=overview (mobile).
+  // Opening the page bare (e.g. from the sidebar) restores the last one.
   const searchParams = useSearchParams();
   const router = useRouter();
+  const qs = searchParams.toString();
   const urlProvider = searchParams.get("provider");
   const urlAccount = searchParams.get("account");
   const sel: Sel = urlAccount
@@ -93,18 +99,49 @@ export function QuotaWorkbench({
     : urlProvider
       ? { kind: "provider", id: urlProvider }
       : null;
-  const setSel = (next: Sel) => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.delete("provider");
-    params.delete("account");
-    if (next) params.set(next.kind === "provider" ? "provider" : "account", next.id);
-    const qs = params.toString();
-    router.replace(qs ? `/dashboard/quota?${qs}` : "/dashboard/quota", { scroll: false });
+  const span: Span = RANGE_TO_SPAN[searchParams.get("range") ?? ""] ?? 24;
+  const mobileView = searchParams.get("view") === "overview" ? "overview" : "accounts";
+  const update = (edit: (p: URLSearchParams) => void) => {
+    const params = new URLSearchParams(qs);
+    edit(params);
+    const next = params.toString();
+    router.replace(next ? `/dashboard/quota?${next}` : "/dashboard/quota", { scroll: false });
   };
+  const setSel = (next: Sel) =>
+    update((p) => {
+      p.delete("provider");
+      p.delete("account");
+      if (next) p.set(next.kind === "provider" ? "provider" : "account", next.id);
+    });
+  const setSpan = (next: Span) =>
+    update((p) => {
+      if (next === 24) p.delete("range");
+      else p.set("range", SPAN_TO_RANGE[next]);
+    });
+  const setMobileView = (v: "accounts" | "overview") =>
+    update((p) => {
+      if (v === "overview") p.set("view", "overview");
+      else p.delete("view");
+    });
+  const restored = useRef(false);
+  useEffect(() => {
+    try {
+      if (!restored.current) {
+        restored.current = true;
+        const last = localStorage.getItem(LAST_VIEW_KEY);
+        if (!qs && last) {
+          router.replace(`/dashboard/quota?${last}`, { scroll: false });
+          return;
+        }
+      }
+      localStorage.setItem(LAST_VIEW_KEY, qs);
+    } catch {
+      // Storage blocked: the URL still works, it just isn't remembered.
+    }
+  }, [qs, router]);
   const [scope, setScope] = useState<Scope>("all");
   const [q, setQ] = useState("");
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-  const [span, setSpan] = useState<Span>(24);
   const [hover, setHover] = useState<string | null>(null);
 
   const filtered = accounts
@@ -137,8 +174,14 @@ export function QuotaWorkbench({
         <RefreshAll onRefresh={onRefreshAll} />
       </TopBarActions>
 
-      <aside className="flex w-[360px] shrink-0 flex-col border-r border-border bg-pane">
+      <aside
+        className={cn(
+          "flex w-full shrink-0 flex-col border-r border-border bg-pane md:w-[360px]",
+          (sel || mobileView === "overview") && "hidden md:flex",
+        )}
+      >
         <div className="space-y-2 p-3">
+          <MobileSwitch value="accounts" onChange={setMobileView} />
           <SearchInput
             placeholder="Search accounts or providers"
             value={q}
@@ -229,8 +272,31 @@ export function QuotaWorkbench({
         </div>
       </aside>
 
-      <section className="min-w-0 flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-4xl space-y-10 px-8 py-8 pb-24">
+      <section
+        className={cn(
+          "min-w-0 flex-1 overflow-y-auto",
+          !sel && mobileView !== "overview" && "hidden md:block",
+        )}
+      >
+        <div className="mx-auto max-w-4xl space-y-8 px-4 py-5 pb-24 md:space-y-10 md:px-8 md:py-8">
+          {sel ? (
+            <button
+              type="button"
+              onClick={() =>
+                setSel(
+                  selAccount && sel.kind === "account" && selProvider
+                    ? { kind: "provider", id: selProvider }
+                    : null,
+                )
+              }
+              className="flex items-center gap-1 text-xs text-text-muted hover:text-text md:hidden"
+            >
+              <Icon name="arrow_back" size={16} />
+              {selAccount ? providerName(selAccount.provider) : "All accounts"}
+            </button>
+          ) : (
+            <MobileSwitch value="overview" onChange={setMobileView} />
+          )}
           {selAccount ? (
             <AccountDetail
               a={selAccount}
@@ -341,13 +407,15 @@ function AccountRow({
       {a.error ? (
         <span className="truncate pl-3.5 text-[11px] text-danger-text">{a.error}</span>
       ) : a.loading && !shown.length ? (
-        <span className="grid grid-cols-2 gap-x-3 pl-3.5">
-          {[0, 1].map((i) => (
-            <span key={i} className="min-w-0">
-              <Skeleton className="my-[2px] h-[11px] w-3/4" />
-              <Skeleton className="mt-0.5 h-1 rounded-full" />
+        // Same markup as a real one-limit row (invisible text), so the height can't change.
+        <span className="grid grid-cols-1 gap-x-3 gap-y-1 pl-3.5" aria-hidden>
+          <span className="min-w-0">
+            <span className="relative flex justify-between gap-1 text-[10px]">
+              <span className="invisible">Weekly</span>
+              <Skeleton className="absolute inset-y-[3px] left-0 w-1/4" />
             </span>
-          ))}
+            <Skeleton className="mt-0.5 h-1 rounded-full" />
+          </span>
         </span>
       ) : (
         <span
@@ -423,14 +491,16 @@ function Capacity({
     return [...m.values()];
   }, [live]);
   if (!kinds.length && live.some((a) => a.loading))
+    // Same markup as one real capacity row, so the card keeps its height.
     return (
-      <div className="space-y-3">
-        {[0, 1].map((i) => (
-          <div key={i} className="space-y-1">
-            <Skeleton className="h-[15px] w-1/2" />
-            <Skeleton className="h-2.5 rounded-[3px]" />
+      <div className="space-y-3" aria-hidden>
+        <div className="space-y-1">
+          <div className="relative flex items-baseline justify-between gap-2 text-[11px]">
+            <span className="invisible">Weekly</span>
+            <Skeleton className="absolute inset-y-[3px] left-0 w-1/3" />
           </div>
-        ))}
+          <Skeleton className="h-2.5 rounded-[3px]" />
+        </div>
       </div>
     );
   if (!live.length)
@@ -556,7 +626,9 @@ function ProviderDetail({
       <div className="flex items-center gap-3">
         <ProviderLogo providerId={group.provider} name={providerName(group.provider)} size={40} />
         <div>
-          <h1 className="font-display text-3xl tracking-tight">{providerName(group.provider)}</h1>
+          <h1 className="font-display text-2xl tracking-tight md:text-3xl">
+            {providerName(group.provider)}
+          </h1>
           <p className="mt-1 text-sm text-text-muted">
             {group.accounts.length} account{group.accounts.length === 1 ? "" : "s"} ·{" "}
             {group.accounts.filter((a) => a.isActive).length} routing
@@ -638,11 +710,13 @@ function AccountDetail({
 }) {
   return (
     <>
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex items-center gap-3">
           <ProviderLogo providerId={a.provider} name={providerName(a.provider)} size={40} />
           <div>
-            <h1 className="font-display text-3xl tracking-tight">{a.label}</h1>
+            <h1 className="break-all font-display text-2xl tracking-tight md:text-3xl">
+              {a.label}
+            </h1>
             <div className="mt-1 flex items-center gap-2 text-sm text-text-muted">
               {providerName(a.provider)}
               {a.plan && <span>· {a.plan}</span>}
@@ -773,28 +847,33 @@ function BulkMenu({ accounts, actions }: { accounts: QuotaAccount[]; actions: Ac
   const target = confirm === "off" ? depleted : refilled;
   return (
     <>
-      <IconButton ref={ref} icon="more_horiz" label="Bulk actions" onClick={() => setOpen(!open)} />
+      <IconButton
+        ref={ref}
+        icon="more_horiz"
+        label="Pause or resume accounts"
+        onClick={() => setOpen(!open)}
+      />
       <Popover
         open={open}
         onClose={() => setOpen(false)}
         anchorRef={ref}
         side="bottom-end"
-        className="w-72 py-1"
+        className="w-80 py-1"
       >
-        <MenuItem
+        <BulkItem
           icon="pause_circle"
+          title="Pause exhausted accounts"
+          hint={`Stop routing to accounts with ${EXHAUSTED}% or less left until you resume them.`}
+          count={depleted.length}
           onClick={() => (setOpen(false), setConfirm("off"))}
-          trailing={<span className="text-[11px] text-text-subtle">{depleted.length}</span>}
-        >
-          Stop routing to exhausted accounts…
-        </MenuItem>
-        <MenuItem
+        />
+        <BulkItem
           icon="play_circle"
+          title="Resume refilled accounts"
+          hint="Route to turned-off accounts again once they have quota left."
+          count={refilled.length}
           onClick={() => (setOpen(false), setConfirm("on"))}
-          trailing={<span className="text-[11px] text-text-subtle">{refilled.length}</span>}
-        >
-          Resume turned-off accounts with quota…
-        </MenuItem>
+        />
       </Popover>
       <ConfirmModal
         isOpen={confirm != null}
@@ -811,7 +890,7 @@ function BulkMenu({ accounts, actions }: { accounts: QuotaAccount[]; actions: Ac
               ? "No active account is out of quota right now."
               : "No turned-off account has quota left right now."
         }
-        confirmText={confirm === "off" ? `Stop ${target.length}` : `Resume ${target.length}`}
+        confirmText={confirm === "off" ? `Pause ${target.length}` : `Resume ${target.length}`}
         onConfirm={async () => {
           if (!target.length) return setConfirm(null);
           setBusy(true);
@@ -866,5 +945,57 @@ function CapacitySkeleton() {
         ))}
       </div>
     </Panel>
+  );
+}
+
+function BulkItem({
+  icon,
+  title,
+  hint,
+  count,
+  onClick,
+}: {
+  icon: string;
+  title: string;
+  hint: string;
+  count: number;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-full items-start gap-2.5 px-3 py-2 text-left hover:bg-surface-2"
+    >
+      <Icon name={icon} size={18} className="mt-px text-text-muted" />
+      <span className="min-w-0 flex-1">
+        <span className="block text-[13px]">{title}</span>
+        <span className="block text-[11px] leading-snug text-text-muted">{hint}</span>
+      </span>
+      <span className="mt-0.5 rounded-full bg-surface-2 px-1.5 text-[11px] tabular-nums text-text-muted">
+        {count}
+      </span>
+    </button>
+  );
+}
+
+/** Small screens show one pane at a time; this switches between them. */
+function MobileSwitch({
+  value,
+  onChange,
+}: {
+  value: "accounts" | "overview";
+  onChange: (v: "accounts" | "overview") => void;
+}) {
+  return (
+    <Segmented<"accounts" | "overview">
+      value={value}
+      onChange={onChange}
+      options={[
+        { value: "accounts", label: "Accounts" },
+        { value: "overview", label: "Overview" },
+      ]}
+      className="md:hidden"
+    />
   );
 }

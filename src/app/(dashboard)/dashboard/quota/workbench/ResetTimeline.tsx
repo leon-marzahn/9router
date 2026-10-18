@@ -93,8 +93,8 @@ export function ResetTimeline({
 
   return (
     <section className="space-y-3">
-      <div className="flex items-end justify-between gap-3">
-        <div>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="min-w-0">
           <h2 className="font-display text-xl">{title}</h2>
           <p className="h-4 truncate text-xs leading-4 text-text-muted">
             {loading ? (
