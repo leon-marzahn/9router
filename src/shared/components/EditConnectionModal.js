@@ -8,6 +8,8 @@ import Button from "@/shared/components/Button";
 import Badge from "@/shared/components/Badge";
 import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider, AI_PROVIDERS } from "@/shared/constants/providers";
 import Select from "@/shared/components/Select";
+import Toggle from "@/shared/components/Toggle";
+import { TLS_IMPERSONATION_OSES, TLS_IMPERSONATION_PROFILES, normalizeTlsImpersonation } from "open-sse/config/tlsImpersonation.js";
 
 export default function EditConnectionModal({ isOpen, connection, proxyPools, onSave, onClose }) {
   const [formData, setFormData] = useState({
@@ -30,6 +32,7 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
   const [validating, setValidating] = useState(false);
   const [validationResult, setValidationResult] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [tls, setTls] = useState({ enabled: false, browser: "chrome", os: "macos" });
 
   useEffect(() => {
     if (connection) {
@@ -39,6 +42,8 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
         apiKey: "",
       });
       // Load Azure-specific data if present
+      const savedTls = normalizeTlsImpersonation(connection.providerSpecificData?.tlsImpersonation);
+      setTls(savedTls ? { enabled: true, ...savedTls } : { enabled: false, browser: "chrome", os: "macos" });
       if (connection.provider === "azure" && connection.providerSpecificData) {
         setAzureData({
           azureEndpoint: connection.providerSpecificData.azureEndpoint || "",
@@ -199,6 +204,7 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
         updates.providerSpecificData = buildRegionSpecificData();
       }
       
+      updates.tlsImpersonation = tls.enabled ? { browser: tls.browser, os: tls.os } : null;
       await onSave(updates);
     } finally {
       setSaving(false);
@@ -346,6 +352,31 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
             options={providerRegions.map((r) => ({ value: r.id, label: r.label }))}
           />
         )}
+
+        <div className="flex flex-col gap-3 rounded-lg border border-border p-4">
+          <Toggle
+            checked={tls.enabled}
+            onChange={(enabled) => setTls({ ...tls, enabled })}
+            label="Browser TLS fingerprint"
+            description="Send this account's requests with a browser's TLS/HTTP2 fingerprint instead of Node's. Can break the provider's terms and get the account banned. Uses normal TLS if the optional wreq-js module isn't installed."
+          />
+          {tls.enabled && (
+            <div className="grid grid-cols-2 gap-3">
+              <Select
+                label="Browser"
+                value={tls.browser}
+                onChange={(e) => setTls({ ...tls, browser: e.target.value })}
+                options={TLS_IMPERSONATION_PROFILES}
+              />
+              <Select
+                label="OS"
+                value={tls.os}
+                onChange={(e) => setTls({ ...tls, os: e.target.value })}
+                options={TLS_IMPERSONATION_OSES}
+              />
+            </div>
+          )}
+        </div>
 
         {!isCompatible && !isAzure && !isCloudflareAi && (
           <div className="flex items-center gap-3">
