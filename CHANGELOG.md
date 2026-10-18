@@ -1,4 +1,21 @@
 
+# v100.2.0 (2026-10-18)
+
+## Features
+- **models**: Custom model display names, prefix-aware id entry, readable model rows on mobile (#45)
+- **cli-tools**: Workbench layout with tools grouped by connection state (#47)
+- **usage**: Show x-regent request headers in the request drawer (#48)
+- **dashboard**: Redesign Console Log, Skills, Translator and Token Saver on the workbench design system (#50)
+- **cli-tools**: Shared connect panel, paste-ready setup for manual tools, connect all (#49)
+- **request-pipelines**: Workbench with step kinds, live preview, attach to key or combo (#53)
+- **media-providers**: Workbench with kind switch and inline detail (#52)
+
+## Fixes
+- **cli-tools**: Local-only routes, no placeholder key, safe config writes with backup/restore (#46)
+
+## Build & CI
+- **release**: Push the release tag on its own so its workflows start (#44)
+
 # v100.1.0 (2026-10-18)
 
 ## Features
