@@ -34,6 +34,7 @@ jobs:
     outputs:
       tag: ${{ steps.release.outputs.tag }}
       version: ${{ steps.release.outputs.version }}
+      forked_from: ${{ steps.release.outputs.forked_from }}
       commit: ${{ steps.release.outputs.commit }}
       promote_latest: ${{ steps.release.outputs.promote_latest }}
       ghcr_image: ${{ steps.release.outputs.ghcr_image }}
@@ -66,7 +67,7 @@ jobs:
           }
 
           if (!match) {
-            console.error(`Expected a Docker-safe semver tag like v0.5.81 or v0.5.81-rc.1, received: ${tag || "<empty>"}`);
+            console.error(`Expected a Docker-safe semver tag like v100.0.0 or v100.0.0-rc.1, received: ${tag || "<empty>"}`);
             process.exit(1);
           }
 
@@ -108,6 +109,7 @@ jobs:
 
           fs.appendFileSync(output, `tag=${tag}\n`);
           fs.appendFileSync(output, `version=${version}\n`);
+          fs.appendFileSync(output, `forked_from=${require("./package.json").forkedFrom?.version || "unknown"}\n`);
           fs.appendFileSync(output, `commit=${commit}\n`);
           fs.appendFileSync(output, `promote_latest=${promoteLatest}\n`);
           fs.appendFileSync(output, `ghcr_image=${ghcrImage}\n`);
@@ -175,6 +177,7 @@ jobs:
           outputs: type=image,name=${{ env.GHCR_IMAGE }},push-by-digest=true,name-canonical=true,push=true
           build-args: |
             APP_VERSION=${{ needs.prepare.outputs.version }}
+            FORKED_FROM_VERSION=${{ needs.prepare.outputs.forked_from }}
             ALPINE_MIRROR=${{ vars.ALPINE_MIRROR || 'dl-cdn.alpinelinux.org' }}
             NPM_REGISTRY=${{ vars.NPM_REGISTRY || 'https://registry.npmjs.org/' }}
           labels: |

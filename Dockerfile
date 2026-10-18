@@ -36,6 +36,7 @@ RUN npm run build
 FROM ${NODE_IMAGE} AS runner
 ARG ALPINE_MIRROR
 ARG APP_VERSION
+ARG FORKED_FROM_VERSION=unknown
 WORKDIR /app
 
 RUN if [ "$ALPINE_MIRROR" != "dl-cdn.alpinelinux.org" ]; then \
@@ -43,7 +44,8 @@ RUN if [ "$ALPINE_MIRROR" != "dl-cdn.alpinelinux.org" ]; then \
     fi
 
 LABEL org.opencontainers.image.title="regent" \
-      org.opencontainers.image.version="${APP_VERSION}"
+      org.opencontainers.image.version="${APP_VERSION}" \
+      dev.regent.forked-from="decolua/9router@${FORKED_FROM_VERSION}"
 
 ENV NODE_ENV=production
 ENV PORT=20128

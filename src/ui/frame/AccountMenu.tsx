@@ -64,6 +64,11 @@ export function AccountMenu({
         <div className="px-3 pb-2 pt-1.5">
           <div className="text-xs font-medium">{APP_CONFIG.name}</div>
           <div className="font-mono text-[11px] text-text-muted">v{APP_CONFIG.version}</div>
+          {APP_CONFIG.forkedFrom && (
+            <div className="text-[11px] text-text-subtle">
+              based on 9router {APP_CONFIG.forkedFrom.version}
+            </div>
+          )}
           {sso && (
             <div
               className="mt-1.5 flex items-center gap-1.5 text-xs text-text-muted"
