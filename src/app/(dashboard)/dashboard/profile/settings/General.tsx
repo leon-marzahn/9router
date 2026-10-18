@@ -8,6 +8,7 @@ import { useTheme as useThemeJs } from "@/shared/hooks/useTheme";
 import { APP_CONFIG } from "@/shared/constants/config";
 import { STOP_APP, stopApp } from "@/ui/frame/stopApp";
 import { logout } from "@/ui/frame/useFrameData";
+import { useUpdate } from "@/ui/frame/useUpdate";
 import { Note, Row, RowSkeleton, SectionCard } from "./parts";
 import { notify, type SettingsApi } from "./useSettings";
 
@@ -474,11 +475,30 @@ export function About() {
   const [stop, setStop] = useState(false);
   const [busy, setBusy] = useState(false);
   const base = (APP_CONFIG as { forkedFrom?: { version: string } }).forkedFrom;
+  const update = useUpdate().info?.update;
   return (
     <SectionCard id="about" icon="info" title="About">
       <Row
         title="Elizabeth's Proxy"
-        hint={`v${APP_CONFIG.version}${base ? ` · based on 9router ${base.version}` : ""}`}
+        hint={
+          <>
+            v{APP_CONFIG.version}
+            {base ? ` · based on 9router ${base.version}` : ""}
+            {update && (
+              <>
+                {" · "}
+                <a
+                  href={update.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-accent-text hover:underline"
+                >
+                  v{update.version} available
+                </a>
+              </>
+            )}
+          </>
+        }
       >
         <Button
           size="sm"

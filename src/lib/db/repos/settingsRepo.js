@@ -138,6 +138,12 @@ export async function getCloudUrl() {
   );
 }
 
+// Server-managed update-hook state (the URL embeds a deploy token). Kept out of
+// backups and kept across restores; mirrors UPDATE_STATE_KEYS in lib/updates/webhook.js.
+export const NON_EXPORTED_SETTING_KEYS = ["updateWebhookUrl", "updateWebhookToken", "updateWebhookLastVersion", "updateWebhookLastResult"];
+
 export async function exportSettings() {
-  return await readRaw();
+  const raw = await readRaw();
+  for (const k of NON_EXPORTED_SETTING_KEYS) delete raw[k];
+  return raw;
 }
