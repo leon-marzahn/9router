@@ -3,10 +3,13 @@ import "open-sse/index.js";
 
 import { getProviderConnectionById } from "@/lib/localDb";
 import { consumeClaudeResetGrant } from "open-sse/services/usage.js";
+import { getClaudeUsage } from "open-sse/services/usage/claude.js";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
 import { refreshAndUpdateCredentials } from "../route.js";
 
-// Spend one free Claude "limit reset" grant (irreversible)
+// Spend one free Claude "limit reset" grant (irreversible). The server picks the
+// grant from the account's own fresh grant list; a grantId from the client is
+// only honoured if it is one of those usable grants.
 export async function POST(request, { params }) {
   try {
     const { connectionId } = await params;
@@ -28,7 +31,17 @@ export async function POST(request, { params }) {
     };
 
     ({ connection } = await refreshAndUpdateCredentials(connection, false, proxyOptions));
-    const result = await consumeClaudeResetGrant(connection.accessToken, grantId, proxyOptions);
+    const usage = await getClaudeUsage(connection.accessToken, proxyOptions, { force: true });
+    const credits = usage?.resetCredits;
+    const usable = (credits?.grants ?? []).filter((g) => !g.paused && g.resetsLeft > 0).map((g) => g.id);
+    const chosen = grantId ? (usable.includes(grantId) ? grantId : null) : credits?.nextGrantId || usable[0] || null;
+    if (!chosen) {
+      return Response.json(
+        { ok: false, message: grantId ? "That reset grant isn't available on this account." : "No limit resets are available on this account." },
+        { status: 409 },
+      );
+    }
+    const result = await consumeClaudeResetGrant(connection.accessToken, chosen, proxyOptions);
 
     if (result.ok) return Response.json(result);
     const status = result.status >= 400 && result.status < 500 ? result.status : 409;
