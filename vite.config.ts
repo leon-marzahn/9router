@@ -10,6 +10,12 @@ const r = (p: string) => fileURLToPath(new URL(p, import.meta.url));
 // throwaway home: DATA_DIR for the DB layer, HOME/APPDATA for modules that
 // resolve ~/.9router (or ~/.codex etc.) via os.homedir() directly.
 const testHome = mkdtempSync(join(tmpdir(), "9router-test-"));
+// XDG base dirs win over HOME for tools like crush/kilo/devin, and CI runners
+// (GitHub's ubuntu image) set XDG_CONFIG_HOME, which would send writes to the
+// real ~/.config. Tests run as if none were set; workers inherit this env.
+for (const k of ["XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME", "XDG_CACHE_HOME"]) {
+  delete process.env[k];
+}
 
 export default defineConfig({
   // Unit tests live in tests/ (ESM via tests/package.json "type": "module").
