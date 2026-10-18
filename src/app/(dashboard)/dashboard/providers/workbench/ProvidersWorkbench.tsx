@@ -36,12 +36,12 @@ export function ProvidersWorkbench() {
   const {
     providers,
     loading,
+    dataVersion,
     live: streamUp,
     testing,
     refresh,
     setConnectionActive,
     runTest,
-    testConnection,
     clearCooldown,
   } = useProviders();
   const [q, setQ] = useState("");
@@ -94,6 +94,8 @@ export function ProvidersWorkbench() {
   // Keyboard: ↑/↓ or j/k move, / search, Enter full page, Esc back to overview
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // Keys belong to an open dialog (e.g. Esc closes it), not to the workbench
+      if (document.querySelector("[aria-modal=true]")) return;
       const target = e.target as HTMLElement | null;
       if (target?.closest("input, textarea, select, [contenteditable], [role=dialog]")) {
         if (e.key === "Escape") target.blur();
@@ -294,9 +296,9 @@ export function ProvidersWorkbench() {
               p={current}
               testing={testing}
               onTest={runTest}
-              onTestConnection={testConnection}
               onSetActive={setConnectionActive}
               onClearCooldown={clearCooldown}
+              liveVersion={dataVersion}
             />
           ) : loading ? null : (
             <ProviderOverview

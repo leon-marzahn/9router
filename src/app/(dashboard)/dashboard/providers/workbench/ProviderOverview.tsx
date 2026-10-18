@@ -21,7 +21,7 @@ export function ProviderOverview({
   onSelect: (id: string) => void;
 }) {
   return (
-    <div className="mx-auto max-w-4xl px-6 pb-24 pt-10 lg:px-8">
+    <div className="mx-auto max-w-4xl px-6 pb-10 pt-10 lg:px-8">
       <h1 className="font-display text-4xl tracking-tight">Routing overview</h1>
       <p className="mt-2 text-text-muted">
         <b className="text-text">{totals.live} providers</b> and{" "}

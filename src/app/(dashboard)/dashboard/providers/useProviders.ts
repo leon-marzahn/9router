@@ -11,7 +11,7 @@ type Notify = {
 };
 
 interface BatchResult {
-  summary?: { passed: number; failed: number; total: number };
+  summary?: { passed: number; failed: number; total: number; unsupported?: number };
   error?: string;
 }
 
@@ -24,6 +24,8 @@ export function useProviders() {
   const [connections, setConnections] = useState<Connection[]>([]);
   const [nodes, setNodes] = useState<ProviderNode[]>([]);
   const [loading, setLoading] = useState(true);
+  // Bumps on every successful refresh; embedded views re-fetch their own data on change.
+  const [dataVersion, setDataVersion] = useState(0);
   const [live, setLive] = useState(false);
   const [testing, setTesting] = useState<string | null>(null);
   const notify = useNotificationStore() as unknown as Notify;
@@ -44,6 +46,7 @@ export function useProviders() {
         ]);
         if (cRes.ok) setConnections(((await cRes.json()).connections ?? []) as Connection[]);
         if (nRes.ok) setNodes(((await nRes.json()).nodes ?? []) as ProviderNode[]);
+        setDataVersion((v) => v + 1);
       } catch {
         // keep last good data; the stream will trigger another try
       } finally {
@@ -116,10 +119,13 @@ export function useProviders() {
           });
           const data = (await res.json()) as BatchResult;
           if (data.summary) {
-            const { passed, failed, total } = data.summary;
+            const { passed, failed, total, unsupported = 0 } = data.summary;
+            const tested = total - unsupported;
+            const skipped = unsupported ? ` (${unsupported} have no connection test)` : "";
             if (total === 0) notify.warning("Nothing to test yet");
-            else if (failed === 0) notify.success(`All ${total} accounts passed`);
-            else notify.warning(`${passed}/${total} passed, ${failed} failed`);
+            else if (tested === 0) notify.warning("These accounts have no connection test");
+            else if (failed === 0) notify.success(`All ${tested} tested accounts passed${skipped}`);
+            else notify.warning(`${passed}/${tested} passed, ${failed} failed${skipped}`);
           } else {
             notify.error(data.error || "Test failed");
           }
@@ -131,24 +137,6 @@ export function useProviders() {
         }
       },
     [testing, notify, refresh],
-  );
-
-  const testConnection = useCallback(
-    async (id: string) => {
-      try {
-        const res = await fetch(`/api/providers/${encodeURIComponent(id)}/test`, {
-          method: "POST",
-        });
-        const data = (await res.json()) as { valid?: boolean; error?: string };
-        if (data.valid) notify.success("Account is working");
-        else notify.error(data.error || "Account test failed");
-      } catch {
-        notify.error("Test request failed");
-      } finally {
-        void refresh();
-      }
-    },
-    [notify, refresh],
   );
 
   const clearCooldown = useCallback(
@@ -174,12 +162,12 @@ export function useProviders() {
   return {
     providers,
     loading,
+    dataVersion,
     live,
     testing,
     refresh,
     setConnectionActive,
     runTest,
-    testConnection,
     clearCooldown,
     setNodes,
   };

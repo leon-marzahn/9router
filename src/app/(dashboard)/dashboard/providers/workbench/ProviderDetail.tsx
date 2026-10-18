@@ -1,50 +1,31 @@
 "use client";
 
-import Link from "next/link";
-import {
-  Button,
-  EmptyState,
-  Eyebrow,
-  IconButton,
-  ProviderLogo,
-  StatusDot,
-  StatusLabel,
-  Switch,
-  Tag,
-  cn,
-} from "@/ui";
-import {
-  KIND_LABEL,
-  connectionLabel,
-  cooldownsOf,
-  errorTag,
-  isFailing,
-  type ProviderEntry,
-} from "../model";
+import { Button, EmptyState, Eyebrow, ProviderLogo, StatusLabel, Switch, Tag, cn } from "@/ui";
+import { KIND_LABEL, cooldownsOf, type ProviderEntry } from "../model";
 import { Cooldowns } from "./Cooldowns";
+import ProviderManager from "../[id]/ProviderManager";
 
-/** Selected provider: status, actions, and its accounts managed inline. */
+/** Selected provider: status, quick actions, then the full account/model management inline. */
 export function ProviderDetail({
   p,
   testing,
   onTest,
-  onTestConnection,
   onSetActive,
   onClearCooldown,
+  liveVersion,
 }: {
   p: ProviderEntry;
   testing: string | null;
   onTest: (id: string) => void;
-  onTestConnection: (id: string) => void;
   onSetActive: (ids: string[], active: boolean) => void;
   onClearCooldown: (provider: string, model: string) => Promise<void>;
+  liveVersion: number;
 }) {
-  const href = `/dashboard/providers/${encodeURIComponent(p.id)}`;
   const connected = p.stats.total > 0 || p.noAuth;
   const routing = !p.stats.allDisabled;
 
   return (
-    <div className="mx-auto max-w-3xl px-6 pb-24 pt-8 lg:px-8">
+    <div className="mx-auto max-w-3xl px-6 pb-10 pt-8 lg:px-8">
       <div className="flex items-start gap-4">
         <div className="grid size-14 shrink-0 place-items-center rounded-2xl bg-surface shadow-soft ring-1 ring-border">
           <ProviderLogo
@@ -84,38 +65,21 @@ export function ProviderDetail({
         )}
       </div>
 
-      <div className="mt-6 flex flex-wrap gap-2">
-        {connected && !p.noAuth && (
-          <Button
-            variant="primary"
-            icon="play_arrow"
-            loading={testing === p.id}
-            disabled={!!testing && testing !== p.id}
-            onClick={() => onTest(p.id)}
-          >
-            Test accounts
-          </Button>
-        )}
-        {!p.noAuth && (
-          <Link href={href}>
+      {connected && !p.noAuth && (
+        <div className="mt-6 flex flex-wrap gap-2">
+          {
             <Button
-              variant={connected ? "secondary" : "primary"}
-              icon={connected ? "person_add" : "link"}
+              variant="primary"
+              icon="play_arrow"
+              loading={testing === p.id}
+              disabled={!!testing && testing !== p.id}
+              onClick={() => onTest(p.id)}
             >
-              {connected
-                ? `Add ${p.kind === "oauth" ? "account" : "key"}`
-                : p.kind === "oauth"
-                  ? "Sign in to connect"
-                  : "Add API key"}
+              Test accounts
             </Button>
-          </Link>
-        )}
-        <Link href={href}>
-          <Button variant="ghost" trailingIcon="arrow_forward">
-            Models & settings
-          </Button>
-        </Link>
-      </div>
+          }
+        </div>
+      )}
 
       {connected && !p.noAuth && (
         <div className="mt-8 grid grid-cols-3 gap-3">
@@ -143,61 +107,16 @@ export function ProviderDetail({
 
       <Cooldowns cooldowns={cooldownsOf(p)} onClear={(model) => onClearCooldown(p.id, model)} />
 
-      <Eyebrow className="mb-2 mt-10">Accounts</Eyebrow>
       {p.noAuth ? (
-        <EmptyState icon="verified">
+        <EmptyState icon="verified" className="mt-10">
           No authentication needed. This provider is routed automatically.
         </EmptyState>
-      ) : p.connections.length === 0 ? (
-        <EmptyState icon="link_off">
-          Not connected yet. {p.kind === "oauth" ? "Sign in with an account" : "Add an API key"} to
-          start routing to {p.name}.
-        </EmptyState>
-      ) : (
-        <div className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-surface">
-          {p.connections.map((c) => {
-            const active = c.isActive !== false;
-            const bad = isFailing(c);
-            return (
-              <div
-                key={c.id}
-                className={cn("flex items-center gap-3 px-4 py-3", !active && "opacity-50")}
-              >
-                <StatusDot status={!active ? "paused" : bad ? "error" : "ok"} />
-                <div className="min-w-0 flex-1">
-                  <div className="truncate">{connectionLabel(c)}</div>
-                  <div className="flex min-w-0 items-center gap-1.5 text-[11px] text-text-muted">
-                    <span className="shrink-0">
-                      {c.authType}
-                      {c.priority != null && ` · priority ${c.priority}`}
-                    </span>
-                    {bad && (
-                      <Tag tone="danger" mono>
-                        {errorTag(c)}
-                      </Tag>
-                    )}
-                    {bad && c.lastError && (
-                      <span className="truncate text-danger-text">
-                        {String(c.lastError).slice(0, 120)}
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <IconButton
-                  icon="play_arrow"
-                  label={`Test ${connectionLabel(c)}`}
-                  onClick={() => onTestConnection(c.id)}
-                />
-                <Switch
-                  checked={active}
-                  label={active ? "Disable account" : "Enable account"}
-                  onChange={(on) => onSetActive([c.id], on)}
-                />
-              </div>
-            );
-          })}
-        </div>
-      )}
+      ) : null}
+
+      {/* Accounts, overrides and models — the full management surface, inline */}
+      <div className="mt-10">
+        <ProviderManager providerId={p.id} embedded liveVersion={liveVersion} />
+      </div>
     </div>
   );
 }

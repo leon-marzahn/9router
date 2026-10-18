@@ -121,7 +121,7 @@ export function CustomEndpointForm({
   };
 
   return (
-    <div className="mx-auto max-w-2xl px-6 pb-24 pt-8 lg:px-8">
+    <div className="mx-auto max-w-2xl px-6 pb-10 pt-8 lg:px-8">
       <div className="flex items-start gap-4">
         <div className="grid size-14 shrink-0 place-items-center rounded-2xl bg-surface shadow-soft ring-1 ring-border">
           <ProviderLogo src={t.icon} name={t.name} size={34} />
