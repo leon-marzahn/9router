@@ -230,7 +230,7 @@ export function ProvidersWorkbench() {
                       onClick={() => setScope("all")}
                       className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border-strong py-2.5 text-xs text-text-muted hover:border-accent hover:text-accent-text dark:border-border"
                     >
-                      <Icon name="add" size={16} /> Connect another provider
+                      Connect another provider <Icon name="add" size={16} />
                     </button>
                     <div className="grid grid-cols-2 gap-2">
                       {TEMPLATES.map((t) => (
