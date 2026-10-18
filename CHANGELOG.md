@@ -1,3 +1,29 @@
+
+# v100.1.0 (2026-10-18)
+
+## Features
+- **endpoint**: Gatehouse layout, working Stop, server-side tunnel gate, drop the 9router tunnel relay (#28)
+- **settings**: One-page settings, Request logging, sign-in guards, clearer stop wording (#30)
+- **updates**: Update notice, floating image tags, optional redeploy webhook (#33)
+- **open-sse**: Opt-in TLS/HTTP2 fingerprint impersonation via wreq-js (#31)
+- **routing**: Per-conversation account affinity for prompt-cache reuse (#39)
+- **ci**: Pr-shots --shots for screenshots of specific UI states (#41)
+- **combos**: Workbench page, Per chat routing, stay after a fallback, step readiness, combo/ prefix (#42)
+- **models**: Add provider-prefixed display names to /v1/models (#43)
+
+## Fixes
+- **ui**: Render modals in a portal so a faded or transformed parent can't dim or clip them (#29)
+- **providers**: Add Custom Model dialog overflow; edit custom models in place (#34)
+- **open-sse**: Resolve optional wreq-js only at runtime so a missing install can't break the build (#40)
+- **usage**: Usage stats no longer send full API keys to the browser; usage written in the same millisecond is no longer lost; the test suite is fully green (#37)
+
+## Docs
+- Release with vp run; keep chore(release) for release commits (#27)
+- Name the regent command in the README; add fork copyright line (#35)
+
+## Build & CI
+- PR checks and demo-data screenshot evidence (#36)
+- Switch package manager from npm to bun (#38)
 # v100.0.0 — Elizabeth's Proxy
 
 Based on 9router v0.5.104.
