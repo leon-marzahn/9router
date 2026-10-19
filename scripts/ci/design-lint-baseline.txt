@@ -1,0 +1,30 @@
+# Design-lint baseline: pre-existing violations, `rule :: file :: count`.
+# Regenerate with `node scripts/ci/design-lint.mjs --update-baseline`; only ever shrink it.
+raw-color :: src/app/(dashboard)/dashboard/media-providers/workbench/model.ts :: 1
+raw-color :: src/app/(dashboard)/dashboard/providers/model.ts :: 2
+raw-color :: src/ui/Switch.tsx :: 1
+raw-color :: src/ui/Tag.tsx :: 1
+raw-control :: src/app/(dashboard)/dashboard/basic-chat/workbench/ChatWorkbench.tsx :: 2
+raw-control :: src/app/(dashboard)/dashboard/cli-tools/connect/ConnectPanel.tsx :: 3
+raw-control :: src/app/(dashboard)/dashboard/cli-tools/connect/McpMarketplace.tsx :: 2
+raw-control :: src/app/(dashboard)/dashboard/combos/workbench/ComboDetail.tsx :: 1
+raw-control :: src/app/(dashboard)/dashboard/console-log/ConsoleLog.tsx :: 1
+raw-control :: src/app/(dashboard)/dashboard/endpoint/gatehouse/KeyCard.tsx :: 4
+raw-control :: src/app/(dashboard)/dashboard/media-providers/workbench/examples/SttExample.tsx :: 1
+raw-control :: src/app/(dashboard)/dashboard/media-providers/workbench/examples/TtsExample.tsx :: 4
+raw-control :: src/app/(dashboard)/dashboard/media-providers/workbench/MediaDetail.tsx :: 1
+raw-control :: src/app/(dashboard)/dashboard/media-providers/workbench/MediaWorkbench.tsx :: 1
+raw-control :: src/app/(dashboard)/dashboard/profile/settings/General.tsx :: 1
+raw-control :: src/app/(dashboard)/dashboard/profile/settings/Sso.tsx :: 2
+raw-control :: src/app/(dashboard)/dashboard/providers/workbench/ProvidersWorkbench.tsx :: 1
+raw-control :: src/app/(dashboard)/dashboard/proxy-pools/workbench/dialogs.tsx :: 1
+raw-control :: src/app/(dashboard)/dashboard/proxy-pools/workbench/Overview.tsx :: 3
+raw-control :: src/app/(dashboard)/dashboard/quota/workbench/parts.tsx :: 1
+raw-control :: src/app/(dashboard)/dashboard/quota/workbench/QuotaWorkbench.tsx :: 6
+raw-control :: src/app/(dashboard)/dashboard/quota/workbench/ResetTimeline.tsx :: 1
+raw-control :: src/app/(dashboard)/dashboard/request-pipelines/workbench/Overview.tsx :: 2
+raw-control :: src/app/(dashboard)/dashboard/request-pipelines/workbench/PipelineDetail.tsx :: 3
+raw-control :: src/app/(dashboard)/dashboard/request-pipelines/workbench/Preview.tsx :: 1
+raw-control :: src/app/(dashboard)/dashboard/request-pipelines/workbench/StepCard.tsx :: 2
+raw-control :: src/app/(dashboard)/dashboard/usage/live/LiveTraffic.tsx :: 2
+raw-control :: src/app/(dashboard)/dashboard/usage/live/RequestDrawer.tsx :: 1

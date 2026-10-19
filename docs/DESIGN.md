@@ -192,3 +192,13 @@ Use the scale from *Type* above: 13px base, `text-xs`, and 11px meta. The `text-
 `Button` / `IconButton` (primary · secondary · ghost · inverse · danger), `Switch`, `Field` / `Input` / `Select` / `SearchInput` / `Kbd`, `Segmented`, `StatusDot` / `StatusLabel`, `Tag`, `Panel` / `SectionTitle` / `Eyebrow` / `EmptyState`, `SettingsSection` / `SettingRow` / `SettingRowSkeleton` / `Note`, `StatGrid` / `InlineStat`, `ListRow` / `ListGroup` / `ListAddRow`, `WorkbenchList` / `WorkbenchDetail` / `useListKeyboard`, `Skeleton` / `ListSkeleton`, `CopyButton`, `CodeBlock`, `Popover` / `MenuItem`, `ProviderLogo`, `LiveNumber`, `useFlashOnChange`, `cn` (tailwind-merge).
 
 Rules: icon-only buttons always get a `label`; switches always get a `label`; don't nest panels; one primary button per view.
+
+## Lint rules
+
+Enforced in CI for redesigned UI (TS/TSX under `src/ui` and `src/app`):
+
+- **No legacy components.** Importing `@/shared/components` (or a relative path to it) is an Oxlint `no-restricted-imports` error (`vite.config.ts`).
+- **No raw controls outside `src/ui`.** Pages use `Button` / `IconButton` / `Input` / `Select` / `Switch` etc., not `<button>`, `<input>`, `<select>`, `<textarea>`.
+- **No raw colors.** No hex / `rgb()` / `hsl()` literals, arbitrary Tailwind colors (`bg-[#…]`), or palette classes (`bg-red-500`, `text-white`); use the tokens above. `globals.css` is the only place colors are defined.
+
+Run `bun run lint:design` (raw controls and colors, `scripts/ci/design-lint.mjs`) and `vp lint <files>` (imports). Pre-existing violations are baselined per file (`scripts/ci/design-lint-baseline.txt`, plus a file list in the Oxlint override). Fix them when you touch a file and shrink the baseline with `--update-baseline`; never grow it.
