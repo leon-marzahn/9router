@@ -9,6 +9,7 @@ import {
   EmptyState,
   Icon,
   IconButton,
+  ListAddRow,
   ListGroup,
   ListRow,
   ListSkeleton,
@@ -51,6 +52,10 @@ export function ChatWorkbench() {
     chat.selectSession(id);
     setMobileDetail(true);
   };
+  const startChat = () => {
+    chat.newChat();
+    setMobileDetail(true);
+  };
 
   useListKeyboard({
     order: visible.map((s) => s.id),
@@ -67,7 +72,7 @@ export function ChatWorkbench() {
         selected={sel}
         detailOpen={mobileDetail}
         header={
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
             <SearchInput
               ref={searchRef}
               shortcut="/"
@@ -76,16 +81,7 @@ export function ChatWorkbench() {
               onChange={(e) => setQuery(e.target.value)}
               className="flex-1"
             />
-            <Button
-              size="sm"
-              icon="add"
-              className="h-9"
-              disabled={!chat.activeModel}
-              onClick={() => {
-                chat.newChat();
-                setMobileDetail(true);
-              }}
-            >
+            <Button size="sm" icon="add" disabled={!chat.activeModel} onClick={startChat}>
               New
             </Button>
           </div>
@@ -120,6 +116,11 @@ export function ChatWorkbench() {
               />
             ))}
           </ListGroup>
+        )}
+        {!(chat.loadingData && chat.sessions.length === 0) && !query && (
+          <ListAddRow disabled={!chat.activeModel} onClick={startChat}>
+            New chat
+          </ListAddRow>
         )}
       </WorkbenchList>
 

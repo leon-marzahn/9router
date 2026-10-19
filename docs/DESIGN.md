@@ -99,8 +99,9 @@ Each pattern below names its canonical form. Where a page does something else, i
 
 ### Workbench (list → detail)
 - **List pane:** `md:w-[330px] shrink-0 border-r border-border bg-pane`, full width below `md`.
-- **List header:** `SearchInput` (shortcut `/`), then an optional `Segmented` scope (e.g. In use / All, All / Needs attention). A "New" action is a `Button size="sm"` beside the search.
-- **List body:** `ListGroup`s, with "Needs attention" first and `tone="danger"`, holding `ListRow`s. Don't hand-roll row buttons or uppercase group headers: `ListRow` already gives the selected fill/ring and the live flash. A dashed "Add …" row at the end of a group is fine.
+- **List header:** `SearchInput` (shortcut `/`), then an optional `Segmented` scope (e.g. In use / All, All / Needs attention). 
+- **Creating items:** a list that creates things offers it twice, the same way everywhere: a **secondary** `<Button size="sm" icon="add">New</Button>` beside the search (header row `flex items-center gap-2`, search `min-w-0 flex-1`), and a `ListAddRow` ("Add proxy pool") at the end of the list, also shown when the list is empty (hide it while searching if it would read as a search result). Never make "New" primary: primary is reserved for the page's main commit action (Save, Connect), and there is one per view. Disable both when creating isn't possible (a limit, no model yet). Don't add a create action to a list that has none (CLI tools, Quota).
+- **List body:** `ListGroup`s, with "Needs attention" first and `tone="danger"`, holding `ListRow`s. Don't hand-roll row buttons, dashed add rows or uppercase group headers: `ListRow` already gives the selected fill/ring and the live flash, and `ListAddRow` is the only dashed "Add …" row.
 - **Loading:** `ListSkeleton` from `src/ui`.
 - **Keyboard:** ↑/↓ and j/k move the selection, `/` focuses search, Esc clears the selection and returns to the overview.
 - **Mobile (< md):** list *or* detail, never stacked. When something is selected the list gets `hidden md:flex`, and the detail starts with a ghost back button: `← All <things>`, 13px with a 16px `arrow_back` icon, at `px-4 pt-4`.
@@ -188,6 +189,6 @@ Use the scale from *Type* above: 13px base, `text-xs`, and 11px meta. The `text-
 
 ## Components (`src/ui/index.ts`)
 
-`Button` / `IconButton` (primary · secondary · ghost · inverse · danger), `Switch`, `Field` / `Input` / `Select` / `SearchInput` / `Kbd`, `Segmented`, `StatusDot` / `StatusLabel`, `Tag`, `Panel` / `SectionTitle` / `Eyebrow` / `EmptyState`, `SettingsSection` / `SettingRow` / `SettingRowSkeleton` / `Note`, `StatGrid` / `InlineStat`, `ListRow` / `ListGroup`, `WorkbenchList` / `WorkbenchDetail` / `useListKeyboard`, `Skeleton` / `ListSkeleton`, `CopyButton`, `CodeBlock`, `Popover` / `MenuItem`, `ProviderLogo`, `LiveNumber`, `useFlashOnChange`, `cn` (tailwind-merge).
+`Button` / `IconButton` (primary · secondary · ghost · inverse · danger), `Switch`, `Field` / `Input` / `Select` / `SearchInput` / `Kbd`, `Segmented`, `StatusDot` / `StatusLabel`, `Tag`, `Panel` / `SectionTitle` / `Eyebrow` / `EmptyState`, `SettingsSection` / `SettingRow` / `SettingRowSkeleton` / `Note`, `StatGrid` / `InlineStat`, `ListRow` / `ListGroup` / `ListAddRow`, `WorkbenchList` / `WorkbenchDetail` / `useListKeyboard`, `Skeleton` / `ListSkeleton`, `CopyButton`, `CodeBlock`, `Popover` / `MenuItem`, `ProviderLogo`, `LiveNumber`, `useFlashOnChange`, `cn` (tailwind-merge).
 
 Rules: icon-only buttons always get a `label`; switches always get a `label`; don't nest panels; one primary button per view.

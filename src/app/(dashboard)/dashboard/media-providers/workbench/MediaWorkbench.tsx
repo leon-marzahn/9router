@@ -1,10 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
+  Button,
   Icon,
   InlineStat,
+  ListAddRow,
   ListGroup,
   ListRow,
   ProviderLogo,
@@ -237,13 +239,21 @@ export function MediaWorkbench() {
                   navigate({ kind: k, provider: null, combo: null });
                 }}
               />
-              <SearchInput
-                ref={searchRef}
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder={`Search ${kind.short.toLowerCase()} providers`}
-                shortcut="/"
-              />
+              <div className="flex items-center gap-2">
+                <SearchInput
+                  ref={searchRef}
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  placeholder={`Search ${kind.short.toLowerCase()} providers`}
+                  shortcut="/"
+                  className="min-w-0 flex-1"
+                />
+                {kind.combos && (
+                  <Button size="sm" icon="add" onClick={createCombo}>
+                    New
+                  </Button>
+                )}
+              </div>
             </>
           }
         >
@@ -280,13 +290,17 @@ export function MediaWorkbench() {
                       ),
                     )}
                     {g.title === "Combos" && !needle && (
-                      <AddRow onClick={createCombo}>New {kind.short.toLowerCase()} combo</AddRow>
+                      <ListAddRow onClick={createCombo}>
+                        Add {kind.short.toLowerCase()} combo
+                      </ListAddRow>
                     )}
                   </ListGroup>
                 ),
               )}
               {kind.id === "embedding" && !needle && (
-                <AddRow onClick={() => setAddingEmbedding(true)}>Add custom embedding</AddRow>
+                <ListAddRow onClick={() => setAddingEmbedding(true)}>
+                  Add custom embedding
+                </ListAddRow>
               )}
               {order.length === 0 && needle && (
                 <div className="py-10 text-center text-text-muted">Nothing matches “{q}”.</div>
@@ -385,18 +399,6 @@ function KindSwitch({ value, onChange }: { value: string; onChange: (k: string) 
         </button>
       ))}
     </div>
-  );
-}
-
-function AddRow({ onClick, children }: { onClick: () => void; children: ReactNode }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border-strong py-2 text-xs text-text-muted hover:border-accent hover:text-accent-text dark:border-border"
-    >
-      {children} <Icon name="add" size={16} />
-    </button>
   );
 }
 

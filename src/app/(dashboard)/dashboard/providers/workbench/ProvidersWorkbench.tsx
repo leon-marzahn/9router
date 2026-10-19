@@ -6,6 +6,7 @@ import {
   Button,
   Icon,
   InlineStat,
+  ListAddRow,
   ListGroup,
   ListRow,
   ProviderLogo,
@@ -219,13 +220,7 @@ export function ProvidersWorkbench() {
               )}
               {scope === "live" && !searching && (
                 <div className="mt-2 space-y-2 px-2">
-                  <button
-                    type="button"
-                    onClick={() => setScope("all")}
-                    className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border-strong py-2.5 text-xs text-text-muted hover:border-accent hover:text-accent-text dark:border-border"
-                  >
-                    Connect another provider <Icon name="add" size={16} />
-                  </button>
+                  <ListAddRow onClick={() => setScope("all")}>Connect another provider</ListAddRow>
                   <div className="grid grid-cols-2 gap-2">
                     {TEMPLATES.map((t) => (
                       <button
