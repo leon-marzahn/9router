@@ -6,7 +6,11 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
-const sent = vi.hoisted(() => []);
+// Periods are UTC: run in a zone far from it so a local-time slip shows up.
+const sent = vi.hoisted(() => {
+  process.env.TZ = "Pacific/Honolulu"; // UTC-10, no DST
+  return [];
+});
 vi.mock("@/lib/notify/index.js", () => ({
   notify: vi.fn(async (msg) => {
     sent.push(msg);
@@ -23,8 +27,8 @@ let adapter;
 let keyA;
 let keyB;
 
-const NOW = new Date(2026, 9, 19, 12, 0, 0); // Oct 19, local time
-const LAST_MONTH = new Date(2026, 8, 28, 12, 0, 0).toISOString();
+const NOW = new Date(Date.UTC(2026, 9, 19, 12, 0, 0)); // Oct 19 UTC
+const LAST_MONTH = new Date(Date.UTC(2026, 8, 28, 12, 0, 0)).toISOString();
 
 beforeAll(async () => {
   tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "regent-budgets-"));
@@ -115,10 +119,10 @@ describe("enforcement", () => {
     usage(keyA.key, 50, { at: LAST_MONTH });
     expect(await budgets.checkBudget(keyA.key, { now: NOW })).toBeNull();
     await setBudget(repo.keyScope(keyA.id), { spendLimit: 1, hardStop: true, period: "day" });
-    usage(keyA.key, 5, { at: new Date(2026, 9, 18, 23, 0).toISOString() });
+    usage(keyA.key, 5, { at: "2026-10-18T23:00:00.000Z" });
     expect(await budgets.checkBudget(keyA.key, { now: NOW })).toBeNull();
-    const next = await budgets.checkBudget(keyA.key, { now: new Date(2026, 9, 18, 23, 30) });
-    expect(next).toMatchObject({ resetsAt: new Date(2026, 9, 19).toISOString() });
+    const next = await budgets.checkBudget(keyA.key, { now: new Date("2026-10-18T23:30:00.000Z") });
+    expect(next).toMatchObject({ resetsAt: "2026-10-19T00:00:00.000Z" });
   });
 
   it("enforces token and request limits too", async () => {
@@ -156,10 +160,18 @@ describe("enforcement", () => {
     expect(await budgets.checkBudget(keyA.key, { now: NOW })).not.toBeNull();
   });
 
-  it("fails open when the budget check itself breaks", async () => {
-    await setBudget(repo.keyScope(keyA.id), { spendLimit: 1, hardStop: true });
-    usage(keyA.key, 5);
+  it("fails closed for a hard-stopped budget when the check breaks", async () => {
+    await setBudget(repo.keyScope(keyA.id), { spendLimit: 100, hardStop: true });
+    expect(await budgets.checkBudget(keyA.key, { now: NOW })).toBeNull(); // caches config + key id
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    budgets.invalidateBudgetCache({ counters: true });
+    adapter.exec("ALTER TABLE usageHistory RENAME TO usageHistory_off");
+    try {
+      expect(await budgets.checkBudget(keyA.key, { now: NOW })).toMatchObject({ global: false });
+    } finally {
+      adapter.exec("ALTER TABLE usageHistory_off RENAME TO usageHistory");
+    }
+    // Config itself unreadable: the last loaded config decides.
     global._regentBudgetState.config = new Proxy(
       {},
       {
@@ -169,9 +181,85 @@ describe("enforcement", () => {
       },
     );
     global._regentBudgetState.configAt = Date.now();
-    expect(await budgets.checkBudget(keyA.key, { now: NOW })).toBeNull();
-    expect(warn).toHaveBeenCalled();
+    expect(await budgets.checkBudget(keyA.key, { now: NOW })).not.toBeNull();
+    expect(warn).toHaveBeenCalledWith(expect.stringMatching(/refusing/));
     warn.mockRestore();
+  });
+
+  it("fails open when the check breaks and no hard stop applies", async () => {
+    await setBudget(repo.keyScope(keyA.id), { spendLimit: 1, hardStop: false });
+    await setBudget(repo.keyScope(keyB.id), { spendLimit: 1, hardStop: true });
+    expect(await budgets.checkBudget(keyA.key, { now: NOW })).toBeNull();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    budgets.invalidateBudgetCache({ counters: true });
+    adapter.exec("ALTER TABLE usageHistory RENAME TO usageHistory_off");
+    try {
+      expect(await budgets.checkBudget(keyA.key, { now: NOW })).toBeNull();
+    } finally {
+      adapter.exec("ALTER TABLE usageHistory_off RENAME TO usageHistory");
+    }
+    // Nothing ever loaded: nothing is known to be hard-stopped.
+    global._regentBudgetState.lastGood = null;
+    global._regentBudgetState.config = new Proxy(
+      {},
+      {
+        ownKeys() {
+          throw new Error("db exploded");
+        },
+      },
+    );
+    global._regentBudgetState.configAt = Date.now();
+    expect(await budgets.checkBudget(keyB.key, { now: NOW })).toBeNull();
+    expect(warn).toHaveBeenCalledWith(expect.stringMatching(/letting the request through/));
+    warn.mockRestore();
+  });
+});
+
+describe("UTC periods", () => {
+  it("day and month follow UTC, not the server zone", () => {
+    expect(new Date().getTimezoneOffset()).toBe(600); // really running in UTC-10
+    const late = new Date("2026-10-31T23:30:00.000Z"); // still Oct 31 13:30 in Honolulu
+    expect(budgets.periodBounds("day", new Date("2026-10-19T03:00:00.000Z"))).toMatchObject({
+      key: "d:2026-10-19",
+    });
+    const m = budgets.periodBounds("month", late);
+    expect(m.key).toBe("m:2026-10");
+    expect(m.end.toISOString()).toBe("2026-11-01T00:00:00.000Z");
+    expect(budgets.periodBounds("month", new Date("2026-11-01T00:00:00.000Z")).key).toBe(
+      "m:2026-11",
+    );
+  });
+
+  it("rolls over at UTC midnight", async () => {
+    await setBudget(repo.keyScope(keyA.id), { spendLimit: 1, hardStop: true, period: "day" });
+    usage(keyA.key, 2, { at: "2026-10-19T23:59:00.000Z" });
+    expect(
+      await budgets.checkBudget(keyA.key, { now: new Date("2026-10-19T23:59:30.000Z") }),
+    ).not.toBeNull();
+    expect(
+      await budgets.checkBudget(keyA.key, { now: new Date("2026-10-20T00:00:01.000Z") }),
+    ).toBeNull();
+  });
+});
+
+describe("unpriced models", () => {
+  it("lists models used this period with no price, only when a spend limit is set", async () => {
+    adapter.run(
+      "INSERT INTO usageHistory(timestamp, provider, model, apiKey, promptTokens, completionTokens, cost, status) VALUES(?, 'nobody', 'mystery-model', ?, 500, 0, 0, 'ok')",
+      [NOW.toISOString(), keyA.key],
+    );
+    usage(keyA.key, 0.5); // provider 'p' model 'm' with a cost: priced
+    const spend = budgets.validateBudget({ spendLimit: 5 }).value;
+    const st = await budgets.budgetStatus(repo.keyScope(keyA.id), spend, keyA.key, { now: NOW });
+    expect(st.unpricedModels).toEqual(["nobody/mystery-model"]);
+    const tokensOnly = budgets.validateBudget({ tokenLimit: 5000 }).value;
+    budgets.invalidateBudgetCache({ counters: true });
+    const st2 = await budgets.budgetStatus(repo.keyScope(keyA.id), tokensOnly, keyA.key, {
+      now: NOW,
+    });
+    expect(st2.unpricedModels).toEqual([]);
+    const other = await budgets.budgetStatus(repo.keyScope(keyB.id), spend, keyB.key, { now: NOW });
+    expect(other.unpricedModels).toEqual([]);
   });
 });
 
@@ -230,7 +318,7 @@ describe("alerts", () => {
 
     // Next month starts over.
     sent.length = 0;
-    const nov = new Date(2026, 10, 2);
+    const nov = new Date(Date.UTC(2026, 10, 2));
     usage(keyA.key, 9, { at: nov.toISOString() });
     await budgets.recordUsage({ apiKey: keyA.key, cost: 9 }, { now: nov });
     expect(sent.length).toBe(2);

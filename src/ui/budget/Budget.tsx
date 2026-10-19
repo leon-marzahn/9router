@@ -6,6 +6,7 @@ import { cn } from "../cn";
 import { Dialog } from "../Dialog";
 import { Field, Input } from "../Field";
 import { Segmented } from "../Segmented";
+import { Note } from "../SettingRow";
 import { Switch } from "../Switch";
 
 export type BudgetPeriod = "day" | "month";
@@ -28,6 +29,8 @@ export interface BudgetStatus {
   ratio: number;
   state: "ok" | "warning" | "over";
   blocked: boolean;
+  /** "provider/model" used this period without a price: the spend limit doesn't count them. */
+  unpricedModels?: string[];
 }
 export interface BudgetEntry {
   budget: Budget;
@@ -108,6 +111,24 @@ function headline(b: Budget, s: BudgetStatus) {
   return rows[0]?.[1] ?? "";
 }
 
+/** "Oct 31, 2026, 12:00 AM UTC" */
+export const utc = (iso: string) =>
+  `${new Date(iso).toLocaleString(undefined, { timeZone: "UTC", dateStyle: "medium", timeStyle: "short" })} UTC`;
+
+/** Models used this period that have no price, so a spend limit can't see them. */
+export function UnpricedNote({ models }: { models: string[] }) {
+  return (
+    <Note tone="warning">
+      Unpriced models: <span className="font-mono">{models.join(", ")}</span>. Spend limits
+      don&apos;t count them;{" "}
+      <a href="/dashboard/settings/pricing" className="underline underline-offset-2">
+        set pricing
+      </a>{" "}
+      or add a token or request limit.
+    </Note>
+  );
+}
+
 /** Period spend vs limit: one line of text and a bar colored by state. */
 export function BudgetMeter({ entry, className }: { entry: BudgetEntry; className?: string }) {
   const { budget: b, status: s } = entry;
@@ -147,7 +168,10 @@ export function BudgetMeter({ entry, className }: { entry: BudgetEntry; classNam
           style={{ width: `${pct}%` }}
         />
       </div>
-      {!b.enabled && <div className="text-[11px] text-text-subtle">Paused: not enforced</div>}
+      <div className="text-[11px] text-text-subtle">
+        {b.enabled ? `Resets ${utc(s.resetsAt)}` : "Paused: not enforced"}
+      </div>
+      {!!s.unpricedModels?.length && <UnpricedNote models={s.unpricedModels} />}
     </div>
   );
 }
@@ -206,7 +230,10 @@ export function BudgetEditor({
 
   return (
     <div className="space-y-4">
-      <Field label="Period" hint="Resets at midnight (day) or on the 1st (month), server time.">
+      <Field
+        label="Period"
+        hint="Resets at 00:00 UTC (daily) or on the 1st of the month, 00:00 UTC (monthly)."
+      >
         <Segmented
           value={period}
           onChange={setPeriod}
@@ -320,6 +347,7 @@ export function BudgetEditor({
 /** Budget editor in a dialog (bottom sheet on mobile). */
 export function BudgetDialog({
   title,
+  unpriced,
   initial,
   forKey,
   onClose,
@@ -327,6 +355,7 @@ export function BudgetDialog({
   onRemove,
 }: {
   title: string;
+  unpriced?: string[];
   initial: Budget | null;
   forKey: boolean;
   onClose: () => void;
@@ -341,6 +370,11 @@ export function BudgetDialog({
       size="lg"
       description="Spend, token and request limits for one period."
     >
+      {!!unpriced?.length && (
+        <div className="mb-4">
+          <UnpricedNote models={unpriced} />
+        </div>
+      )}
       <BudgetEditor
         initial={initial}
         forKey={forKey}

@@ -3,13 +3,14 @@
 //   checkBudget(apiKey)    → null, or { scope, resetsAt } when a hard-stopped budget is used up.
 //                            Runs on every /v1 request: reads in-memory counters only
 //                            (seeded from one indexed SUM per scope, refreshed every
-//                            COUNTER_REFRESH_MS) and is FAIL-OPEN — any internal error
-//                            logs and lets the request through.
+//                            COUNTER_REFRESH_MS). On an internal error it FAILS CLOSED for
+//                            budgets with a hard stop (the request is refused) and open for
+//                            the rest; the error is logged either way.
 //   recordUsage(entry)     → called after a usage row is written; bumps the counters and
 //                            sends threshold alerts (once per scope, period and threshold,
 //                            persisted in budgetAlerts so restarts don't re-send).
 //
-// Periods follow the server's local clock, like the Usage page's daily buckets.
+// Periods are UTC calendar days / months.
 // A request that starts under the limit is never cut off, so spend can overshoot
 // by whatever is in flight when the limit is reached.
 import { getApiKeyByKey } from "@/lib/db/repos/apiKeysRepo.js";
@@ -19,6 +20,7 @@ import {
   getBudgets,
   keyScope,
   sumUsageSince,
+  zeroCostModelsSince,
 } from "@/lib/db/repos/budgetsRepo.js";
 import { isEmail } from "@/lib/notify/config.js";
 
@@ -31,8 +33,11 @@ const MAX_WARN = 3;
 const state = (global._regentBudgetState ??= {
   config: null,
   configAt: 0,
+  lastGood: null,
+  keyIds: new Map(),
   counters: new Map(),
 });
+state.keyIds ??= new Map(); // a state object from before a hot reload
 
 /** Test hook / after config writes. */
 export function invalidateBudgetCache({ counters = false } = {}) {
@@ -93,26 +98,25 @@ async function loadConfig(now = Date.now()) {
   if (state.config && now - state.configAt < CONFIG_TTL_MS) return state.config;
   state.config = await getBudgets();
   state.configAt = now;
+  state.lastGood = state.config;
   return state.config;
 }
 
 // ---------- periods ----------
 
+/** UTC calendar day or month containing `now`. */
 export function periodBounds(period, now = new Date()) {
   const d = new Date(now);
+  const y = d.getUTCFullYear();
+  const m = d.getUTCMonth();
   const start =
-    period === "day"
-      ? new Date(d.getFullYear(), d.getMonth(), d.getDate())
-      : new Date(d.getFullYear(), d.getMonth(), 1);
+    period === "day" ? new Date(Date.UTC(y, m, d.getUTCDate())) : new Date(Date.UTC(y, m, 1));
   const end =
     period === "day"
-      ? new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)
-      : new Date(d.getFullYear(), d.getMonth() + 1, 1);
-  const pad = (n) => String(n).padStart(2, "0");
-  const key =
-    period === "day"
-      ? `d:${start.getFullYear()}-${pad(start.getMonth() + 1)}-${pad(start.getDate())}`
-      : `m:${start.getFullYear()}-${pad(start.getMonth() + 1)}`;
+      ? new Date(Date.UTC(y, m, d.getUTCDate() + 1))
+      : new Date(Date.UTC(y, m + 1, 1));
+  const iso = start.toISOString();
+  const key = period === "day" ? `d:${iso.slice(0, 10)}` : `m:${iso.slice(0, 7)}`;
   return { start, end, key };
 }
 
@@ -141,6 +145,8 @@ async function scopesFor(apiKey, budgets) {
   const out = [];
   if (apiKey && Object.keys(budgets).some((s) => s.startsWith("key:"))) {
     const rec = await getApiKeyByKey(apiKey);
+    if (rec) state.keyIds.set(apiKey, rec.id);
+    if (state.keyIds.size > 10_000) state.keyIds.clear();
     const scope = rec ? keyScope(rec.id) : null;
     if (scope && budgets[scope]?.enabled) out.push({ scope, apiKey, key: rec });
   }
@@ -150,8 +156,20 @@ async function scopesFor(apiKey, budgets) {
 
 // ---------- enforcement ----------
 
+const refusal = (scope, budget, now) => ({
+  scope,
+  global: scope === GLOBAL_SCOPE,
+  resetsAt: periodBounds(budget.period, now).end.toISOString(),
+});
+
+function firstHardStop(budgets, scopes) {
+  for (const s of scopes) if (budgets[s]?.enabled && budgets[s]?.hardStop) return s;
+  return null;
+}
+
 /**
- * Null when the request may proceed. Fail-open: an internal error returns null.
+ * Null when the request may proceed.
+ * Internal errors: refuse when a hard-stopped budget applies (fail-closed), allow otherwise.
  * @returns {Promise<null | { scope: string, global: boolean, resetsAt: string }>}
  */
 export async function checkBudget(apiKey, { now = new Date() } = {}) {
@@ -162,17 +180,31 @@ export async function checkBudget(apiKey, { now = new Date() } = {}) {
       const b = budgets[s.scope];
       if (!b.hardStop) continue;
       const usage = await getUsage(s.scope, s.apiKey, b.period, now);
-      if (usageRatio(b, usage) >= 1) {
-        return {
-          scope: s.scope,
-          global: s.scope === GLOBAL_SCOPE,
-          resetsAt: periodBounds(b.period, now).end.toISOString(),
-        };
-      }
+      if (usageRatio(b, usage) >= 1) return refusal(s.scope, b, now);
     }
     return null;
   } catch (e) {
-    console.warn(`[budget] check failed, letting the request through: ${e?.message || e}`);
+    return failClosed(apiKey, now, e);
+  }
+}
+
+/**
+ * The check broke. Using only what's cached (the last config that loaded and the
+ * key ids seen before), refuse if a hard-stopped budget applies to this request;
+ * otherwise let it through. Never throws.
+ */
+function failClosed(apiKey, now, error) {
+  try {
+    const budgets = state.lastGood;
+    const id = apiKey ? state.keyIds.get(apiKey) : null;
+    const scope = budgets
+      ? firstHardStop(budgets, [id ? keyScope(id) : null, GLOBAL_SCOPE].filter(Boolean))
+      : null;
+    console.warn(
+      `[budget] check failed (${error?.message || error}); ${scope ? "refusing: a hard stop applies" : "letting the request through"}`,
+    );
+    return scope ? refusal(scope, budgets[scope], now) : null;
+  } catch {
     return null;
   }
 }
@@ -305,5 +337,23 @@ export async function budgetStatus(scope, budget, apiKey, { now = new Date() } =
     ratio,
     state: ratio >= 1 ? "over" : warn && ratio * 100 >= warn ? "warning" : "ok",
     blocked: budget.enabled && budget.hardStop && ratio >= 1,
+    unpricedModels: budget.spendLimit ? await unpricedModels(apiKey, start) : [],
   };
+}
+
+/**
+ * "provider/model" used this period with no price configured: a spend limit
+ * doesn't see them. (Zero-cost rows whose model does have a price are free models.)
+ */
+async function unpricedModels(apiKey, start) {
+  try {
+    const { getPricingForModel } = await import("@/lib/db/repos/pricingRepo.js");
+    const out = [];
+    for (const r of await zeroCostModelsSince(apiKey, start.toISOString())) {
+      if (!(await getPricingForModel(r.provider, r.model))) out.push(`${r.provider}/${r.model}`);
+    }
+    return out;
+  } catch {
+    return [];
+  }
 }

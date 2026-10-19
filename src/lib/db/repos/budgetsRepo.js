@@ -57,3 +57,14 @@ export async function sumUsageSince(apiKey, sinceIso) {
       );
   return { cost: Number(row?.cost) || 0, tokens: Number(row?.tokens) || 0, requests: Number(row?.requests) || 0 };
 }
+
+/** Provider/model pairs with tokens but no recorded cost since `sinceIso` (max 20). */
+export async function zeroCostModelsSince(apiKey, sinceIso) {
+  const db = await getAdapter();
+  const where = apiKey ? "apiKey = ? AND timestamp >= ?" : "timestamp >= ?";
+  const params = apiKey ? [apiKey, sinceIso] : [sinceIso];
+  return db.all(
+    `SELECT provider, model FROM usageHistory WHERE ${where} AND provider IS NOT NULL AND model IS NOT NULL GROUP BY provider, model HAVING COALESCE(SUM(cost), 0) = 0 AND SUM(promptTokens + completionTokens) > 0 LIMIT 20`,
+    params,
+  );
+}

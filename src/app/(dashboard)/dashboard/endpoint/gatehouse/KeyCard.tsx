@@ -180,6 +180,7 @@ export function KeyCard({
         <BudgetDialog
           title={`Budget for "${k.name}"`}
           initial={budget?.budget ?? null}
+          unpriced={budget?.status.unpricedModels}
           forKey
           onClose={() => setEditBudget(false)}
           onSave={onBudgetSave}
