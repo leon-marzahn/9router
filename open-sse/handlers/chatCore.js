@@ -143,9 +143,12 @@ export async function handleChatCore({ traceAttempt = null, body, modelInfo, cre
   const preTranslateRtkLine = formatRtkLog(preTranslateRtk);
   if (preTranslateRtkLine) console.log(preTranslateRtkLine);
 
-  const clientRequestedStreaming = body.stream === true || sourceFormat === FORMATS.ANTIGRAVITY || sourceFormat === FORMATS.GEMINI || sourceFormat === FORMATS.GEMINI_CLI;
+  // Client intent, per source format. OpenAI Chat Completions, Claude Messages
+  // and the Responses API all default to a JSON (non-streaming) response when
+  // `stream` is absent; Gemini-family wires stream by endpoint, not body field.
+  const clientRequestedStreaming = resolveClientStreamIntent(body, sourceFormat, clientRawRequest?.headers);
   const providerRequiresStreaming = PROVIDERS[provider]?.forceStream === true;
-  let stream = providerRequiresStreaming ? true : (body.stream !== false);
+  let stream = providerRequiresStreaming ? true : clientRequestedStreaming;
 
   // Image generation models require non-streaming (Google v1internal:generateContent)
   const modelType = getModelType(alias, model);
@@ -229,6 +232,8 @@ export async function handleChatCore({ traceAttempt = null, body, modelInfo, cre
     translatedBody.model = stripThinkingSuffix(upstreamModel);
     stripContinuityFields(translatedBody);
   }
+
+  syncUpstreamStreamFlag(translatedBody, passthrough ? sourceFormat : targetFormat, stream);
 
   // Tool normalization: MCP-equivalent built-in dedup (Claude clients) + same-name
   // dedup for DeepSeek models (upstream rejects duplicate tool names on all endpoints).
@@ -527,8 +532,19 @@ export async function handleChatCore({ traceAttempt = null, body, modelInfo, cre
     if (result) { streamController.handleComplete(); return result; }
   }
 
+  // Defensive: an upstream that ignores `stream` answers with a plain JSON body.
+  // Piping that through the SSE transform parses no `data:` lines, records no
+  // usage and labels JSON as text/event-stream — take the JSON path instead.
+  let upstreamIsJson = false;
+  if (stream) {
+    const probed = await probeJsonUpstream(providerResponse);
+    providerResponse = probed.response;
+    upstreamIsJson = probed.isJson;
+    if (upstreamIsJson) log?.debug?.("STREAM", `${provider}/${model} answered a streaming request with JSON; using the non-streaming path`);
+  }
+
   // True non-streaming response
-  if (!stream) {
+  if (!stream || upstreamIsJson) {
     const result = await handleNonStreamingResponse({ ...sharedCtx, providerResponse, sourceFormat, targetFormat: providerResponseFormat, reqLogger, toolNameMap, customToolNames, trackDone, appendLog });
     streamController.handleComplete();
     return result;
@@ -537,6 +553,91 @@ export async function handleChatCore({ traceAttempt = null, body, modelInfo, cre
   // Streaming response
   const { onStreamComplete, streamDetailId } = buildOnStreamComplete({ ...sharedCtx });
   return handleStreamingResponse({ ...sharedCtx, providerResponse, sourceFormat, targetFormat: providerResponseFormat, userAgent, reqLogger, toolNameMap, customToolNames, streamController, onStreamComplete, streamDetailId, credentials });
+}
+
+// Source formats whose clients choose streaming with a `stream` body field
+// (absent = false, per each API's contract).
+const BODY_STREAM_FIELD_FORMATS = new Set([FORMATS.OPENAI, FORMATS.CLAUDE, FORMATS.OPENAI_RESPONSES]);
+
+/**
+ * Whether the client asked for a streamed response.
+ * - Gemini-family wires (gemini, gemini-cli, antigravity) always stream here;
+ *   the /v1beta route picks the action by URL and sets `stream` itself.
+ * - Body-field formats: `stream: true` streams, `stream: false` does not, and
+ *   an absent field means JSON, unless the client accepts only
+ *   text/event-stream, which is an explicit request for SSE.
+ */
+export function resolveClientStreamIntent(body, sourceFormat, headers = {}) {
+  if (sourceFormat === FORMATS.ANTIGRAVITY || sourceFormat === FORMATS.GEMINI || sourceFormat === FORMATS.GEMINI_CLI) return true;
+  if (body?.stream === true) return true;
+  if (body?.stream === false) return false;
+  if (!BODY_STREAM_FIELD_FORMATS.has(sourceFormat)) return true;
+  const accept = String(headers?.accept || "");
+  return accept.includes("text/event-stream") && !accept.includes("application/json");
+}
+
+/**
+ * Make the upstream body's `stream` field match the decided mode for wires
+ * that carry it in the body. Without this, a request that omitted `stream` but
+ * is forced to stream (provider forceStream) reaches the upstream without it,
+ * and the upstream answers JSON while we wait for SSE. A non-streaming OpenAI
+ * body also drops `stream_options`, which strict upstreams reject without stream.
+ */
+export function syncUpstreamStreamFlag(upstreamBody, upstreamFormat, stream) {
+  if (!upstreamBody || typeof upstreamBody !== "object" || !BODY_STREAM_FIELD_FORMATS.has(upstreamFormat)) return upstreamBody;
+  if (stream) {
+    if (upstreamBody.stream !== true) upstreamBody.stream = true;
+  } else if (upstreamFormat === FORMATS.OPENAI && upstreamBody.stream !== true) {
+    delete upstreamBody.stream_options;
+  }
+  return upstreamBody;
+}
+
+/**
+ * Detect a JSON body answering a streaming request. Only bodies labeled
+ * application/json are inspected; SSE (or unlabeled) responses pass through
+ * untouched. The first bytes decide: an SSE line (`data:`, `event:`, `:`...)
+ * keeps streaming without buffering; a body starting with `{` is read whole
+ * and kept as JSON only if it parses as one document (NDJSON does not).
+ * Whatever was read is replayed, so the caller always gets a usable Response.
+ */
+export async function probeJsonUpstream(response) {
+  const contentType = (response?.headers?.get?.("content-type") || "").toLowerCase();
+  if (!response?.body || !contentType.includes("application/json") || contentType.includes("text/event-stream")) {
+    return { response, isJson: false };
+  }
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  const peeked = [];
+  let head = "";
+  let done = false;
+  while (!done && head.trim() === "") {
+    const r = await reader.read();
+    done = r.done;
+    if (r.value) { peeked.push(r.value); head += decoder.decode(r.value, { stream: true }); }
+  }
+  const rebuild = (body) => new Response(body, { status: response.status, statusText: response.statusText, headers: response.headers });
+
+  if (head.trimStart().startsWith("{")) {
+    while (!done) {
+      const r = await reader.read();
+      done = r.done;
+      if (r.value) { peeked.push(r.value); head += decoder.decode(r.value, { stream: true }); }
+    }
+    head += decoder.decode();
+    try { JSON.parse(head); return { response: rebuild(head), isJson: true }; } catch { return { response: rebuild(head), isJson: false }; }
+  }
+
+  // Looks like a stream: replay the peeked bytes, then the rest, unbuffered.
+  const replay = new ReadableStream({
+    start(controller) { for (const chunk of peeked) controller.enqueue(chunk); if (done) controller.close(); },
+    async pull(controller) {
+      const r = await reader.read();
+      if (r.done) controller.close(); else controller.enqueue(r.value);
+    },
+    cancel(reason) { return reader.cancel(reason); },
+  });
+  return { response: rebuild(replay), isJson: false };
 }
 
 export function isTokenExpiringSoon(expiresAt, bufferMs = 5 * 60 * 1000) {
