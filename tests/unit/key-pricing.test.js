@@ -132,6 +132,12 @@ describe("computeCharge", () => {
     close(billing.computeCharge({ cost: 0, provider: "x", model: "m1", tokens: cached }, p), 9);
   });
 
+  it("charges reasoning tokens once, inside completion, at a custom rate", () => {
+    const p = { markupPercent: 0, rates: [{ model: "m1", input: 0, output: 2 }] };
+    const tokens = { prompt_tokens: 0, completion_tokens: 1_000_000, reasoning_tokens: 400_000 };
+    close(billing.computeCharge({ cost: 0, provider: "x", model: "m1", tokens }, p), 2);
+  });
+
   it("falls back to the markup for models without a custom rate", () => {
     const p = { markupPercent: 10, rates: [{ model: "other", input: 5, output: 5 }] };
     close(billing.computeCharge(entry(2), p), 2.2);
