@@ -174,7 +174,7 @@ function Feed({
       {/* While a request is open the drawer covers the stats column; the feed only
           gives up the width the drawer actually overlaps (often none). */}
       <div ref={feedRef} className="min-w-0 space-y-4" style={{ paddingRight: overlap }}>
-        <div className="flex items-end justify-between gap-4">
+        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between md:gap-4">
           <div>
             <h1 className="font-display text-3xl tracking-tight">Live traffic</h1>
             <p className="mt-1 text-sm text-text-muted">
@@ -188,7 +188,7 @@ function Feed({
               { value: "all", label: "All" },
               { value: "errors", label: "Errors" },
             ]}
-            className="w-40"
+            className="w-full md:w-40"
           />
         </div>
 
@@ -197,12 +197,15 @@ function Feed({
 
         <Panel
           className="overflow-hidden"
-          onMouseEnter={() => {
+          // Only a real mouse holds the list; touch "hover" is an emulated tap side effect.
+          onPointerEnter={(e) => {
+            if (e.pointerType !== "mouse") return;
             if (leaveTimer.current) clearTimeout(leaveTimer.current);
             freeze();
             setHovering(true);
           }}
-          onMouseLeave={() => {
+          onPointerLeave={(e) => {
+            if (e.pointerType !== "mouse") return;
             leaveTimer.current = setTimeout(() => setHovering(false), 500);
           }}
         >
@@ -216,7 +219,7 @@ function Feed({
             {paused ? (
               <>
                 <span className="material-symbols-outlined text-[16px] text-text-muted">pause</span>
-                <span className="text-text-muted">
+                <span className="min-w-0 truncate text-text-muted">
                   Paused
                   {selectedId
                     ? " while a request is open"
@@ -243,7 +246,9 @@ function Feed({
               <>
                 <StatusDot status="ok" live />
                 <span className="text-text-muted">Live</span>
-                <span className="text-text-subtle">· hover the list to hold it still</span>
+                <span className="hidden min-w-0 truncate text-text-subtle [@media(hover:hover)]:inline">
+                  · hover the list to hold it still
+                </span>
                 <Button
                   size="sm"
                   variant="ghost"
@@ -260,10 +265,10 @@ function Feed({
             )}
           </div>
 
-          {/* Narrow screens scroll the table sideways instead of squeezing columns. */}
-          <div className="overflow-x-auto overscroll-x-contain">
-            <div className="min-w-[640px]">
-              <div className="grid grid-cols-[6px_minmax(0,1fr)_6.5rem_4rem_5rem_3.5rem_4rem] gap-3 border-b border-border px-4 py-2 text-[11px] uppercase tracking-wider text-text-muted">
+          {/* Below md rows stack; from md up the table scrolls sideways rather than squeezing columns. */}
+          <div className="md:overflow-x-auto md:overscroll-x-contain">
+            <div className="md:min-w-[640px]">
+              <div className="hidden grid-cols-[6px_minmax(0,1fr)_6.5rem_4rem_5rem_3.5rem_4rem] gap-3 border-b border-border px-4 py-2 text-[11px] uppercase md:grid tracking-wider text-text-muted">
                 <span />
                 <span>Model</span>
                 <span className="text-right">In → out</span>
@@ -364,7 +369,7 @@ function Feed({
                 { value: "cost", label: "$" },
                 ...(hasCredits ? [{ value: "credits" as const, label: "Cr" }] : []),
               ]}
-              className={hasCredits ? "w-44" : "w-36"}
+              className={hasCredits ? "w-44 max-md:w-52" : "w-36 max-md:w-44"}
             />
           </div>
           <AreaChart points={u.chart} metric={metric as Metric} height={90} />
@@ -473,43 +478,88 @@ function FeedRow({
       onClick={onClick}
       disabled={!onClick}
       className={cn(
-        "grid h-12 w-full grid-cols-[6px_minmax(0,1fr)_6.5rem_4rem_5rem_3.5rem_4rem] items-center gap-3 border-b border-border px-4 text-left text-[13px] last:border-0",
+        "block w-full border-b border-border px-4 text-left text-[13px] last:border-0",
         onClick && "hover:bg-surface-2/70",
         active && "bg-accent-soft ring-1 ring-inset ring-accent-ring",
         flash && !active && "animate-live-flash",
       )}
     >
-      <StatusDot status={failed ? "error" : "ok"} />
-      <span className="min-w-0">
-        <span className="block truncate font-mono text-xs">{r.model}</span>
-        <span className="block truncate text-[11px] text-text-muted">{r.provider}</span>
-      </span>
-      <span className="text-right text-xs tabular-nums text-text-muted">
-        {fmtTokens(r.inTokens)} <span className="text-text-subtle">→</span> {fmtTokens(r.outTokens)}
-      </span>
-      <span className="text-right text-xs tabular-nums text-text-muted">
-        {r.cachedTokens ? fmtTokens(r.cachedTokens) : <span className="text-text-subtle">—</span>}
-      </span>
-      <span className="text-right text-xs tabular-nums">
-        {failed ? (
-          <Tag tone="danger" mono>
-            ERR
-          </Tag>
-        ) : r.credits ? (
-          <span>{r.credits.toFixed(2)} cr</span>
-        ) : r.cost ? (
-          fmtCost(r.cost)
-        ) : (
-          <span className="text-text-subtle">—</span>
-        )}
-      </span>
-      <span className="text-right text-xs tabular-nums text-text-muted">
-        {r.total != null ? `${(r.total / 1000).toFixed(1)}s` : "—"}
-      </span>
-      <span className="text-right text-[11px] tabular-nums text-text-subtle">
-        {timeAgo(r.timestamp, now)}
+      <MobileFeedRow r={r} now={now} failed={failed} />
+      <span className="hidden h-12 grid-cols-[6px_minmax(0,1fr)_6.5rem_4rem_5rem_3.5rem_4rem] items-center gap-3 md:grid">
+        <StatusDot status={failed ? "error" : "ok"} />
+        <span className="min-w-0">
+          <span className="block truncate font-mono text-xs">{r.model}</span>
+          <span className="block truncate text-[11px] text-text-muted">{r.provider}</span>
+        </span>
+        <span className="text-right text-xs tabular-nums text-text-muted">
+          {fmtTokens(r.inTokens)} <span className="text-text-subtle">→</span>{" "}
+          {fmtTokens(r.outTokens)}
+        </span>
+        <span className="text-right text-xs tabular-nums text-text-muted">
+          {r.cachedTokens ? fmtTokens(r.cachedTokens) : <span className="text-text-subtle">—</span>}
+        </span>
+        <span className="text-right text-xs tabular-nums">
+          {failed ? (
+            <Tag tone="danger" mono>
+              ERR
+            </Tag>
+          ) : r.credits ? (
+            <span>{r.credits.toFixed(2)} cr</span>
+          ) : r.cost ? (
+            fmtCost(r.cost)
+          ) : (
+            <span className="text-text-subtle">—</span>
+          )}
+        </span>
+        <span className="text-right text-xs tabular-nums text-text-muted">
+          {r.total != null ? `${(r.total / 1000).toFixed(1)}s` : "—"}
+        </span>
+        <span className="text-right text-[11px] tabular-nums text-text-subtle">
+          {timeAgo(r.timestamp, now)}
+        </span>
       </span>
     </button>
+  );
+}
+
+function MobileFeedRow({ r, now, failed }: { r: FeedItem; now: number; failed: boolean }) {
+  const sub = "text-[11px] tabular-nums text-text-muted";
+  return (
+    <span className="flex items-start gap-3 py-2.5 md:hidden">
+      <StatusDot status={failed ? "error" : "ok"} className="mt-1.5 shrink-0" />
+      <span className="min-w-0 flex-1 space-y-1">
+        <span className="flex items-baseline gap-2">
+          <span className="min-w-0 flex-1 truncate font-mono text-xs">{r.model}</span>
+          <span className="shrink-0 text-[11px] tabular-nums text-text-subtle">
+            {timeAgo(r.timestamp, now)}
+          </span>
+        </span>
+        <span className="flex items-center gap-2">
+          <span className="min-w-0 flex-1 truncate text-[11px] text-text-muted">{r.provider}</span>
+          <span className="shrink-0 text-xs tabular-nums">
+            {failed ? (
+              <Tag tone="danger" mono>
+                ERR
+              </Tag>
+            ) : r.credits ? (
+              `${r.credits.toFixed(2)} cr`
+            ) : r.cost ? (
+              fmtCost(r.cost)
+            ) : (
+              <span className="text-text-subtle">—</span>
+            )}
+          </span>
+        </span>
+        <span className={cn("flex flex-wrap gap-x-3", sub)}>
+          <span>
+            {fmtTokens(r.inTokens)} <span className="text-text-subtle">→</span>{" "}
+            {fmtTokens(r.outTokens)}
+          </span>
+          {r.cachedTokens ? <span>{fmtTokens(r.cachedTokens)} cached</span> : null}
+          <span>{r.total != null ? `${(r.total / 1000).toFixed(1)}s` : "—"}</span>
+        </span>
+      </span>
+    </span>
   );
 }
 

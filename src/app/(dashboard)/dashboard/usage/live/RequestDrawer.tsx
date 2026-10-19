@@ -108,7 +108,7 @@ export function RequestDrawer({
       <header className="flex items-start gap-3 border-b border-border px-5 py-4">
         <div className="min-w-0 flex-1">
           <div className="truncate font-mono text-sm">{item.model}</div>
-          <div className="mt-1 flex items-center gap-2 text-xs text-text-muted">
+          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 whitespace-nowrap text-xs text-text-muted">
             <StatusLabel status={failed ? "error" : "ok"} label={failed ? "Failed" : "Completed"} />
             <span>·</span>
             <span>{item.provider}</span>
@@ -123,7 +123,7 @@ export function RequestDrawer({
       </header>
 
       <div className="min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain px-5 py-5">
-        <StatGrid items={stats} />
+        <StatGrid items={stats} compactOnMobile />
 
         <RouteTrace key={item.traceId ?? item.id} traceId={item.traceId} />
 
