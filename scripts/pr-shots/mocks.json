@@ -100,6 +100,23 @@
     }
   },
   {
+    "url": "**/api/usage/demo-conn-deepseek-1*",
+    "json": {
+      "plan": "DeepSeek",
+      "quotas": {
+        "Balance (USD)": {
+          "used": 0,
+          "total": 18.42,
+          "remainingPercentage": 100,
+          "resetAt": null,
+          "unlimited": false,
+          "isCreditBalance": true,
+          "currency": "USD"
+        }
+      }
+    }
+  },
+  {
     "url": "**/api/usage/demo-conn-groq-2*",
     "json": {
       "quotas": {

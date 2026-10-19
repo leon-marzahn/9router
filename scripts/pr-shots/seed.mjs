@@ -11,6 +11,7 @@ import {
   createCombo,
   createProviderConnection,
   initDb,
+  updateProviderConnection,
   updateSettings,
 } from "@/lib/db/index.js";
 import { saveRequestUsage } from "@/lib/db/repos/usageRepo.js";
@@ -73,7 +74,16 @@ await seedConnection("demo-conn-groq-2", {
   testStatus: "unavailable",
   lastError: "429 rate limit reached (demo)",
   errorCode: 429,
+});
+// createProviderConnection drops modelLock_* keys; set the cooldown the way the
+// router does when it hits a 429.
+await updateProviderConnection("demo-conn-groq-2", {
   "modelLock_llama-3.3-70b-versatile": new Date(Date.now() + 40 * 60_000).toISOString(),
+});
+await seedConnection("demo-conn-deepseek-1", {
+  provider: "deepseek",
+  name: "Demo DeepSeek",
+  apiKey: "sk-demo-deepseek-000000000000000",
 });
 await seedConnection("demo-conn-gemini-1", {
   provider: "gemini",

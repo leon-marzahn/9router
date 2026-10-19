@@ -70,7 +70,10 @@ interface Entry {
   resetsLeft?: number;
 }
 
-const toWindow = (q: Raw): QuotaWindow => ({
+/** One normalized quota row (from parseQuotaData) as a Quota-page window. Credit
+ * balances carry their amount in `total` (DeepSeek, MiniMax), since `remaining`
+ * means a percentage elsewhere. */
+export const toWindow = (q: Raw): QuotaWindow => ({
   key: getQuotaVisibilityKey(q),
   name: q.name,
   remaining: q.isCreditBalance || q.neverExpires || q.unlimited ? null : getRemainingPercentage(q),
@@ -79,7 +82,7 @@ const toWindow = (q: Raw): QuotaWindow => ({
   resetAt: q.resetAt ?? null,
   unlimited: !!(q.neverExpires || q.unlimited),
   credit: q.isCreditBalance
-    ? { amount: Number(q.remaining) || 0, currency: q.currency ?? "USD" }
+    ? { amount: Number(q.remaining ?? q.total) || 0, currency: q.currency ?? "USD" }
     : undefined,
 });
 
