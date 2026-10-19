@@ -2,6 +2,8 @@ name: PR checks
 
 on:
   pull_request:
+    # labeled/unlabeled so adding `coverage-exempt` re-runs the diff coverage gate.
+    types: [opened, synchronize, reopened, labeled, unlabeled]
   push:
     branches: [master]
 
@@ -56,6 +58,22 @@ jobs:
       - name: Coverage summary
         if: always()
         run: node scripts/ci/coverage-summary.mjs coverage/coverage-summary.json >> "$GITHUB_STEP_SUMMARY"
+
+      # Gates (rules in REVIEW.md). Read-only: no secrets, so fork PRs run them too.
+      - name: Diff coverage (changed lines >= 80%)
+        if: always() && github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.sha }}
+          COVERAGE_EXEMPT: ${{ contains(github.event.pull_request.labels.*.name, 'coverage-exempt') }}
+        run: |
+          set -o pipefail
+          node scripts/ci/diff-coverage.mjs "$BASE_REF" coverage/lcov.info | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Coverage ratchet (tests/__baseline__/coverage.json)
+        if: always()
+        run: |
+          set -o pipefail
+          node scripts/ci/coverage-ratchet.mjs check coverage/coverage-summary.json | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Upload coverage report
         if: always()
