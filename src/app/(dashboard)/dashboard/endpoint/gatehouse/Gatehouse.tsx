@@ -17,6 +17,7 @@ import { cn } from "@/ui/cn";
 import { ConfirmDialog, Dialog } from "@/ui";
 import { CopyButton } from "@/ui";
 import { KeyCard } from "./KeyCard";
+import { useBudgets } from "@/ui/budget/Budget";
 import { TailscaleSetup, tailscaleReady } from "./TailscaleSetup";
 import { useEndpoint, type Security } from "./useEndpoint";
 import { useTunnels, type TunnelKind, type TunnelState } from "./useTunnels";
@@ -43,6 +44,7 @@ function gates(s: Security) {
 
 export function Gatehouse() {
   const ep = useEndpoint();
+  const budgets = useBudgets();
   const tn = useTunnels();
   const [confirm, setConfirm] = useState<Confirm | null>(null);
   const [creating, setCreating] = useState(false);
@@ -233,6 +235,9 @@ export function Gatehouse() {
                     onActive={(on) => void ep.setActive(k.id, on)}
                     onAccess={(a) => void ep.setAccess(k.id, a)}
                     onDelete={() => void ep.deleteKey(k.id)}
+                    budget={budgets.list?.keys[k.id] ?? null}
+                    onBudgetSave={(b) => budgets.save(k.id, b)}
+                    onBudgetRemove={() => budgets.remove(k.id)}
                   />
                 ))
               : [0, 1].map((i) => (

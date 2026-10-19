@@ -33,6 +33,7 @@ import { runPipelines } from "@/lib/request-pipelines/run.js";
 import { getKeyAccessContext, enforceKeyAccess, filterAdapterModels, extractClientApiKey } from "../services/keyAccess.js";
 import { getApiKeyByKey } from "@/lib/db/repos/apiKeysRepo.js";
 import { startTrace, runWithTrace, setRequestedModel, traceCombo, beginAttempt, endAttempt, finishTrace } from "@/lib/requestTrace.js";
+import { enforceBudget } from "@/sse/services/budget.js";
 
 /**
  * Handle chat completion request
@@ -117,6 +118,9 @@ async function handleChatTraced(request, clientRawRequest) {
   const keyAccess = await getKeyAccessContext(request);
   const keyAccessDenied = await enforceKeyAccess(keyAccess, modelStr);
   if (keyAccessDenied) return keyAccessDenied;
+  // Spend budget (hard stop): refused before any upstream call; fail-open.
+  const overBudget = await enforceBudget(request);
+  if (overBudget) return overBudget;
 
   try {
     // Pipelines attached to the key or the requested combo always run; the header adds one.

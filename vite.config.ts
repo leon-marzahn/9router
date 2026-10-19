@@ -86,6 +86,7 @@ export default defineConfig({
       "!/src/lib/translatorDebug.js",
       "!/src/lib/updates",
       "!/src/lib/notify",
+      "!/src/lib/budgets",
       "!/src/lib/tunnel",
       "/src/lib/tunnel/*",
       "!/src/lib/tunnel/exposureGuard.js",
@@ -104,6 +105,7 @@ export default defineConfig({
       "/src/app/api/settings/*",
       "!/src/app/api/settings/updates",
       "!/src/app/api/settings/notifications",
+      "!/src/app/api/budgets",
       "!/src/app/api/providers",
       "/src/app/api/providers/*",
       "!/src/app/api/providers/stream",
@@ -193,6 +195,7 @@ export default defineConfig({
       "!/tests/unit/kilo-vscode-path.test.js",
       "!/tests/unit/translator-debug.test.js",
       "!/tests/unit/notify-email.test.js",
+      "!/tests/unit/budgets.test.js",
     ],
   },
   lint: {

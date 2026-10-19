@@ -10,6 +10,7 @@ import { errorResponse, unavailableResponse } from "open-sse/utils/error.js";
 import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
 import { AI_PROVIDERS } from "@/shared/constants/providers";
 import * as log from "../utils/logger.js";
+import { enforceBudget } from "@/sse/services/budget.js";
 
 // Providers requiring credentials for STT
 const CREDENTIALED_PROVIDERS = new Set(
@@ -65,6 +66,9 @@ export async function handleStt(request) {
   // Per-key access control: checked before any credential lookup.
   const keyAccessDenied = await enforceKeyAccessResolved(await getKeyAccessContext(request), modelStr, provider, model);
   if (keyAccessDenied) return keyAccessDenied;
+  // Spend budget (hard stop): refused before any upstream call; fail-open.
+  const overBudget = await enforceBudget(request);
+  if (overBudget) return overBudget;
 
   log.info("ROUTING", `Provider: ${provider}, Model: ${model}`);
 

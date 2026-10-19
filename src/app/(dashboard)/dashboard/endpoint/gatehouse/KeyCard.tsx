@@ -4,6 +4,7 @@ import { useState } from "react";
 import { CopyButton, IconButton, Panel, Switch, Tag } from "@/ui";
 import { cn } from "@/ui/cn";
 import { ModelSelectModal } from "@/shared/components";
+import { BudgetDialog, BudgetMeter, type Budget, type BudgetEntry } from "@/ui/budget/Budget";
 import type { ApiKey, KeyAccess } from "./useEndpoint";
 
 const mask = (k: string) => (k.length <= 10 ? k : `${k.slice(0, 6)}••••••••${k.slice(-4)}`);
@@ -15,11 +16,17 @@ export function KeyCard({
   onAccess,
   onDelete,
   confirm,
+  budget,
+  onBudgetSave,
+  onBudgetRemove,
 }: {
   k: ApiKey;
   onActive: (on: boolean) => void;
   onAccess: (a: KeyAccess) => void;
   onDelete: () => void;
+  budget?: BudgetEntry | null;
+  onBudgetSave: (b: Partial<Budget>) => Promise<void>;
+  onBudgetRemove: () => Promise<void>;
   confirm: (opts: {
     title: string;
     message: string;
@@ -30,6 +37,7 @@ export function KeyCard({
   }) => void;
 }) {
   const [show, setShow] = useState(false);
+  const [editBudget, setEditBudget] = useState(false);
   const [picker, setPicker] = useState<null | {
     providers: unknown[];
     aliases: Record<string, string>;
@@ -136,6 +144,20 @@ export function KeyCard({
         )}
       </div>
 
+      <div className="space-y-2">
+        <div className="flex items-center justify-between gap-2 text-[12px]">
+          <span className="text-text-muted">{budget ? "Budget" : "No budget"}</span>
+          <button
+            type="button"
+            onClick={() => setEditBudget(true)}
+            className="rounded-md px-2 py-1 text-[12px] text-text-muted hover:bg-surface-2 hover:text-text max-md:min-h-10 max-md:px-3"
+          >
+            {budget ? "Edit" : "Set budget"}
+          </button>
+        </div>
+        {budget && <BudgetMeter entry={budget} />}
+      </div>
+
       <div className="mt-auto flex justify-end border-t border-border pt-2">
         <button
           type="button"
@@ -153,6 +175,17 @@ export function KeyCard({
           Delete
         </button>
       </div>
+
+      {editBudget && (
+        <BudgetDialog
+          title={`Budget for "${k.name}"`}
+          initial={budget?.budget ?? null}
+          forKey
+          onClose={() => setEditBudget(false)}
+          onSave={onBudgetSave}
+          onRemove={budget ? onBudgetRemove : undefined}
+        />
+      )}
 
       {picker && (
         <ModelSelectModal

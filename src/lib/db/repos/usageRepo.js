@@ -340,6 +340,10 @@ export async function saveRequestUsage(entry) {
     });
 
     if (inserted) {
+      // Budgets: bump counters and send threshold alerts. Fail-open, off the request path.
+      import("@/lib/budgets/index.js")
+        .then(({ recordUsage }) => recordUsage(entry))
+        .catch(() => {});
       pushToRing(entry);
       scheduleStatsEvent("update", 250);
     }

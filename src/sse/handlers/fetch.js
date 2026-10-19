@@ -15,6 +15,7 @@ import { updateProviderCredentials, checkAndRefreshToken } from "../services/tok
 import { handleComboChat, getComboModelsFromData } from "open-sse/services/combo.js";
 import { getKeyAccessContext, enforceKeyAccessProvider } from "../services/keyAccess.js";
 import { assertPublicUrlResolved } from "@/shared/utils/ssrfGuard.js";
+import { enforceBudget } from "@/sse/services/budget.js";
 
 /**
  * Handle web fetch (URL extraction) request for the SSE/Next.js server.
@@ -97,6 +98,9 @@ export async function handleFetch(request) {
   // restricted key needs the provider id (or the combo) on its list.
   const keyAccessDenied = await enforceKeyAccessProvider(await getKeyAccessContext(request), providerInput, comboModels);
   if (keyAccessDenied) return keyAccessDenied;
+  // Spend budget (hard stop): refused before any upstream call; fail-open.
+  const overBudget = await enforceBudget(request);
+  if (overBudget) return overBudget;
   if (comboModels) {
     const comboStrategies = settings.comboStrategies || {};
     const comboStrategy = comboStrategies[providerInput]?.fallbackStrategy || settings.comboStrategy || "fallback";

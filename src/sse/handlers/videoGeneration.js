@@ -13,6 +13,7 @@ import { errorResponse, unavailableResponse } from "open-sse/utils/error.js";
 import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
 import { updateProviderCredentials, checkAndRefreshToken } from "../services/tokenRefresh.js";
 import * as log from "../utils/logger.js";
+import { enforceBudget } from "@/sse/services/budget.js";
 
 // Video generation is xAI-only today; requests without a provider prefix
 // (bare model id, or multipart bodies we deliberately don't parse) land here.
@@ -125,6 +126,9 @@ export async function handleVideoCreate(request, action) {
     await getKeyAccessContext(request), bodyInfo.parsed?.model ? String(bodyInfo.parsed.model) : "", provider, model
   );
   if (keyAccessDenied) return keyAccessDenied;
+  // Spend budget (hard stop): refused before any upstream call; fail-open.
+  const overBudget = await enforceBudget(request);
+  if (overBudget) return overBudget;
 
   // Strip the provider prefix (e.g. "xai/grok-imagine-video") before forwarding;
   // otherwise forward the original bytes untouched.

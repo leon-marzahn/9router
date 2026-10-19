@@ -85,6 +85,7 @@ export async function exportDb() {
     customModels: [],
     mitmAlias: {},
     pricing: {},
+    budgets: db.all(`SELECT scope, data FROM budgets`).map((r) => ({ scope: r.scope, ...parseJson(r.data, {}) })),
   };
 
   for (const r of db.all(`SELECT key, value FROM kv WHERE scope = 'modelAliases'`)) out.modelAliases[r.key] = parseJson(r.value);
@@ -102,6 +103,16 @@ export async function importDb(payload) {
   const db = await getAdapter();
   const { NON_EXPORTED_SETTING_KEYS } = await import("./repos/settingsRepo.js");
   const currentSettings = parseJson(db.get(`SELECT data FROM settings WHERE id = 1`)?.data, {});
+  let budgets = null;
+  if (Array.isArray(payload.budgets)) {
+    const { validateBudget } = await import("@/lib/budgets/index.js");
+    budgets = payload.budgets.map(({ scope, ...rest }) => {
+      if (typeof scope !== "string" || !(scope === "global" || /^key:[\w-]{1,64}$/.test(scope))) throw new Error("budgets: invalid scope");
+      const checked = validateBudget(rest, { isKey: scope !== "global" });
+      if (checked.error) throw new Error(`budgets ${scope}: ${checked.error}`);
+      return [scope, checked.value];
+    });
+  }
 
   db.transaction(() => {
     // Wipe all tables (keep _meta)
@@ -111,6 +122,13 @@ export async function importDb(payload) {
     db.run(`DELETE FROM proxyPools`);
     db.run(`DELETE FROM apiKeys`);
     db.run(`DELETE FROM combos`);
+    // Older backups have no budgets: keep this install's own.
+    if (budgets) {
+      db.run(`DELETE FROM budgets`);
+      for (const [scope, data] of budgets) {
+        db.run(`INSERT INTO budgets(scope, data, updatedAt) VALUES(?, ?, ?)`, [scope, stringifyJson(data), new Date().toISOString()]);
+      }
+    }
     db.run(`DELETE FROM kv WHERE scope IN ('modelAliases', 'customModels', 'mitmAlias', 'pricing')`);
 
     // Settings
