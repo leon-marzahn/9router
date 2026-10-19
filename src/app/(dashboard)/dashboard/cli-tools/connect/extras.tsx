@@ -20,6 +20,7 @@ export function ModelPick({
   placeholder = "Not set",
   kindFilter,
   disabled,
+  free,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -27,21 +28,25 @@ export function ModelPick({
   placeholder?: string;
   kindFilter?: string;
   disabled?: boolean;
+  /** Also type an id by hand (one regent doesn't list yet, e.g. a new upstream id). */
+  free?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="flex min-w-0 items-center gap-1.5">
-      {value ? (
+    <div className={free ? "flex w-full min-w-0 items-center gap-1.5 sm:w-80" : "flex min-w-0 items-center gap-1.5"}>
+      {free ? (
+        <Input mono className="min-w-0 flex-1" value={value} placeholder="provider/model-id" aria-label={title} disabled={disabled} onChange={(e) => onChange(e.target.value)} />
+      ) : value ? (
         <Tag mono tone="neutral" className="min-w-0 truncate">
           {value}
         </Tag>
       ) : (
         <span className="text-[12px] text-text-subtle">{placeholder}</span>
       )}
-      <Button size="sm" variant="ghost" disabled={disabled} onClick={() => setOpen(true)}>
-        {value ? "Change" : "Choose"}
+      <Button className="shrink-0" size="sm" variant="ghost" disabled={disabled} onClick={() => setOpen(true)}>
+        {free ? "Pick" : value ? "Change" : "Choose"}
       </Button>
-      {value && <IconButton icon="close" label="Clear" disabled={disabled} onClick={() => onChange("")} />}
+      {value && !free && <IconButton icon="close" label="Clear" disabled={disabled} onClick={() => onChange("")} />}
       {open && (
         <ModelSelectModal
           isOpen
@@ -357,8 +362,8 @@ export function HermesExtras({ extra, setExtra, values, customEndpoint, disabled
           <ModelPick value={typeof extra.sttModel === "string" ? extra.sttModel : ""} title="Speech-to-text model" kindFilter="stt" disabled={disabled} onChange={(m) => setExtra({ ...extra, sttModel: m })} />
         </SettingRow>
       )}
-      <SettingRow title="All profiles" hint="Uses the endpoint and key above (not a custom address). Writes this endpoint and key to every profile already using regent, and connects profiles without a model to the model above. Each keeps its own models.">
-        <Button size="sm" icon="done_all" loading={busy} disabled={disabled || !values.baseUrl || customEndpoint} title={customEndpoint ? "Pick one of regent's endpoints first" : undefined} onClick={() => void applyAll()}>
+      <SettingRow title="All profiles" hint="Uses the endpoint and key above (regent's own or a saved address, not an unsaved custom one). Writes this endpoint and key to every profile already using regent, and connects profiles without a model to the model above. Each keeps its own models.">
+        <Button size="sm" icon="done_all" loading={busy} disabled={disabled || !values.baseUrl || customEndpoint} title={customEndpoint ? "Pick one of regent's endpoints or save the address first" : undefined} onClick={() => void applyAll()}>
           Apply to all profiles
         </Button>
       </SettingRow>

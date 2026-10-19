@@ -1,12 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Button, Field, Icon, Input, Panel, Select, SettingRow, Skeleton, Switch, Tag } from "@/ui";
+import { Button, Field, Icon, IconButton, Input, Panel, Select, SettingRow, Skeleton, Switch, Tag } from "@/ui";
 import { ModelSelectModal } from "@/shared/components";
 import { ConfirmDialog } from "@/ui";
 import { useNotificationStore as useNotificationStoreJs } from "@/store/notificationStore";
 import { SPECS, bodyFor, settingsUrl, withV1, type Extra, type ToolStatus, type Values } from "./specs";
 import { ModelPick } from "./extras";
+import { ComboDialog, ManualConfigDialog } from "./dialogs";
+import { hasManual } from "./manual";
+import { deleteEndpoint, saveEndpoint, useSavedEndpoints } from "./savedEndpoints";
 import { maskKey, useConnectContext } from "./useConnectContext";
 
 type Notify = { getState: () => { error: (m: string) => void; success: (m: string) => void } };
@@ -26,7 +29,7 @@ function readModels(s: ToolStatus): string[] {
 
 /** Shown open up to this many slots; longer lists fold behind "Show all". */
 const SLOTS_OPEN = 4;
-const SELECT = "h-9 w-full rounded-lg border border-border bg-surface px-3 text-[13px] text-text";
+const SELECT = "h-9 w-full min-w-0 rounded-lg border border-border bg-surface px-3 text-[13px] text-text";
 
 /** Endpoint, key and model for one tool, a preview of what gets written, and Connect / Disconnect / Restore. */
 export function ConnectPanel({ toolId, toolName, onChanged }: { toolId: string; toolName: string; onChanged: () => void }) {
@@ -47,6 +50,10 @@ export function ConnectPanel({ toolId, toolName, onChanged }: { toolId: string; 
   const [scope, setScope] = useState(spec.scopes ? "default" : "");
   const [scopes, setScopes] = useState<{ id: string; label: string }[]>([]);
   const [allSlots, setAllSlots] = useState(false);
+  const [manual, setManual] = useState(false);
+  const [combo, setCombo] = useState(false);
+  const saved = useSavedEndpoints();
+  const endpoints = [...ctx.endpoints, ...saved.map((s) => ({ id: `saved:${s.name}`, label: s.name, url: s.baseUrl }))];
 
   const load = useCallback(async () => {
     const [s, r] = await Promise.all([
@@ -81,7 +88,7 @@ export function ConnectPanel({ toolId, toolName, onChanged }: { toolId: string; 
   const currentBase = status?.current?.baseUrl ?? null;
   useEffect(() => {
     if (!currentBase) return;
-    const match = ctx.endpoints.find((e) => e.url && withV1(e.url) === withV1(currentBase));
+    const match = endpoints.find((e) => e.url && withV1(e.url) === withV1(currentBase));
     const t = setTimeout(() => {
       if (match) setEndpoint(match.id);
       else {
@@ -90,9 +97,9 @@ export function ConnectPanel({ toolId, toolName, onChanged }: { toolId: string; 
       }
     }, 0);
     return () => clearTimeout(t);
-  }, [currentBase, ctx.endpoints.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [currentBase, endpoints.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const base = endpoint === "custom" ? custom.trim() : (ctx.endpoints.find((e) => e.id === endpoint)?.url ?? "");
+  const base = endpoint === "custom" ? custom.trim() : (endpoints.find((e) => e.id === endpoint)?.url ?? "");
   const key = ctx.keys?.find((k) => k.id === keyId);
   const connected = !!status?.hasRegent;
   const slotList = status ? (spec.slots?.(status) ?? []) : [];
@@ -110,6 +117,10 @@ export function ConnectPanel({ toolId, toolName, onChanged }: { toolId: string; 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error?.message || data.error || "Couldn't write the settings");
       notify().success(`${toolName} now uses regent`);
+      if (endpoint === "custom") {
+        const name = saveEndpoint(custom);
+        if (name) setEndpoint(`saved:${name}`);
+      }
       await load();
       onChanged();
     } catch (e) {
@@ -201,10 +212,10 @@ export function ConnectPanel({ toolId, toolName, onChanged }: { toolId: string; 
         </Panel>
       )}
       <Panel className="divide-y divide-border px-4">
-        <div className="grid gap-3 py-4 sm:grid-cols-2">
-          <Field label="Endpoint" hint="Where the tool sends requests.">
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-3 py-4 sm:grid-cols-2">
+          <Field className="min-w-0" label="Endpoint" hint="Where the tool sends requests.">
             <select className={SELECT} value={endpoint} onChange={(e) => setEndpoint(e.target.value)}>
-              {ctx.endpoints.map((e) => (
+              {endpoints.map((e) => (
                 <option key={e.id} value={e.id}>
                   {e.label} · {e.url.replace(/^https?:\/\//, "")}
                 </option>
@@ -212,7 +223,7 @@ export function ConnectPanel({ toolId, toolName, onChanged }: { toolId: string; 
               <option value="custom">Custom address…</option>
             </select>
           </Field>
-          <Field label="API key" hint="The regent key the tool uses.">
+          <Field className="min-w-0" label="API key" hint="The regent key the tool uses.">
             <select className={SELECT} value={keyId} onChange={(e) => setKeyId(e.target.value)}>
               <option value="">{status.current?.hasKey ? "Keep current key" : "First active key"}</option>
               {ctx.keys.map((k) => (
@@ -223,18 +234,55 @@ export function ConnectPanel({ toolId, toolName, onChanged }: { toolId: string; 
             </select>
           </Field>
           {endpoint === "custom" && (
-            <Field label="Custom address" className="sm:col-span-2">
-              <Input mono value={custom} placeholder="https://regent.example.com" onChange={(e) => setCustom(e.target.value)} />
+            <Field label="Custom address" className="min-w-0 sm:col-span-2" hint="Saved in this browser when you connect, or now with Save.">
+              <div className="flex gap-2">
+                <Input mono className="min-w-0 flex-1" value={custom} placeholder="https://regent.example.com" onChange={(e) => setCustom(e.target.value)} />
+                <Button className="shrink-0"
+                  icon="bookmark_add"
+                  disabled={!/^https?:\/\/\S+$/i.test(custom.trim())}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    const name = saveEndpoint(custom);
+                    if (name) setEndpoint(`saved:${name}`);
+                  }}
+                >
+                  Save
+                </Button>
+              </div>
             </Field>
+          )}
+          {endpoint.startsWith("saved:") && (
+            <div className="flex min-w-0 items-center gap-2 text-[12px] text-text-muted sm:col-span-2">
+              <Icon name="bookmark" size={14} />
+              <span className="min-w-0 flex-1 truncate">
+                Saved address <span className="font-mono">{base}</span>
+              </span>
+              <IconButton
+                icon="delete"
+                label="Forget this saved address"
+                onClick={() => {
+                  deleteEndpoint(endpoint.slice("saved:".length));
+                  setCustom(base);
+                  setEndpoint("custom");
+                }}
+              />
+            </div>
           )}
         </div>
         {!spec.slotsOnly && (
         <div className="space-y-2 py-4">
           <div className="flex items-center justify-between">
             <div className="text-[13px] font-medium">{spec.multi ? "Models" : "Model"}</div>
-            <Button size="sm" icon={spec.multi ? "add" : "swap_horiz"} onClick={() => setPicking(true)}>
-              {spec.multi ? "Add model" : models.length ? "Change" : "Choose"}
-            </Button>
+            <div className="flex gap-1.5">
+              {spec.comboShortcut && (
+                <Button size="sm" variant="ghost" icon="add" disabled={!!busy} onClick={() => setCombo(true)}>
+                  New combo
+                </Button>
+              )}
+              <Button size="sm" icon={spec.multi ? "add" : "swap_horiz"} onClick={() => setPicking(true)}>
+                {spec.multi ? "Add model" : models.length ? "Change" : "Choose"}
+              </Button>
+            </div>
           </div>
           {models.length ? (
             <div className="flex flex-wrap gap-1.5">
@@ -265,7 +313,7 @@ export function ConnectPanel({ toolId, toolName, onChanged }: { toolId: string; 
                     <div className="text-[12px] font-medium">{x.label}</div>
                     {x.hint && <div className="text-[11px] text-text-muted">{x.hint}</div>}
                   </div>
-                  <ModelPick value={slots[x.id] ?? ""} title={`${x.label} for ${toolName}`} disabled={!!busy} onChange={(m) => setSlots({ ...slots, [x.id]: m })} />
+                  <ModelPick free={spec.slotsFreeText} value={slots[x.id] ?? ""} title={`${x.label} for ${toolName}`} disabled={!!busy} onChange={(m) => setSlots({ ...slots, [x.id]: m })} />
                 </div>
               ))}
             </div>
@@ -321,6 +369,11 @@ export function ConnectPanel({ toolId, toolName, onChanged }: { toolId: string; 
             Disconnect
           </Button>
         )}
+        {hasManual(toolId) && (
+          <Button variant="ghost" icon="code" disabled={!!busy} onClick={() => setManual(true)}>
+            Manual config
+          </Button>
+        )}
         {canRestore && (
           <Button variant="ghost" icon="history" disabled={!!busy} loading={busy === "restore"} onClick={() => void restore()}>
             Restore previous
@@ -342,6 +395,10 @@ export function ConnectPanel({ toolId, toolName, onChanged }: { toolId: string; 
           }}
           onDeselect={(m: { value?: string }) => spec.multi && setModels(models.filter((x) => x !== m?.value))}
         />
+      )}
+      <ManualConfigDialog open={manual} onClose={() => setManual(false)} toolId={toolId} toolName={toolName} values={values} apiKey={key ?? ctx.keys[0]} />
+      {spec.comboShortcut && (
+        <ComboDialog open={combo} onClose={() => setCombo(false)} toolName={toolName} onCreated={(n) => setModels((m) => (m.includes(n) ? m : [...m, n]))} />
       )}
       <ConfirmDialog
         open={confirmRemove}
