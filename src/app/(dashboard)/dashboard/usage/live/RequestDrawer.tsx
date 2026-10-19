@@ -3,8 +3,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Eyebrow, Icon, IconButton, Kbd, StatGrid, StatusLabel, Tag } from "@/ui";
-import { cn } from "@/ui/cn";
+import { CodeBlock, Eyebrow, Icon, IconButton, Kbd, StatGrid, StatusLabel, Tag } from "@/ui";
 import { fmtCost, fmtTokens, isFailed, type FeedItem } from "./useUsage";
 
 type Raw = Record<string, any>;
@@ -183,36 +182,36 @@ function Section({
     value == null || (typeof value === "object" && Object.keys(value as object).length === 0);
   const text = empty ? "" : JSON.stringify(value, null, 2);
   return (
-    <div className="overflow-hidden rounded-xl border border-border">
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="flex w-full items-center gap-2 px-4 py-2.5 text-left hover:bg-surface-2"
-      >
-        <Icon
-          name={open ? "expand_more" : "chevron_right"}
-          size={18}
-          className="text-text-subtle"
-        />
-        <span className="text-[13px] font-medium">{title}</span>
-        <span className="hidden text-[11px] text-text-subtle sm:inline">{hint}</span>
-        {!empty && (
-          <span className="ml-auto text-[11px] tabular-nums text-text-subtle">
+    <CodeBlock
+      title={
+        <button
+          type="button"
+          onClick={() => setOpen(!open)}
+          aria-expanded={open}
+          className="flex items-center gap-2 text-left"
+        >
+          <Icon
+            name={open ? "expand_more" : "chevron_right"}
+            size={18}
+            className="text-text-subtle"
+          />
+          <span className="text-[13px]">{title}</span>
+          <span className="hidden text-[11px] font-normal text-text-subtle sm:inline">{hint}</span>
+        </button>
+      }
+      meta={
+        !empty && (
+          <span className="ml-auto text-[11px] font-normal tabular-nums text-text-subtle">
             {fmtTokens(text.length)} chars
           </span>
-        )}
-      </button>
-      {open && (
-        <pre
-          className={cn(
-            "max-h-80 overflow-auto border-t border-border bg-bg-alt px-4 py-3 font-mono text-[11px] leading-relaxed",
-            empty && "text-text-subtle",
-          )}
-        >
-          {empty ? "Not captured." : text}
-        </pre>
-      )}
-    </div>
+        )
+      }
+      copy={empty ? undefined : text}
+      text={open ? (empty ? "Not captured." : text) : undefined}
+      muted={empty}
+      preClassName="max-h-80 text-[11px]"
+      className="rounded-xl"
+    />
   );
 }
 
