@@ -77,6 +77,8 @@ export function usePipelines() {
 
   const dirty = JSON.stringify(saved) !== JSON.stringify(draft);
 
+  const incomplete = (draft ?? []).some((p) => p.rules.some((r) => r.depth == null));
+
   const change = (next: Pipeline[]) => {
     setDraft(next);
     setError(null);
@@ -111,6 +113,7 @@ export function usePipelines() {
     keys,
     combos,
     dirty,
+    incomplete,
     saving,
     error,
     change,

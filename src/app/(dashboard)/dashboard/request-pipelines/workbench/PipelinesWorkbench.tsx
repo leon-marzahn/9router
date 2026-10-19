@@ -72,6 +72,8 @@ export function PipelinesWorkbench() {
             variant="primary"
             icon="check"
             loading={api.saving}
+            disabled={api.incomplete}
+            title={api.incomplete ? "Fill in every “Keep the latest” field to save" : undefined}
             onClick={() => void api.save()}
           >
             Save
