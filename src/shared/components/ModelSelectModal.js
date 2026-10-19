@@ -1,8 +1,9 @@
 "use client";
+// oxlint-disable react/set-state-in-effect -- upstream effects/render code, untouched here; only the dialog shell changed.
 
 import { useState, useMemo, useEffect } from "react";
 import PropTypes from "prop-types";
-import Modal from "./Modal";
+import { Dialog } from "@/ui/Dialog";
 import ProviderIcon from "./ProviderIcon";
 import CapacityBadges from "./CapacityBadges";
 import { useModelCaps } from "@/shared/hooks/useModelCaps";
@@ -26,6 +27,8 @@ const NO_AUTH_PROVIDER_IDS = Object.keys(FREE_PROVIDERS).filter(id => FREE_PROVI
 // Static registry stays as fallback when live fetch fails or is empty.
 // zed added in #4244: its backend customResolver already returns live models
 // but the frontend omitted it, hiding Zed entirely from the Combo picker.
+const DIALOG_SIZES = ["sm", "md", "lg", "xl"];
+
 const LIVE_CATALOG_PROVIDERS = ["cursor", "cline", "clinepass", "zed"];
 
 // Fetch a provider's account-scoped catalog for every active connection and merge
@@ -72,6 +75,27 @@ function useLiveProviderModels(isOpen, connectionIds, label) {
   return models;
 }
 
+/**
+ * Model picker on the src/ui `Dialog` shell (focus trap, Esc/scrim close, bottom sheet on mobile).
+ * @param {{
+ *   isOpen: boolean,
+ *   onClose: () => void,
+ *   onSelect: (model: { value?: string, name?: string } & Record<string, any>) => void,
+ *   onDeselect?: (model: { value?: string, name?: string } & Record<string, any>) => void,
+ *   onSelectBatch?: (models: any[]) => void,
+ *   onDeselectBatch?: (models: any[]) => void,
+ *   selectedModel?: string | null,
+ *   activeProviders?: any[],
+ *   title?: string,
+ *   size?: string,
+ *   modelAliases?: Record<string, any>,
+ *   kindFilter?: string | null,
+ *   capFilter?: string | null,
+ *   addedModelValues?: string[],
+ *   closeOnSelect?: boolean,
+ *   allowProviderWildcard?: boolean,
+ * }} props
+ */
 export default function ModelSelectModal({
   isOpen,
   onClose,
@@ -616,16 +640,14 @@ export default function ModelSelectModal({
   };
 
   return (
-    <Modal
-      isOpen={isOpen}
+    <Dialog
+      open={isOpen}
       onClose={() => {
         onClose();
         setSearchQuery("");
       }}
       title={title}
-      size={size}
-      className="p-4!"
-      footer={null}
+      size={DIALOG_SIZES.includes(size) ? size : "xl"}
     >
       {/* Info bar */}
       <div className="flex items-center gap-2 mb-3 px-2.5 py-2 bg-primary/8 border border-primary/20 rounded-lg text-xs text-text-muted">
@@ -650,6 +672,8 @@ export default function ModelSelectModal({
                 ? "Search models (e.g. claude -haiku, oc/*, /regex/)..."
                 : "Search models (e.g. claude -haiku, !embed, /regex/)..."
             }
+            aria-label="Search models"
+            data-autofocus
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-8 pr-20 py-1.5 bg-surface border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
@@ -855,7 +879,7 @@ export default function ModelSelectModal({
         </div>
       )}
       </div>
-    </Modal>
+    </Dialog>
   );
 }
 

@@ -1,8 +1,10 @@
 "use client";
+// oxlint-disable react/set-state-in-effect -- upstream effects/render code, untouched here; only the dialog shell changed.
 
 import { useState, useEffect } from "react";
 import PropTypes from "prop-types";
-import { Modal, Button, Input } from "@/shared/components";
+import { Button, Input } from "@/shared/components";
+import { Dialog } from "@/ui/Dialog";
 
 /**
  * Cursor Auth Modal
@@ -89,7 +91,7 @@ export default function CursorAuthModal({ isOpen, onSuccess, onClose }) {
   };
 
   return (
-    <Modal isOpen={isOpen} title="Connect Cursor IDE" onClose={onClose}>
+    <Dialog open={isOpen} title="Connect Cursor IDE" onClose={onClose}>
       <div className="flex flex-col gap-4">
         {/* Auto-detecting state */}
         {autoDetecting && (
@@ -200,7 +202,7 @@ export default function CursorAuthModal({ isOpen, onSuccess, onClose }) {
           </>
         )}
       </div>
-    </Modal>
+    </Dialog>
   );
 }
 

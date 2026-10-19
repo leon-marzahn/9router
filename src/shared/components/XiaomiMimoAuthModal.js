@@ -1,8 +1,10 @@
 "use client";
+// oxlint-disable react/set-state-in-effect, react/purity -- upstream effects/render code, untouched here; only the dialog shell changed.
 
 import { useState, useEffect, useRef } from "react";
 import PropTypes from "prop-types";
-import { Modal, Button } from "@/shared/components";
+import { Button } from "@/shared/components";
+import { Dialog } from "@/ui/Dialog";
 import { translate } from "@/i18n/runtime";
 
 /**
@@ -225,7 +227,7 @@ export default function XiaomiMimoAuthModal({ isOpen, onSuccess, onClose }) {
   );
 
   return (
-    <Modal isOpen={isOpen} title={translate("Connect Xiaomi MiMo")} onClose={onClose} size="lg">
+    <Dialog open={isOpen} title={translate("Connect Xiaomi MiMo")} onClose={onClose} size="lg">
       <div className="flex flex-col gap-3.5">
         {/* Detecting */}
         {phase === "detecting" && (
@@ -388,7 +390,7 @@ export default function XiaomiMimoAuthModal({ isOpen, onSuccess, onClose }) {
           </div>
         )}
       </div>
-    </Modal>
+    </Dialog>
   );
 }
 

@@ -11,6 +11,9 @@ const SIZES = { sm: "md:max-w-sm", md: "md:max-w-md", lg: "md:max-w-lg", xl: "md
 const FOCUSABLE =
   'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
 
+/** Open dialog panels, innermost last: only the top one handles Esc / Tab, so a picker opened from a dialog neither closes its parent nor has focus pulled back into it. */
+const openStack: HTMLElement[] = [];
+
 /**
  * Modal dialog: centered card on md+, bottom sheet below md. Traps Tab focus,
  * closes on Esc / scrim click (unless `dismissible` is false), locks page scroll
@@ -59,10 +62,12 @@ export function Dialog({
         panel?.querySelector<HTMLElement>(`[data-dialog-body] :is(${FOCUSABLE})`) ??
         panel
       )?.focus();
+    if (panel) openStack.push(panel);
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
     const onKey = (e: KeyboardEvent) => {
+      if (panel && openStack[openStack.length - 1] !== panel) return;
       if (e.key === "Escape") {
         e.stopPropagation();
         if (dismissRef.current) closeRef.current();
@@ -88,6 +93,7 @@ export function Dialog({
     document.addEventListener("keydown", onKey, true);
     return () => {
       document.removeEventListener("keydown", onKey, true);
+      if (panel && openStack.includes(panel)) openStack.splice(openStack.indexOf(panel), 1);
       document.body.style.overflow = prevOverflow;
       returnTo?.focus?.();
     };

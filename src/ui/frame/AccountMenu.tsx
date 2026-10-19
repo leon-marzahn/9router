@@ -4,7 +4,7 @@ import { STOP_APP, stopApp } from "./stopApp";
 import { useRef, useState } from "react";
 import Link from "next/link";
 import LanguageSwitcher from "@/shared/components/LanguageSwitcher";
-import { ConfirmModal } from "@/shared/components/Modal";
+import { ConfirmDialog } from "../Dialog";
 import { APP_CONFIG } from "@/shared/constants/config";
 import { Icon } from "../Icon";
 import { Popover, MenuItem, MenuSeparator } from "../Popover";
@@ -123,8 +123,8 @@ export function AccountMenu({
       </Popover>
 
       <LanguageSwitcher hideTrigger isOpen={modal === "language"} onClose={() => setModal(null)} />
-      <ConfirmModal
-        isOpen={modal === "shutdown"}
+      <ConfirmDialog
+        open={modal === "shutdown"}
         onClose={() => setModal(null)}
         onConfirm={async () => {
           setShuttingDown(true);

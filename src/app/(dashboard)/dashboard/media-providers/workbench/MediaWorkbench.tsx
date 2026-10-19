@@ -40,12 +40,6 @@ import { MediaOverview } from "./MediaOverview";
 type Notify = { getState: () => { error: (m: string) => void } };
 const notify = () => (useNotificationStore as unknown as Notify).getState();
 
-const AddEmbeddingModal = AddCustomEmbeddingModal as unknown as (p: {
-  isOpen: boolean;
-  onClose: () => void;
-  onCreated: (node: { id: string }) => void;
-}) => ReactNode;
-
 const COMBO_BASE: Record<string, string> = { webSearch: "search-combo", webFetch: "fetch-combo" };
 
 type Item = { type: "provider"; p: MediaEntry } | { type: "combo"; c: MediaCombo };
@@ -353,7 +347,7 @@ export function MediaWorkbench() {
       </div>
 
       {kind.id === "embedding" && (
-        <AddEmbeddingModal
+        <AddCustomEmbeddingModal
           isOpen={addingEmbedding}
           onClose={() => setAddingEmbedding(false)}
           onCreated={async (node) => {

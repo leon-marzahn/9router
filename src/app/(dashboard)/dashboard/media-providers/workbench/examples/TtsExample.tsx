@@ -1,7 +1,18 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Button, IconButton, Input, SearchInput, Segmented, Tag, cn, inputClass, Select } from "@/ui";
+import {
+  Button,
+  Dialog,
+  IconButton,
+  Input,
+  SearchInput,
+  Segmented,
+  Tag,
+  cn,
+  inputClass,
+  Select,
+} from "@/ui";
 import { AI_PROVIDERS, getProviderAlias } from "@/shared/constants/providers";
 import { getModelsByProviderId, getModelKind } from "@/shared/constants/models";
 import { TTS_PROVIDER_CONFIG } from "@/shared/constants/ttsProviders";
@@ -484,13 +495,6 @@ function LanguagePicker({
   onClose: () => void;
 }) {
   const [q, setQ] = useState("");
-  const searchRef = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    searchRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
   const needle = q.trim().toLowerCase();
   const shown = needle
     ? languages.filter(
@@ -498,61 +502,43 @@ function LanguagePicker({
       )
     : languages;
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center"
-      onClick={onClose}
-    >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label="Choose a language"
-        onClick={(e) => e.stopPropagation()}
-        className="flex max-h-[80vh] w-full max-w-md flex-col rounded-t-2xl border border-border bg-surface shadow-elev sm:mx-4 sm:rounded-2xl"
-      >
-        <div className="flex items-center gap-2 border-b border-border px-4 py-3">
-          <h3 className="text-sm font-semibold">Choose a language</h3>
-          <IconButton icon="close" label="Close" className="ml-auto" onClick={onClose} />
-        </div>
-        <div className="border-b border-border p-3">
-          <SearchInput
-            ref={searchRef}
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Search languages"
-          />
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto p-2">
-          {error && <p className="px-2 py-1 text-xs text-danger-text">{error}</p>}
-          {loading ? (
-            <p className="px-2 py-3 text-xs text-text-muted">Loading voices…</p>
-          ) : (
-            <>
-              {shown.map((l) => (
-                <button
-                  key={l.code}
-                  type="button"
-                  onClick={() => onPick(l)}
-                  className={cn(
-                    "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px] hover:bg-surface-2",
-                    selected === l.code && "bg-accent-soft text-accent-text",
-                  )}
-                >
-                  <span className="min-w-0 flex-1 truncate">{l.name}</span>
-                  <span className="shrink-0 text-[11px] text-text-muted">
-                    {l.voices.length} voices
-                  </span>
-                </button>
-              ))}
-              {!error && shown.length === 0 && (
-                <p className="px-2 py-3 text-xs text-text-muted">No languages match.</p>
-              )}
-            </>
-          )}
-        </div>
-        <div className="flex justify-end border-t border-border p-3 sm:hidden">
-          <Button onClick={onClose}>Cancel</Button>
-        </div>
+    <Dialog open onClose={onClose} title="Choose a language">
+      <SearchInput
+        data-autofocus
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        placeholder="Search languages"
+        aria-label="Search languages"
+        className="mb-2"
+      />
+      <div className="-mx-3">
+        {error && <p className="px-2 py-1 text-xs text-danger-text">{error}</p>}
+        {loading ? (
+          <p className="px-2 py-3 text-xs text-text-muted">Loading voices…</p>
+        ) : (
+          <>
+            {shown.map((l) => (
+              <button
+                key={l.code}
+                type="button"
+                onClick={() => onPick(l)}
+                className={cn(
+                  "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px] hover:bg-surface-2",
+                  selected === l.code && "bg-accent-soft text-accent-text",
+                )}
+              >
+                <span className="min-w-0 flex-1 truncate">{l.name}</span>
+                <span className="shrink-0 text-[11px] text-text-muted">
+                  {l.voices.length} voices
+                </span>
+              </button>
+            ))}
+            {!error && shown.length === 0 && (
+              <p className="px-2 py-3 text-xs text-text-muted">No languages match.</p>
+            )}
+          </>
+        )}
       </div>
-    </div>
+    </Dialog>
   );
 }

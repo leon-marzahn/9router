@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 import { Button, Icon } from "@/ui";
-import { Modal, ModelSelectModal } from "@/shared/components";
+import { ModelSelectModal } from "@/shared/components";
+import { Dialog } from "@/ui";
 import { bodyFor, settingsUrl, withV1 } from "./specs";
 import { useConnectContext } from "./useConnectContext";
 
-const Picker = ModelSelectModal as unknown as React.ComponentType<Record<string, unknown>>;
 
 type Result = { id: string; name: string; ok: boolean; error?: string };
 
@@ -41,10 +41,10 @@ export function ConnectAll({ tools, onClose, onDone }: { tools: { id: string; na
   };
 
   return (
-    <Modal
-      isOpen
+    <Dialog
+      open
       onClose={running ? () => {} : onClose}
-      closeOnOverlay={!running}
+      dismissible={!running}
       title={`Connect ${tools.length} tool${tools.length === 1 ? "" : "s"}`}
       footer={
         results && !running ? (
@@ -95,8 +95,8 @@ export function ConnectAll({ tools, onClose, onDone }: { tools: { id: string; na
         </ul>
       </div>
       {picking && (
-        <Picker isOpen onClose={() => setPicking(false)} title="Model for all tools" closeOnSelect onSelect={(m: { value?: string }) => m?.value && setModel(m.value)} />
+        <ModelSelectModal isOpen onClose={() => setPicking(false)} title="Model for all tools" closeOnSelect onSelect={(m: { value?: string }) => m?.value && setModel(m.value)} />
       )}
-    </Modal>
+    </Dialog>
   );
 }

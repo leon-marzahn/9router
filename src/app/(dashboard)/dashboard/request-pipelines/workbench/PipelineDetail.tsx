@@ -14,7 +14,7 @@ import {
   Tag,
 } from "@/ui";
 import { cn } from "@/ui/cn";
-import { ConfirmModal } from "@/shared/components";
+import { ConfirmDialog } from "@/ui";
 import { Preview } from "./Preview";
 import { StepCard } from "./StepCard";
 import {
@@ -306,8 +306,8 @@ export function PipelineDetail({
 
       <Preview pipeline={p} onStats={setStats} />
 
-      <ConfirmModal
-        isOpen={confirm}
+      <ConfirmDialog
+        open={confirm}
         onClose={() => setConfirm(false)}
         onConfirm={() => {
           setConfirm(false);

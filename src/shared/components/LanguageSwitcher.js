@@ -1,7 +1,8 @@
 "use client";
+// oxlint-disable react/set-state-in-effect -- upstream effects/render code, untouched here; only the dialog shell changed.
 
-import { useState, useEffect, useRef } from "react";
-import { createPortal } from "react-dom";
+import { useState, useEffect } from "react";
+import { Dialog } from "@/ui/Dialog";
 import { LOCALES, LOCALE_COOKIE, normalizeLocale } from "@/i18n/config";
 import { reloadTranslations } from "@/i18n/runtime";
 
@@ -60,7 +61,6 @@ export default function LanguageSwitcher({ className = "", isOpen: controlledOpe
   const [locale, setLocale] = useState("en");
   const [isPending, setIsPending] = useState(false);
   const [internalOpen, setInternalOpen] = useState(false);
-  const modalRef = useRef(null);
 
   const isControlled = typeof controlledOpen === "boolean";
   const isOpen = isControlled ? controlledOpen : internalOpen;
@@ -75,19 +75,6 @@ export default function LanguageSwitcher({ className = "", isOpen: controlledOpe
   useEffect(() => {
     setLocale(getLocaleFromCookie());
   }, []);
-
-  // Close modal when clicking outside
-  useEffect(() => {
-    function handleClickOutside(event) {
-      if (modalRef.current && !modalRef.current.contains(event.target)) {
-        setIsOpen(false);
-      }
-    }
-    if (isOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-      return () => document.removeEventListener("mousedown", handleClickOutside);
-    }
-  }, [isOpen]);
 
   const handleSetLocale = async (nextLocale) => {
     if (nextLocale === locale || isPending) return;
@@ -128,34 +115,8 @@ export default function LanguageSwitcher({ className = "", isOpen: controlledOpe
         </button>
       )}
 
-      {/* Portal modal - renders at document.body to avoid parent layout constraints */}
-      {isOpen && createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" data-i18n-skip="true">
-          {/* Overlay */}
-          <div
-            className="absolute inset-0 bg-black/30 backdrop-blur-sm"
-            onClick={() => setIsOpen(false)}
-          />
-
-          {/* Modal content */}
-          <div
-            ref={modalRef}
-            className="relative w-full bg-surface border border-black/10 dark:border-white/10 rounded-xl shadow-2xl animate-in fade-in zoom-in-95 duration-200 max-w-2xl flex flex-col max-h-[80vh]"
-          >
-            {/* Modal header */}
-            <div className="flex items-center justify-between p-3 border-b border-black/5 dark:border-white/5">
-              <h2 className="text-lg font-semibold text-text-main">Select Language</h2>
-              <button
-                onClick={() => setIsOpen(false)}
-                className="p-1.5 rounded-lg text-text-muted hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
-                aria-label="Close"
-              >
-                <span className="material-symbols-outlined text-[20px]">close</span>
-              </button>
-            </div>
-
-            {/* Modal body - fixed grid columns, equal sizing */}
-            <div className="p-6 overflow-y-auto flex-1">
+      <Dialog open={isOpen} onClose={() => setIsOpen(false)} title="Select Language" size="xl" className="md:max-w-2xl">
+        <div data-i18n-skip="true">
               <div className="grid grid-cols-[repeat(auto-fill,minmax(100px,1fr))] gap-2">
                 {LOCALES.map((item) => {
                   const active = locale === item;
@@ -182,11 +143,8 @@ export default function LanguageSwitcher({ className = "", isOpen: controlledOpe
                   );
                 })}
               </div>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
+        </div>
+      </Dialog>
     </div>
   );
 }

@@ -2,12 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Button, Field, Icon, Input, Panel, Skeleton, Tag } from "@/ui";
-import { ConfirmModal, ModelSelectModal } from "@/shared/components";
+import { ModelSelectModal } from "@/shared/components";
+import { ConfirmDialog } from "@/ui";
 import { useNotificationStore as useNotificationStoreJs } from "@/store/notificationStore";
 import { SPECS, bodyFor, settingsUrl, withV1 } from "./specs";
 import { maskKey, useConnectContext } from "./useConnectContext";
 
-const Picker = ModelSelectModal as unknown as React.ComponentType<Record<string, unknown>>;
 type Notify = { getState: () => { error: (m: string) => void; success: (m: string) => void } };
 const notify = () => (useNotificationStoreJs as unknown as Notify).getState();
 
@@ -241,7 +241,7 @@ export function ConnectPanel({ toolId, toolName, onChanged }: { toolId: string; 
       </div>
 
       {picking && (
-        <Picker
+        <ModelSelectModal
           isOpen
           onClose={() => setPicking(false)}
           title={`Model for ${toolName}`}
@@ -254,8 +254,8 @@ export function ConnectPanel({ toolId, toolName, onChanged }: { toolId: string; 
           onDeselect={(m: { value?: string }) => spec.multi && setModels(models.filter((x) => x !== m?.value))}
         />
       )}
-      <ConfirmModal
-        isOpen={confirmRemove}
+      <ConfirmDialog
+        open={confirmRemove}
         onClose={() => setConfirmRemove(false)}
         title={`Disconnect ${toolName}?`}
         message={`Removes regent's settings from ${toolName}'s config, so it goes back to its own provider. A backup is kept, so you can restore it.`}

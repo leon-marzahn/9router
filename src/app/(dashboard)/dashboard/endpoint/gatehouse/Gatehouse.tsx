@@ -14,7 +14,7 @@ import {
   Switch,
 } from "@/ui";
 import { cn } from "@/ui/cn";
-import { ConfirmModal, Modal } from "@/shared/components";
+import { ConfirmDialog, Dialog } from "@/ui";
 import { CopyButton } from "@/ui";
 import { KeyCard } from "./KeyCard";
 import { TailscaleSetup, tailscaleReady } from "./TailscaleSetup";
@@ -257,8 +257,8 @@ export function Gatehouse() {
           }}
         />
       )}
-      <ConfirmModal
-        isOpen={!!confirm}
+      <ConfirmDialog
+        open={!!confirm}
         onClose={() => setConfirm(null)}
         title={confirm?.title}
         message={confirm?.message}
@@ -427,8 +427,8 @@ function CreateKey({
     }
   };
   return (
-    <Modal
-      isOpen
+    <Dialog
+      open
       onClose={onClose}
       title="New key"
       size="sm"
@@ -458,6 +458,6 @@ function CreateKey({
           onKeyDown={(e) => e.key === "Enter" && void submit()}
         />
       </Field>
-    </Modal>
+    </Dialog>
   );
 }

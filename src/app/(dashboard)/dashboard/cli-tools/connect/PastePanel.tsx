@@ -7,7 +7,6 @@ import { CLI_TOOLS } from "@/shared/constants/cliTools.js";
 import { withV1 } from "./specs";
 import { maskKey, useConnectContext } from "./useConnectContext";
 
-const Picker = ModelSelectModal as unknown as React.ComponentType<Record<string, unknown>>;
 
 interface Step {
   step: number;
@@ -135,7 +134,7 @@ export function PastePanel({ toolId }: { toolId: string }) {
       )}
 
       {picking && (
-        <Picker
+        <ModelSelectModal
           isOpen
           onClose={() => setPicking(false)}
           title={`Model for ${tool?.name}`}

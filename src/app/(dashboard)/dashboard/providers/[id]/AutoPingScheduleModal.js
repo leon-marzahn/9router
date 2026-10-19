@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import PropTypes from "prop-types";
-import { Button, Input, Modal } from "@/shared/components";
+import { Button, Input } from "@/shared/components";
+import { Dialog } from "@/ui/Dialog";
 import { cn } from "@/shared/utils/cn";
 import {
   PING_SCHEDULE_DEFAULTS,
@@ -28,6 +29,7 @@ function toFormState(schedule, reactive) {
   };
 }
 
+/** @param {{ isOpen: boolean, onClose: () => void, onSave: (result: any) => void, connection: { id: string, provider: string, name?: string }, reactive?: boolean, schedule?: Record<string, any> | null }} props */
 export default function AutoPingScheduleModal({ isOpen, onClose, onSave, connection, reactive = false, schedule = null }) {
   // Mounted only while the modal is open, so the initial state is always fresh.
   const [form, setForm] = useState(() => toFormState(schedule, reactive));
@@ -74,8 +76,8 @@ export default function AutoPingScheduleModal({ isOpen, onClose, onSave, connect
   };
 
   return (
-    <Modal
-      isOpen={isOpen}
+    <Dialog
+      open={isOpen}
       onClose={onClose}
       title="Auto-ping settings"
       size="lg"
@@ -175,7 +177,7 @@ export default function AutoPingScheduleModal({ isOpen, onClose, onSave, connect
           </div>
         )}
       </div>
-    </Modal>
+    </Dialog>
   );
 }
 

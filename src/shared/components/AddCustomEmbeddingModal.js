@@ -1,12 +1,15 @@
 "use client";
+// oxlint-disable react/set-state-in-effect -- upstream effects/render code, untouched here; only the dialog shell changed.
 
 import { useState, useEffect } from "react";
 import PropTypes from "prop-types";
-import { Modal, Input, Button, Badge } from "@/shared/components";
+import { Input, Button, Badge } from "@/shared/components";
+import { Dialog } from "@/ui/Dialog";
 
 const DEFAULT_BASE_URL = "https://api.openai.com/v1";
 
-// Dual-mode modal: edit when `node` provided, add otherwise
+// Dual-mode dialog: edit when `node` provided, add otherwise
+/** @param {{ isOpen: boolean, onClose: () => void, onCreated?: (node: any) => void, onSaved?: (node: any) => void, node?: any }} props */
 export default function AddCustomEmbeddingModal({ isOpen, onClose, onCreated, onSaved, node }) {
   const isEdit = !!node;
   const [formData, setFormData] = useState({
@@ -108,7 +111,7 @@ export default function AddCustomEmbeddingModal({ isOpen, onClose, onCreated, on
   };
 
   return (
-    <Modal isOpen={isOpen} title={isEdit ? "Edit Custom Embedding" : "Add Custom Embedding"} onClose={onClose}>
+    <Dialog open={isOpen} title={isEdit ? "Edit Custom Embedding" : "Add Custom Embedding"} onClose={onClose}>
       <div className="flex flex-col gap-4">
         <Input
           label="Name"
@@ -164,7 +167,7 @@ export default function AddCustomEmbeddingModal({ isOpen, onClose, onCreated, on
           </Button>
         </div>
       </div>
-    </Modal>
+    </Dialog>
   );
 }
 

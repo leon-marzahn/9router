@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { Modal, Button } from "@/shared/components";
+import { Button } from "@/shared/components";
+import { Dialog } from "@/ui/Dialog";
 import { translate } from "@/i18n/runtime";
 
 const PLACEHOLDER = `[
@@ -178,7 +179,7 @@ export default function BulkImportGrokCliModal({ isOpen, onClose, onSuccess }) {
   const failedItems = result?.results?.filter((r) => !r.ok) || [];
 
   return (
-    <Modal isOpen={isOpen} title={translate("Bulk Add Grok CLI Accounts")} onClose={handleClose}>
+    <Dialog open={isOpen} title={translate("Bulk Add Grok CLI Accounts")} onClose={handleClose}>
       <div className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-xs text-text-muted">
@@ -279,6 +280,6 @@ export default function BulkImportGrokCliModal({ isOpen, onClose, onSuccess }) {
           </Button>
         </div>
       </div>
-    </Modal>
+    </Dialog>
   );
 }

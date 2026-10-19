@@ -5,7 +5,6 @@ import { Button, IconButton, Panel, Switch } from "@/ui";
 import { ModelSelectModal } from "@/shared/components";
 import { notify } from "./useCombos";
 
-const Picker = ModelSelectModal as unknown as React.ComponentType<Record<string, unknown>>;
 const FREE_DEFAULT = "oc/mimo-v2.6-flash-free";
 
 interface Cap {
@@ -134,7 +133,7 @@ export function VisionAdapter() {
         </Panel>
       </section>
       {picking && (
-        <Picker
+        <ModelSelectModal
           isOpen
           onClose={() => setPicking(false)}
           title="Vision models"

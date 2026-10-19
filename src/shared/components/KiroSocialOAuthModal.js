@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef } from "react";
 import PropTypes from "prop-types";
-import { Modal, Button, Input } from "@/shared/components";
+import { Button, Input } from "@/shared/components";
+import { Dialog } from "@/ui/Dialog";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 
 /**
@@ -107,7 +108,7 @@ export default function KiroSocialOAuthModal({ isOpen, provider, onSuccess, onCl
   const providerName = provider === "google" ? "Google" : "GitHub";
 
   return (
-    <Modal isOpen={isOpen} title={`Connect Kiro via ${providerName}`} onClose={onClose} size="lg">
+    <Dialog open={isOpen} title={`Connect Kiro via ${providerName}`} onClose={onClose} size="lg">
       <div className="flex flex-col gap-4">
         {/* Loading */}
         {step === "loading" && (
@@ -202,7 +203,7 @@ export default function KiroSocialOAuthModal({ isOpen, provider, onSuccess, onCl
           </div>
         )}
       </div>
-    </Modal>
+    </Dialog>
   );
 }
 

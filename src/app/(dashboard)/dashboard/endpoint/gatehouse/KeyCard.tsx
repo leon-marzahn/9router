@@ -6,8 +6,6 @@ import { cn } from "@/ui/cn";
 import { ModelSelectModal } from "@/shared/components";
 import type { ApiKey, KeyAccess } from "./useEndpoint";
 
-const ModelPicker = ModelSelectModal as unknown as React.ComponentType<Record<string, unknown>>;
-
 const mask = (k: string) => (k.length <= 10 ? k : `${k.slice(0, 6)}••••••••${k.slice(-4)}`);
 
 /** One API key: name, masked value, on/off, and which combos/models it may call. */
@@ -157,7 +155,7 @@ export function KeyCard({
       </div>
 
       {picker && (
-        <ModelPicker
+        <ModelSelectModal
           isOpen
           onClose={() => setPicker(null)}
           onSelect={(m: { value?: string }) => {

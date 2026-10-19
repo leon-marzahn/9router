@@ -39,8 +39,6 @@ import { ModelSelectModal } from "@/shared/components";
 import { STEP_LABEL, STEP_STATUS, splitStep, stepDetail } from "./steps";
 import type { Combo, CombosApi, Strategy } from "./useCombos";
 
-const Picker = ModelSelectModal as unknown as React.ComponentType<Record<string, unknown>>;
-
 const HOW: Record<Strategy, string> = {
   fallback:
     "Top to bottom. Steps that are resting or have no account are skipped without trying them.",
@@ -252,7 +250,7 @@ export function ComboDetail({
       </section>
 
       {picker && (
-        <Picker
+        <ModelSelectModal
           isOpen
           onClose={() => setPicker(null)}
           title={picker === "judge" ? "Judge model" : `Add steps to ${combo.name}`}
