@@ -5,6 +5,7 @@ import { useState, useEffect } from "react";
 import PropTypes from "prop-types";
 import { Button, Badge, Input, Select } from "@/shared/components";
 import { Dialog } from "@/ui/Dialog";
+import { Switch } from "@/ui/Switch";
 
 export default function EditCompatibleNodeModal({ isOpen, node, onSave, onClose, isAnthropic }) {
   const [formData, setFormData] = useState({
@@ -12,6 +13,7 @@ export default function EditCompatibleNodeModal({ isOpen, node, onSave, onClose,
     prefix: "",
     apiType: "chat",
     baseUrl: "https://api.openai.com/v1",
+    streamUsage: true,
   });
   const [saving, setSaving] = useState(false);
   const [checkKey, setCheckKey] = useState("");
@@ -26,6 +28,7 @@ export default function EditCompatibleNodeModal({ isOpen, node, onSave, onClose,
         prefix: node.prefix || "",
         apiType: node.apiType || "chat",
         baseUrl: node.baseUrl || (isAnthropic ? "https://api.anthropic.com/v1" : "https://api.openai.com/v1"),
+        streamUsage: node.streamUsage !== false,
       });
     }
   }, [node, isAnthropic]);
@@ -46,6 +49,7 @@ export default function EditCompatibleNodeModal({ isOpen, node, onSave, onClose,
       };
       if (!isAnthropic) {
         payload.apiType = formData.apiType;
+        payload.streamUsage = formData.streamUsage;
       }
       await onSave(payload);
     } finally {
@@ -102,6 +106,21 @@ export default function EditCompatibleNodeModal({ isOpen, node, onSave, onClose,
             onChange={(e) => setFormData({ ...formData, apiType: e.target.value })}
           />
         )}
+        {!isAnthropic && formData.apiType === "chat" && (
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <div className="text-sm font-medium">Request usage on streams</div>
+              <div className="text-xs text-text-muted">
+                Sends stream_options.include_usage so streamed requests record real token counts. Turn off if this endpoint rejects the field.
+              </div>
+            </div>
+            <Switch
+              checked={formData.streamUsage}
+              label="Request usage on streams"
+              onChange={(on) => setFormData({ ...formData, streamUsage: on })}
+            />
+          </div>
+        )}
         <Input
           label="Base URL"
           value={formData.baseUrl}
@@ -156,6 +175,7 @@ EditCompatibleNodeModal.propTypes = {
     prefix: PropTypes.string,
     apiType: PropTypes.string,
     baseUrl: PropTypes.string,
+    streamUsage: PropTypes.bool,
   }),
   onSave: PropTypes.func.isRequired,
   onClose: PropTypes.func.isRequired,

@@ -6,7 +6,7 @@ export async function PUT(request, { params }) {
   try {
     const { id } = await params;
     const body = await request.json();
-    const { name, prefix, apiType, baseUrl } = body;
+    const { name, prefix, apiType, baseUrl, streamUsage } = body;
     const node = await getProviderNodeById(id);
 
     if (!node) {
@@ -56,6 +56,13 @@ export async function PUT(request, { params }) {
 
     if (node.type === "openai-compatible") {
       updates.apiType = apiType;
+      // Off = never send stream_options.include_usage (strict upstreams).
+      if (streamUsage !== undefined) {
+        if (typeof streamUsage !== "boolean") {
+          return NextResponse.json({ error: "streamUsage must be a boolean" }, { status: 400 });
+        }
+        updates.streamUsage = streamUsage;
+      }
     }
 
     const updated = await updateProviderNode(id, updates);
@@ -67,6 +74,7 @@ export async function PUT(request, { params }) {
           ...(connection.providerSpecificData || {}),
           prefix: prefix.trim(),
           apiType: node.type === "openai-compatible" ? apiType : undefined,
+          ...(node.type === "openai-compatible" && updated.streamUsage !== undefined ? { streamUsage: updated.streamUsage } : {}),
           baseUrl: sanitizedBaseUrl,
           nodeName: updated.name,
         }

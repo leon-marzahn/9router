@@ -94,9 +94,9 @@ describe("OpenAI Responses usage across the pivot", () => {
 
     // prompt side = input + cache_read + cache_creation = 1500 + 12000 + 300.
     expect(completedResponse(output).usage).toEqual({
-      input_tokens: 13800,
+      input_tokens: 13800 + 2000, // + client context buffer
       output_tokens: 42,
-      total_tokens: 13842,
+      total_tokens: 13842 + 2000,
       input_tokens_details: { cached_tokens: 12000 },
     });
   });

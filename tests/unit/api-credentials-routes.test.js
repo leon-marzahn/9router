@@ -153,6 +153,16 @@ describe("/api/provider-nodes", () => {
     expect(upd.status).toBe(200);
     expect((await db.getProviderConnectionById(conn.id)).providerSpecificData).toMatchObject({ prefix: "o2", baseUrl: "https://o2.example/v1", nodeName: "O2" });
 
+    // Stream-usage opt-out: boolean only, stored on the node and its connections,
+    // and inherited by connections added later.
+    expect((await one.PUT(json("PUT", { name: "O2", prefix: "o2", apiType: "chat", baseUrl: "https://o2.example/v1", streamUsage: "no" }), ctx(oai.node.id))).status).toBe(400);
+    const off = await (await one.PUT(json("PUT", { name: "O2", prefix: "o2", apiType: "chat", baseUrl: "https://o2.example/v1", streamUsage: false }), ctx(oai.node.id))).json();
+    expect(off.node.streamUsage).toBe(false);
+    expect((await db.getProviderConnectionById(conn.id)).providerSpecificData.streamUsage).toBe(false);
+    const providers = await import("@/app/api/providers/route.js");
+    const added = await (await providers.POST(json("POST", { provider: oai.node.id, apiKey: "k2", name: "c2" }))).json();
+    expect(added.connection?.providerSpecificData?.streamUsage ?? (await db.getProviderConnectionById(added.connection.id)).providerSpecificData.streamUsage).toBe(false);
+
     const anthUpd = await (await one.PUT(json("PUT", { name: "A", prefix: "a", baseUrl: "https://y.example/messages" }), ctx(anth.node.id))).json();
     expect(anthUpd.node.baseUrl).toBe("https://y.example");
 

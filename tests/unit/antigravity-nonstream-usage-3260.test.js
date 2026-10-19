@@ -15,9 +15,11 @@ const USAGE_METADATA = {
   thoughtsTokenCount: 90,
 };
 
+// Gemini thoughts are outside candidatesTokenCount; they are folded into
+// completion_tokens so reasoning_tokens is a subset (billed once).
 const EXPECTED = {
   prompt_tokens: 1234,
-  completion_tokens: 56,
+  completion_tokens: 56 + 90,
   cached_tokens: 78,
   reasoning_tokens: 90,
 };

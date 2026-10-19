@@ -484,10 +484,21 @@ export function calculateCostFromTokens(tokens, pricing) {
     cost += cachedTokens * ((pricing.cached || pricing.input) / 1000000);
   }
 
+  // Output: reasoning_tokens is a SUBSET of completion_tokens in the stored
+  // convention, as every upstream reports it or is normalized to it:
+  //   OpenAI chat   completion_tokens_details.reasoning_tokens ⊂ completion_tokens
+  //   Responses     output_tokens_details.reasoning_tokens ⊂ output_tokens
+  //   Claude        thinking is billed inside output_tokens (no separate field)
+  //   Gemini        thoughtsTokenCount is NOT in candidatesTokenCount upstream;
+  //                 extractUsage/extractUsageFromResponse fold it into completion.
+  // So bill completion once, at the reasoning rate for the reasoning share.
+  // A reasoning count larger than completion can only be an unfolded
+  // (Gemini-style) record: then it is additional, not a subset.
   const outputTokens = tokens.completion_tokens || tokens.output_tokens || 0;
-  cost += outputTokens * (pricing.output / 1000000);
-
   const reasoningTokens = tokens.reasoning_tokens || 0;
+  const reasoningIsSubset = reasoningTokens <= outputTokens;
+  const plainOutput = reasoningIsSubset ? outputTokens - reasoningTokens : outputTokens;
+  cost += plainOutput * (pricing.output / 1000000);
   if (reasoningTokens > 0) {
     cost += reasoningTokens * ((pricing.reasoning || pricing.output) / 1000000);
   }

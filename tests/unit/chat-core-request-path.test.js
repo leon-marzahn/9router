@@ -126,10 +126,12 @@ describe("streaming vs non-streaming", () => {
     expect(text).toContain("[DONE]");
   });
 
-  it("defaults to streaming when stream is omitted", async () => {
-    executor.execute = vi.fn(async () => upstream(sseCompletion()));
-    await run({ body: { model: "gpt-4o", messages: [{ role: "user", content: "hi" }] } });
-    expect(executor.execute.mock.calls[0][0].stream).toBe(true);
+  // OpenAI Chat Completions: an absent `stream` means a JSON response.
+  it("defaults to non-streaming when stream is omitted", async () => {
+    executor.execute = vi.fn(async () => upstream(jsonCompletion("hi")));
+    const result = await run({ body: { model: "gpt-4o", messages: [{ role: "user", content: "hi" }] } });
+    expect(executor.execute.mock.calls[0][0].stream).toBe(false);
+    expect(result.response.headers.get("content-type")).toContain("application/json");
   });
 
   it("prefers JSON when the client sends Accept: application/json", async () => {
