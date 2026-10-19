@@ -10,6 +10,7 @@ import {
   addCustomModel,
   createCombo,
   createProviderConnection,
+  createProxyPool,
   initDb,
   updateProviderConnection,
   updateSettings,
@@ -282,6 +283,59 @@ for (let i = 0; i < 6; i++) {
     ],
   );
 }
+
+// Proxy pools: healthy, failing, untested, paused and relay entries, two of them bound.
+const ago = (ms) => new Date(Date.now() - ms).toISOString();
+const pools = [
+  {
+    name: "Office egress",
+    proxyUrl: "http://proxy.example.internal:3128",
+    noProxy: "localhost,127.0.0.1,.internal",
+    testStatus: "active",
+    lastTestedAt: ago(12 * 60_000),
+  },
+  {
+    name: "Residential EU",
+    proxyUrl: "socks5://demo:demo@eu.proxy.example:1080",
+    strictProxy: true,
+    testStatus: "active",
+    lastTestedAt: ago(3 * 3600_000),
+  },
+  {
+    name: "Datacenter US",
+    proxyUrl: "http://us.proxy.example:8080",
+    testStatus: "error",
+    lastTestedAt: ago(40 * 60_000),
+    lastError: "connect ETIMEDOUT",
+  },
+  {
+    name: "Cloudflare relay",
+    type: "cloudflare",
+    proxyUrl: "https://demo-relay.example.workers.dev",
+    testStatus: "active",
+    lastTestedAt: ago(DAY),
+  },
+  { name: "Vercel relay", type: "vercel", proxyUrl: "https://demo-relay.vercel.app/api/relay" },
+  {
+    name: "Old staging proxy",
+    proxyUrl: "http://staging.proxy.example:3128",
+    isActive: false,
+    testStatus: "error",
+    lastTestedAt: ago(5 * DAY),
+    lastError: "407 Proxy Authentication Required",
+  },
+];
+const poolIds = [];
+for (const p of pools) poolIds.push((await createProxyPool(p)).id);
+await updateProviderConnection("demo-conn-openai-1", {
+  providerSpecificData: { proxyPoolId: poolIds[0] },
+});
+await updateProviderConnection("demo-conn-anthropic-1", {
+  providerSpecificData: { proxyPoolId: poolIds[0] },
+});
+await updateProviderConnection("demo-conn-openrouter-1", {
+  providerSpecificData: { proxyPoolId: poolIds[1] },
+});
 
 // Token Saver page, combo strategies and request pipelines.
 await updateSettings({
