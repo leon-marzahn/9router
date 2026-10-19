@@ -1,4 +1,13 @@
 
+# v100.5.0 (2026-10-19)
+
+## Features
+- **providers**: Add Volink API-key provider (#91)
+
+## Fixes
+- Bugs found by executor/translator coverage tests (#96)
+- **settings**: Stop returning the encrypted MITM sudo password from GET /api/settings (#95)
+
 # v100.4.0 (2026-10-19)
 
 ## Features
