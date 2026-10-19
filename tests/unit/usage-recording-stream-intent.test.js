@@ -104,12 +104,18 @@ describe("usage row for every stream-intent case", () => {
     expect(saveRequestUsage.mock.calls[0][0].tokens).toMatchObject({ prompt_tokens: 11, completion_tokens: 7 });
   });
 
-  it.each(cases)("always-JSON upstream: $name", async ({ body, accept }) => {
+  it.each(cases)("always-JSON upstream: $name", async ({ body, accept, expectSSE }) => {
     fetchMock.mockImplementation(jsonUpstream);
     const { response, text } = await run({ body, accept });
-    // A JSON upstream can only produce JSON; it must be labeled as such.
-    expect(response.headers.get("content-type")).toContain("application/json");
-    expect(JSON.parse(text).choices[0].message.content).toBe("Hello");
+    if (expectSSE) {
+      // Streaming client: the JSON answer is replayed as chat.completion.chunk SSE.
+      expect(response.headers.get("content-type")).toContain("text/event-stream");
+      expect(text).toContain('"content":"Hello"');
+      expect(text.trimEnd().endsWith("data: [DONE]")).toBe(true);
+    } else {
+      expect(response.headers.get("content-type")).toContain("application/json");
+      expect(JSON.parse(text).choices[0].message.content).toBe("Hello");
+    }
     expect(saveRequestUsage).toHaveBeenCalledTimes(1);
     expect(saveRequestUsage.mock.calls[0][0].tokens).toMatchObject({ prompt_tokens: 11, completion_tokens: 7 });
   });

@@ -19,6 +19,7 @@ import { supportsGrokCliReasoningEffort } from "../config/grokCli.js";
 import { buildRequestDetail, recordRequestDetail, extractRequestConfig } from "./chatCore/requestDetail.js";
 import { handleForcedSSEToJson } from "./chatCore/sseToJsonHandler.js";
 import { handleNonStreamingResponse } from "./chatCore/nonStreamingHandler.js";
+import { replayJsonResultAsSSE } from "./chatCore/jsonToSSE.js";
 import { handleStreamingResponse, buildOnStreamComplete } from "./chatCore/streamingHandler.js";
 import { detectClientTool, isNativePassthrough } from "../utils/clientDetector.js";
 import { dedupeTools } from "../utils/toolDeduper.js";
@@ -34,7 +35,7 @@ import { prefetchRemoteImages } from "../translator/concerns/prefetch.js";
 import { defaultClaudeToolType, shouldDefaultClaudeToolType } from "../translator/concerns/toolCall.js";
 import { resolveSessionId, clientIpFromHeaders } from "../utils/sessionManager.js";
 import { normalizeTlsImpersonation } from "../config/tlsImpersonation.js";
-import { requestStreamUsage, clientRequestedStreamUsage } from "../translator/concerns/streamUsage.js";
+import { requestStreamUsage, clientRequestedStreamUsage, isStreamUsageRejection, rememberStreamUsageRejected } from "../translator/concerns/streamUsage.js";
 
 /**
  * Core chat handler - shared between SSE and Worker
@@ -241,11 +242,7 @@ export async function handleChatCore({ traceAttempt = null, body, modelInfo, cre
   syncUpstreamStreamFlag(translatedBody, passthrough ? sourceFormat : targetFormat, stream);
 
   // Real streaming usage instead of an estimate (OpenAI-format upstreams).
-  const streamUsageInjected = requestStreamUsage(translatedBody, provider, passthrough ? sourceFormat : targetFormat, stream);
-  const streamUsage = {
-    awaitTrailer: stream && translatedBody?.stream_options?.include_usage === true,
-    dropTrailer: streamUsageInjected && !clientRequestedStreamUsage(body),
-  };
+  let streamUsageInjected = requestStreamUsage(translatedBody, provider, passthrough ? sourceFormat : targetFormat, stream, credentials);
 
   // Tool normalization: MCP-equivalent built-in dedup (Claude clients) + same-name
   // dedup for DeepSeek models (upstream rejects duplicate tool names on all endpoints).
@@ -506,6 +503,35 @@ export async function handleChatCore({ traceAttempt = null, body, modelInfo, cre
     }
   }
 
+  // We added stream_options.include_usage and a strict upstream rejected it:
+  // remember that for this node and retry once without the field, so the
+  // request behaves exactly as it did before the gateway asked for usage.
+  if (streamUsageInjected && await isStreamUsageRejection(providerResponse)) {
+    rememberStreamUsageRejected(provider, credentials);
+    delete translatedBody.stream_options;
+    streamUsageInjected = false;
+    log?.warn?.("STREAM", `${provider}/${model} rejected stream_options; retrying without it (remembered for this node)`);
+    try {
+      const retry = await executor.execute({
+        model, body: translatedBody, stream, credentials, providerSessionId: sessionSeed, clientTool,
+        signal: streamController.signal, log, proxyOptions, providerOverrides,
+      });
+      providerResponse = retry.response;
+      providerUrl = retry.url;
+      finalBody = retry.transformedBody;
+      providerResponseFormat = retry.responseFormat || targetFormat;
+    } catch (error) {
+      trackPendingRequest(model, provider, connectionId, false, true);
+      if (error.name === "AbortError") { streamController.handleError(error); return createErrorResult(499, "Request aborted"); }
+      return createErrorResult(HTTP_STATUS.BAD_GATEWAY, formatProviderError(error, provider, model, HTTP_STATUS.BAD_GATEWAY));
+    }
+  }
+
+  const streamUsage = {
+    awaitTrailer: stream && translatedBody?.stream_options?.include_usage === true,
+    dropTrailer: streamUsageInjected && !clientRequestedStreamUsage(body),
+  };
+
   // Provider returned error
   if (!providerResponse.ok) {
     trackPendingRequest(model, provider, connectionId, false, true);
@@ -559,6 +585,8 @@ export async function handleChatCore({ traceAttempt = null, body, modelInfo, cre
   if (!stream || upstreamIsJson) {
     const result = await handleNonStreamingResponse({ ...sharedCtx, providerResponse, sourceFormat, targetFormat: providerResponseFormat, reqLogger, toolNameMap, customToolNames, trackDone, appendLog });
     streamController.handleComplete();
+    // The client asked to stream: replay the JSON answer as SSE in its format.
+    if (upstreamIsJson && clientRequestedStreaming) return replayJsonResultAsSSE(result, sourceFormat, providerResponse.headers);
     return result;
   }
 
