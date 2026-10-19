@@ -71,6 +71,8 @@ export default defineConfig({
       "!/scripts/pr-shots",
       "!/scripts/pr-shots.mjs",
       "!/scripts/pr-shots-publish.mjs",
+      "!/scripts/ui-smoke",
+      "!/scripts/ui-smoke.mjs",
       "!/src",
       "/src/*",
       "!/src/ui",
