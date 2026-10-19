@@ -51,7 +51,9 @@ Use `bunx vp …` if `vp` isn't on PATH. Run your own instance per CLAUDE.md ("W
   bun run coverage                           # then:
   node scripts/ci/diff-coverage.mjs origin/master   # ≥ 80% of changed executable lines covered (waived only by the coverage-exempt label)
   node scripts/ci/coverage-ratchet.mjs check # overall coverage not below tests/__baseline__/coverage.json (`update` raises it)
+  bun run smoke                              # browser smoke of every route: overflow, console/HTTP errors, mobile tap targets, axe
   ```
+- New `bun run smoke` findings get fixed, not added to `scripts/ui-smoke/baseline.txt`, unless the PR explains why.
 - Baselines (`known-fails.txt`, `design-lint-baseline.txt`, `coverage.json`) may only move in the good direction: fewer known fails and violations, higher coverage.
 - New behaviour has tests that would fail without the change (spot-check by reverting a line). Security properties get explicit tests.
 - No new entries in `tests/__baseline__/known-fails.txt` (or any other baseline) without a reason in the PR.
