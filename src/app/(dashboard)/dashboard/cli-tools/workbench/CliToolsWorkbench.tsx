@@ -1,10 +1,23 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Icon, SearchInput, Skeleton } from "@/ui";
-import { cn } from "@/ui/cn";
+import {
+  Button,
+  EmptyState,
+  Icon,
+  ListGroup,
+  ListRow,
+  ListSkeleton,
+  ProviderLogo,
+  SearchInput,
+  StatusDot,
+  StatusLabel,
+  WorkbenchDetail,
+  WorkbenchList,
+  useListKeyboard,
+  type Status as UiStatus,
+} from "@/ui";
 import { CLI_TOOLS, MITM_TOOLS } from "@/shared/constants/cliTools.js";
 import ToolDetailClientJs from "../[toolId]/ToolDetailClient";
 import { ConnectPanel } from "../connect/ConnectPanel";
@@ -45,12 +58,13 @@ const LABEL: Record<State, string> = {
   guide: "Set up by pasting the settings into the tool",
   unknown: "Couldn't check",
 };
-const DOT: Record<State, string> = {
-  connected: "bg-success",
-  installed: "bg-warning",
-  missing: "bg-transparent ring-1 ring-inset ring-text-subtle",
-  guide: "bg-info",
-  unknown: "bg-text-subtle",
+/** Tool states on the shared status vocabulary (docs/DESIGN.md "Status"). */
+const STATUS_OF: Record<State, UiStatus> = {
+  connected: "ok",
+  installed: "degraded",
+  missing: "none",
+  guide: "ready",
+  unknown: "paused",
 };
 
 function stateOf(t: Tool, s: Status | undefined): State {
@@ -61,13 +75,14 @@ function stateOf(t: Tool, s: Status | undefined): State {
 }
 
 function ToolIcon({ t, size }: { t: Tool; size: number }) {
-  return t.image ? (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img src={t.image} alt="" width={size} height={size} className="shrink-0 rounded-md object-contain" />
-  ) : (
-    <span className="grid shrink-0 place-items-center rounded-md bg-surface-2 text-[10px] font-semibold" style={{ width: size, height: size }}>
-      {t.name.slice(0, 2)}
-    </span>
+  return (
+    <ProviderLogo
+      src={t.image}
+      name={t.name}
+      size={size}
+      fallbackText={t.name.slice(0, 2)}
+      className="shrink-0"
+    />
   );
 }
 
@@ -75,6 +90,7 @@ export function CliToolsWorkbench() {
   const params = useSearchParams();
   const router = useRouter();
   const sel = params.get("tool");
+  const searchRef = useRef<HTMLInputElement>(null);
   const [q, setQ] = useState("");
   const [statuses, setStatuses] = useState<Record<string, Status> | null>(null);
   const [connectAll, setConnectAll] = useState(false);
@@ -93,123 +109,173 @@ export function CliToolsWorkbench() {
   }, [load]);
 
   const select = (id: string | null) =>
-    router.replace(id ? `/dashboard/cli-tools?tool=${encodeURIComponent(id)}` : "/dashboard/cli-tools", { scroll: false });
+    router.replace(
+      id ? `/dashboard/cli-tools?tool=${encodeURIComponent(id)}` : "/dashboard/cli-tools",
+      { scroll: false },
+    );
 
   const tool = TOOLS.find((t) => t.id === sel);
+  const selId = tool ? tool.id : null;
   const state = tool ? stateOf(tool, statuses?.[tool.id]) : null;
   const filter = (t: Tool) => !q || t.name.toLowerCase().includes(q.toLowerCase());
   // Installed, not connected, and simple enough for the shared panel to configure.
-  const connectable = statuses ? TOOLS.filter((t) => SPECS[t.id] && stateOf(t, statuses[t.id]) === "installed") : [];
+  const connectable = statuses
+    ? TOOLS.filter((t) => SPECS[t.id] && stateOf(t, statuses[t.id]) === "installed")
+    : [];
+  const groups = statuses
+    ? GROUPS.map((g) => ({
+        ...g,
+        items: TOOLS.filter((t) => filter(t) && stateOf(t, statuses[t.id]) === g.state),
+      })).filter((g) => g.items.length > 0)
+    : [];
+  const mitm = MITM.filter(filter);
+  const order = groups.flatMap((g) => g.items.map((t) => t.id));
+  const connected = statuses
+    ? TOOLS.filter((t) => stateOf(t, statuses[t.id]) === "connected").length
+    : 0;
+
+  useListKeyboard({ order, selected: selId, onSelect: select, searchRef });
 
   return (
     <div className="flex min-h-0 flex-1">
-      <aside className={cn("flex min-h-0 w-full flex-1 flex-col border-r border-border bg-pane md:w-[320px] md:flex-none", tool && "hidden md:flex")}>
-        <div className="p-3">
-          <SearchInput placeholder="Search tools" value={q} onChange={(e) => setQ(e.target.value)} shortcut="/" />
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
-          {GROUPS.map((g) => {
-            const items = TOOLS.filter((t) => filter(t) && (statuses ? stateOf(t, statuses[t.id]) : t.configType === "guide" ? "guide" : "unknown") === g.state);
-            if (!items.length) return null;
-            if (g.state === "unknown" && !statuses)
-              return (
-                <div key={g.state} className="space-y-1 px-2.5 py-2">
-                  {[0, 1, 2, 3, 4].map((i) => (
-                    <Skeleton key={i} className="h-8 w-full rounded-lg" />
-                  ))}
-                </div>
-              );
-            return (
-              <div key={g.state} className="mb-3">
-                <div className="flex items-center justify-between px-2.5 pb-1 pt-2">
-                  <span className="text-[11px] font-medium uppercase tracking-wider text-text-subtle">
-                    {g.label} <span className="font-normal">{items.length}</span>
-                  </span>
-                  {g.state === "installed" && connectable.length > 1 && (
-                    <button type="button" onClick={() => setConnectAll(true)} className="text-[11px] font-medium text-accent-text hover:underline">
-                      Connect all
-                    </button>
-                  )}
-                </div>
-                <div className="space-y-1">
-                  {items.map((t) => {
-                    const active = t.id === sel;
-                    return (
-                      <button
-                        key={t.id}
-                        type="button"
-                        onClick={() => select(active ? null : t.id)}
-                        className={cn(
-                          "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors",
-                          active ? "bg-accent-soft ring-1 ring-accent-ring" : "hover:bg-surface-2",
-                        )}
-                      >
-                        <ToolIcon t={t} size={22} />
-                        <span className={cn("min-w-0 flex-1 truncate text-[13px]", active && "font-medium text-accent-text")}>{t.name}</span>
-                        <span className={cn("size-1.5 shrink-0 rounded-full", DOT[g.state])} />
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
-          {MITM.filter(filter).length > 0 && (
-            <div className="mb-3">
-              <div className="px-2.5 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wider text-text-subtle">
-                Through a local intercept (MITM)
-              </div>
-              {MITM.filter(filter).map((t) => (
-                <Link
-                  key={t.id}
-                  href="/dashboard/mitm"
-                  className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] transition-colors hover:bg-surface-2"
-                >
-                  <ToolIcon t={t} size={22} />
-                  <span className="min-w-0 flex-1 truncate">{t.name}</span>
-                  <Icon name="arrow_outward" size={14} className="text-text-subtle" />
-                </Link>
-              ))}
+      <WorkbenchList
+        selected={selId}
+        hints={[
+          ["↑↓", "move"],
+          ["/", "search"],
+          ["esc", "overview"],
+        ]}
+        header={
+          <div className="flex items-center gap-2">
+            <div className="min-w-0 flex-1">
+              <SearchInput
+                ref={searchRef}
+                placeholder="Search tools"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                shortcut="/"
+              />
             </div>
-          )}
-        </div>
-      </aside>
+            {connectable.length > 1 && (
+              <Button size="sm" onClick={() => setConnectAll(true)}>
+                Connect all
+              </Button>
+            )}
+          </div>
+        }
+      >
+        {!statuses ? (
+          <ListSkeleton />
+        ) : (
+          <>
+            {groups.map((g) => (
+              <ListGroup key={g.state} title={g.label} count={g.items.length}>
+                {g.items.map((t) => (
+                  <ListRow
+                    key={t.id}
+                    id={t.id}
+                    active={t.id === selId}
+                    onClick={() => select(t.id === selId ? null : t.id)}
+                    leading={<ToolIcon t={t} size={22} />}
+                    title={t.name}
+                    trailing={<StatusDot status={STATUS_OF[g.state]} />}
+                    version={g.state}
+                  />
+                ))}
+              </ListGroup>
+            ))}
+            {mitm.length > 0 && (
+              <ListGroup title="Through a local intercept (MITM)" count={mitm.length}>
+                {mitm.map((t) => (
+                  <ListRow
+                    key={t.id}
+                    onClick={() => router.push("/dashboard/mitm")}
+                    leading={<ToolIcon t={t} size={22} />}
+                    title={t.name}
+                    trailing={
+                      <Icon name="arrow_outward" size={14} className="text-text-subtle" />
+                    }
+                  />
+                ))}
+              </ListGroup>
+            )}
+            {order.length === 0 && mitm.length === 0 && q && (
+              <div className="py-10 text-center text-text-muted">Nothing matches “{q}”.</div>
+            )}
+          </>
+        )}
+      </WorkbenchList>
 
-      <section className={cn("min-h-0 flex-1 overflow-y-auto", !tool && "hidden md:block")}>
+      <WorkbenchDetail selected={!!tool} backLabel="All CLI tools" onBack={() => select(null)}>
         {tool && state ? (
           <div className="mx-auto max-w-4xl space-y-6 px-4 py-6 md:px-8 md:py-8">
-            <button type="button" onClick={() => select(null)} className="flex items-center gap-1 text-[13px] text-text-muted md:hidden">
-              <Icon name="arrow_back" size={16} /> CLI Tools
-            </button>
-            <header className="flex items-start gap-3">
-              <ToolIcon t={tool} size={40} />
+            <header className="flex items-start gap-4">
+              <ToolIcon t={tool} size={56} />
               <div className="min-w-0">
-                <h1 className="font-display text-2xl">{tool.name}</h1>
-                <p className="mt-0.5 flex items-center gap-1.5 text-[13px] text-text-muted">
-                  <span className={cn("inline-block size-2 shrink-0 rounded-full", DOT[state])} />
-                  {LABEL[state]}
-                </p>
-                {tool.description && <p className="mt-1 text-[13px] text-text-muted">{tool.description}</p>}
+                <h1 className="font-display text-3xl">{tool.name}</h1>
+                <div className="mt-1">
+                  {statuses ? (
+                    <StatusLabel status={STATUS_OF[state]} label={LABEL[state]} />
+                  ) : (
+                    <StatusLabel status="pending" />
+                  )}
+                </div>
+                {tool.description && (
+                  <p className="mt-1 text-[13px] text-text-muted">{tool.description}</p>
+                )}
               </div>
             </header>
             {tool.configType === "guide" ? (
               <PastePanel key={tool.id} toolId={tool.id} />
             ) : SPECS[tool.id] ? (
-              <ConnectPanel key={tool.id} toolId={tool.id} toolName={tool.name} onChanged={() => void load()} />
+              <ConnectPanel
+                key={tool.id}
+                toolId={tool.id}
+                toolName={tool.name}
+                onChanged={() => void load()}
+              />
             ) : (
-              <ToolDetailClient key={tool.id} toolId={tool.id} embedded onWrite={() => void load()} />
+              <ToolDetailClient
+                key={tool.id}
+                toolId={tool.id}
+                embedded
+                onWrite={() => void load()}
+              />
             )}
           </div>
         ) : (
-          <div className="grid h-full place-items-center p-8 text-center text-[13px] text-text-muted">
-            <div className="flex max-w-sm flex-col items-center gap-2">
-              <Icon name="terminal" size={28} className="text-text-subtle" />
-              Pick a tool to point it at regent. Each one keeps its settings in its own config file; this writes them for you and keeps a backup.
+          <div className="mx-auto max-w-4xl space-y-6 px-4 py-6 md:px-8 md:py-8">
+            <div>
+              <h1 className="font-display text-3xl">CLI Tools</h1>
+              <p className="mt-1 text-[13px] text-text-muted">
+                {statuses ? (
+                  <>
+                    <strong className="font-medium text-text">
+                      {connected} of {TOOLS.length} tools
+                    </strong>{" "}
+                    point at regent
+                    {connectable.length > 0 &&
+                      ` · ${connectable.length} installed but not connected`}
+                  </>
+                ) : (
+                  "Checking which tools are installed…"
+                )}
+              </p>
             </div>
+            <EmptyState icon="terminal">
+              Pick a tool to point it at regent. Each one keeps its settings in its own config
+              file; this writes them for you and keeps a backup.
+            </EmptyState>
           </div>
         )}
-      </section>
-      {connectAll && <ConnectAll tools={connectable} onClose={() => setConnectAll(false)} onDone={() => void load()} />}
+      </WorkbenchDetail>
+      {connectAll && (
+        <ConnectAll
+          tools={connectable}
+          onClose={() => setConnectAll(false)}
+          onDone={() => void load()}
+        />
+      )}
     </div>
   );
 }
