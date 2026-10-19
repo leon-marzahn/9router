@@ -6,10 +6,10 @@
 //   - The key is matched in constant time against every stored key (no early exit).
 //   - Every query below is scoped by the matched key's own string: one key can never
 //     read another key's rows.
-//   - Responses never carry the key, provider, account/connection, endpoint, routing
+//   - Responses never carry the resolved upstream model (only the requested name), the key, provider, account/connection, endpoint, routing
 //     trace, or prompt/response bodies.
-//   - Spend is what budgets count: budgetStatus()'s `charge` when it exists (per-key
-//     pricing), its `cost` otherwise. Per-row spend uses a `charge` column when present.
+//   - Spend is the per-row `charge` column when it exists (per-key pricing), `cost`
+//     otherwise. Budget status only supplies the budget card's ratio/state.
 import crypto from "node:crypto";
 import { getApiKeys } from "@/lib/db/repos/apiKeysRepo.js";
 import { getBudget } from "@/lib/db/repos/budgetsRepo.js";
@@ -96,7 +96,10 @@ function spendExpr(db) {
       chargeColumn = false;
     }
   }
-  return chargeColumn ? "COALESCE(charge, cost, 0)" : "COALESCE(cost, 0)";
+  // TODO(per-key pricing PR): that PR adds usageHistory.charge and backfills charge = cost.
+  // Once the column exists, spend is charge only: a NULL charge counts as 0 and never
+  // falls back to the raw upstream cost. Without the column, cost is the charge.
+  return chargeColumn ? "COALESCE(charge, 0)" : "COALESCE(cost, 0)";
 }
 /** Test hook: re-detect the charge column. */
 export function resetSchemaCache() {
@@ -105,10 +108,19 @@ export function resetSchemaCache() {
 
 const n = (v) => Number(v) || 0;
 
-/** Spend from a budget status: the customer's charge when pricing provides one. */
-export function statusSpend(status) {
-  if (status && typeof status.charge === "number") return status.charge;
-  return n(status?.cost);
+// Customers see the model name they asked for (a combo or alias name), never the
+// upstream model it resolved to. `usageHistory.model` is the resolved one, so it is
+// never selected here. Rows saved before requestedModel was recorded show UNKNOWN_MODEL.
+const REQUESTED = "json_extract(meta, '$.requestedModel')";
+export const UNKNOWN_MODEL = "Unknown model";
+
+/** "ok", "error", or a 3-digit HTTP code: never the stored free text (it can hold upstream URLs). */
+export function publicStatus(raw) {
+  const s = typeof raw === "string" ? raw.trim().toLowerCase() : "";
+  if (s === "" || s === "ok" || s === "success") return "ok";
+  const code = /\b([1-5]\d\d)\b/.exec(s);
+  if (code) return code[1].startsWith("2") ? "ok" : code[1];
+  return "error";
 }
 
 function publicBudget(b) {
@@ -126,27 +138,30 @@ function publicBudget(b) {
 /** Everything the customer page shows, for one key record. */
 export async function getCustomerUsage(rec, { now = new Date() } = {}) {
   const budget = await getBudget(keyScope(rec.id));
-  // No budget: still report this month's spend through the same counter code, under a
-  // scope of its own so it never mixes with a real budget's counter.
-  const scope = budget ? keyScope(rec.id) : `customer-view:${rec.id}`;
-  const status = await budgetStatus(scope, budget ?? { period: "month", enabled: false }, rec.key, {
-    now,
-  });
+  // The budget counter only drives the budget card's ratio/state. Every number shown
+  // (totals, breakdown, chart) comes from the fresh queries below, so they add up.
+  const status = budget ? await budgetStatus(keyScope(rec.id), budget, rec.key, { now }) : null;
   const period = budget?.period === "day" ? "day" : "month";
-  const { start } = periodBounds(period, now);
+  const { start, end } = periodBounds(period, now);
   const startIso = start.toISOString();
 
   const db = await getAdapter();
   const spend = spendExpr(db);
 
+  const totals = db.get(
+    `SELECT COUNT(*) AS requests, COALESCE(SUM(promptTokens + completionTokens), 0) AS tokens, SUM(${spend}) AS spend
+     FROM usageHistory WHERE apiKey = ? AND timestamp >= ?`,
+    [rec.key, startIso],
+  );
+
   const byModel = db
     .all(
-      `SELECT model, COUNT(*) AS requests, COALESCE(SUM(promptTokens), 0) AS inputTokens, COALESCE(SUM(completionTokens), 0) AS outputTokens, SUM(${spend}) AS spend
-       FROM usageHistory WHERE apiKey = ? AND timestamp >= ? GROUP BY model ORDER BY spend DESC, requests DESC LIMIT 100`,
+      `SELECT ${REQUESTED} AS model, COUNT(*) AS requests, COALESCE(SUM(promptTokens), 0) AS inputTokens, COALESCE(SUM(completionTokens), 0) AS outputTokens, SUM(${spend}) AS spend
+       FROM usageHistory WHERE apiKey = ? AND timestamp >= ? GROUP BY 1 ORDER BY spend DESC, requests DESC LIMIT 100`,
       [rec.key, startIso],
     )
     .map((r) => ({
-      model: r.model || "unknown",
+      model: r.model || UNKNOWN_MODEL,
       requests: n(r.requests),
       inputTokens: n(r.inputTokens),
       outputTokens: n(r.outputTokens),
@@ -170,14 +185,14 @@ export async function getCustomerUsage(rec, { now = new Date() } = {}) {
 
   const recent = db
     .all(
-      `SELECT timestamp, model, status, promptTokens, completionTokens, ${spend} AS spend
+      `SELECT timestamp, ${REQUESTED} AS model, status, promptTokens, completionTokens, ${spend} AS spend
        FROM usageHistory WHERE apiKey = ? ORDER BY timestamp DESC, id DESC LIMIT ${RECENT_LIMIT}`,
       [rec.key],
     )
     .map((r) => ({
       time: r.timestamp,
-      model: r.model || "unknown",
-      status: typeof r.status === "string" ? r.status.slice(0, 40) : "ok",
+      model: r.model || UNKNOWN_MODEL,
+      status: publicStatus(r.status),
       inputTokens: n(r.promptTokens),
       outputTokens: n(r.completionTokens),
       spend: n(r.spend),
@@ -187,13 +202,13 @@ export async function getCustomerUsage(rec, { now = new Date() } = {}) {
     key: { name: rec.name || "API key" },
     period: {
       period,
-      start: status.periodStart,
-      resetsAt: status.resetsAt,
-      spend: statusSpend(status),
-      tokens: n(status.tokens),
-      requests: n(status.requests),
+      start: startIso,
+      resetsAt: end.toISOString(),
+      spend: n(totals?.spend),
+      tokens: n(totals?.tokens),
+      requests: n(totals?.requests),
     },
-    budget: budget
+    budget: status
       ? {
           ...publicBudget(budget),
           ratio: n(status.ratio),

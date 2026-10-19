@@ -55,6 +55,7 @@ interface Usage {
 const money = (n: number) =>
   `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: n > 0 && n < 0.01 ? 4 : 2 })}`;
 const int = (n: number) => n.toLocaleString("en-US");
+const plural = (n: number, word: string) => `${int(n)} ${word}${n === 1 ? "" : "s"}`;
 const utc = (iso: string) =>
   new Date(iso).toLocaleString("en-GB", {
     timeZone: "UTC",
@@ -198,7 +199,6 @@ function KeyForm({ load, onSubmit }: { load: Load; onSubmit: (k: string) => void
             type="password"
             autoComplete="off"
             spellCheck={false}
-            autoFocus
             value={value}
             onChange={(e) => setValue(e.target.value)}
             placeholder="sk-…"
@@ -237,7 +237,7 @@ function Dashboard({
           <h1 className="truncate font-display text-3xl tracking-tight">{usage.key.name}</h1>
           <p className="mt-1 text-sm text-text-muted">
             {periodLabel} (UTC): <strong className="text-text">{money(p.spend)}</strong> across{" "}
-            {int(p.requests)} requests and {int(p.tokens)} tokens.
+            {plural(p.requests, "request")} and {plural(p.tokens, "token")}.
           </p>
         </div>
         <Button icon="refresh" onClick={onRefresh} loading={refreshing}>
@@ -291,8 +291,13 @@ function BudgetPanel({ usage }: { usage: Usage }) {
     );
   }
   const pct = Math.min(100, Math.round(b.ratio * 100));
+  // Fill color for <progress> (WebKit and Firefox pseudo-elements).
   const bar =
-    b.state === "over" ? "bg-danger" : b.state === "warning" ? "bg-warning" : "bg-success";
+    b.state === "over"
+      ? "[&::-webkit-progress-value]:bg-danger [&::-moz-progress-bar]:bg-danger"
+      : b.state === "warning"
+        ? "[&::-webkit-progress-value]:bg-warning [&::-moz-progress-bar]:bg-warning"
+        : "[&::-webkit-progress-value]:bg-success [&::-moz-progress-bar]:bg-success";
   const limits = [
     b.spendLimit != null && `${money(p.spend)} of ${money(b.spendLimit)}`,
     b.tokenLimit != null && `${int(p.tokens)} of ${int(b.tokenLimit)} tokens`,
@@ -322,16 +327,16 @@ function BudgetPanel({ usage }: { usage: Usage }) {
           {pct}%
         </span>
       </div>
-      <div
-        role="progressbar"
+      <progress
         aria-label={`Budget used ${period}`}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={pct}
-        className="h-2 overflow-hidden rounded-full bg-surface-3"
-      >
-        <div className={cn("h-full rounded-full", bar)} style={{ width: `${pct}%` }} />
-      </div>
+        max={100}
+        value={pct}
+        className={cn(
+          "block h-2 w-full appearance-none overflow-hidden rounded-full border-0 bg-surface-3",
+          "[&::-webkit-progress-bar]:bg-surface-3 [&::-webkit-progress-value]:rounded-full",
+          bar,
+        )}
+      />
       <div className="text-[12px] text-text-muted">{limits.join(" · ")}</div>
       <div className="text-[12px] text-text-muted">Resets {utc(p.resetsAt)}</div>
       {b.blocked && <Note tone="danger">New requests are refused until the budget resets.</Note>}
@@ -356,14 +361,11 @@ function DailyChart({ daily }: { daily: Usage["daily"] }) {
   return (
     <div>
       <div className="mb-3 flex items-baseline justify-between text-[12px] text-text-muted">
-        <span>{metric === "spend" ? money(total) : `${int(reqs)} requests`} in 30 days</span>
+        <span>Last 30 days: {metric === "spend" ? money(total) : plural(reqs, "request")}</span>
         <span>Peak {metric === "spend" ? money(peak) : int(peak)}/day</span>
       </div>
-      <div
-        className="flex h-36 items-end gap-[2px]"
-        role="img"
-        aria-label={`Daily ${metric}, last 30 days`}
-      >
+      {/* Bars are decorative; the summary above and each bar's title carry the numbers. */}
+      <div className="flex h-36 items-end gap-[2px]" aria-hidden>
         {daily.map((d) => {
           const v = metric === "spend" ? d.spend : d.requests;
           const h = peak ? Math.max(v > 0 ? 3 : 0, (v / peak) * 100) : 0;
@@ -407,7 +409,7 @@ function ModelTable({ rows }: { rows: Usage["byModel"] }) {
           <span className="text-right tabular-nums md:order-last">{money(r.spend)}</span>
           <span className="text-[12px] text-text-muted tabular-nums md:text-right md:text-[13px] md:text-text">
             {int(r.requests)}
-            <span className="md:hidden"> requests</span>
+            <span className="md:hidden"> {r.requests === 1 ? "request" : "requests"}</span>
           </span>
           <span className="text-right text-[12px] text-text-muted tabular-nums md:text-[13px]">
             {int(r.inputTokens)} / {int(r.outputTokens)}

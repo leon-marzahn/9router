@@ -36,7 +36,7 @@ const PUBLIC = [
   /^\/api\/settings\/require-login$/,
   // Deliberately public: the customer view authenticates with the caller's own API key
   // in the handler (src/lib/customerView). Covered by tests/unit/customer-view.test.js.
-  /^\/api\/customer(\/|$)/,
+  /^\/api\/customer\/usage$/,
 ];
 
 function collectRoutes(dir, base = "/api") {
@@ -102,7 +102,9 @@ describe("dashboard API auth gate", () => {
 
   it("the customer view is reachable without a session (its handler checks the key)", async () => {
     expect(await proxy(request("/api/customer/usage"))).toBe(mocks.next);
-    expect(await proxy(request("/api/customers"))).not.toBe(mocks.next);
+    // Exact path only: neighbours and sub-paths stay behind dashboard auth.
+    for (const p of ["/api/customers", "/api/customer", "/api/customer/other", "/api/customer/usage/x"])
+      expect(await proxy(request(p))).not.toBe(mocks.next);
   });
 
   it("local-only routes stay closed to a remote caller even with a valid session", async () => {

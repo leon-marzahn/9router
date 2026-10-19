@@ -21,10 +21,22 @@ const reply = (status, body, extra = {}) =>
 
 const UNAUTHORIZED = { error: "Invalid or unauthorized API key" };
 
+let warnedUnknownIp = false;
+
 export async function GET(request) {
-  const bucket = `customer:${getClientIp(request)}`;
+  const ip = getClientIp(request);
+  // Without custom-server.js (or TRUST_PROXY) every caller is "unknown": one shared
+  // bucket would let 5 bad requests lock out every customer. Skip the lockout then;
+  // keys are high-entropy, so guessing one isn't practical.
+  const bucket = ip && ip !== "unknown" ? `customer:${ip}` : null;
+  if (!bucket && !warnedUnknownIp) {
+    warnedUnknownIp = true;
+    console.warn(
+      "[customer-view] client IP unknown (not behind custom-server.js / TRUST_PROXY): failed-key lockout is off",
+    );
+  }
   try {
-    const lock = checkLock(bucket);
+    const lock = bucket ? checkLock(bucket) : { locked: false };
     if (lock.locked) {
       return reply(
         429,
@@ -34,7 +46,7 @@ export async function GET(request) {
     }
     const rec = await resolveCustomerKey(bearerFrom(request));
     if (!rec) {
-      recordFail(bucket);
+      if (bucket) recordFail(bucket);
       return reply(401, UNAUTHORIZED, { "WWW-Authenticate": "Bearer" });
     }
     return reply(200, await getCustomerUsage(rec));
