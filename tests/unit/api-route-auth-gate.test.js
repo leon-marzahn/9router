@@ -34,6 +34,9 @@ const PUBLIC = [
   /^\/api\/auth\/oidc\/(?!test)/,
   /^\/api\/auth\/saml\/(?!test)/,
   /^\/api\/settings\/require-login$/,
+  // Deliberately public: the customer view authenticates with the caller's own API key
+  // in the handler (src/lib/customerView). Covered by tests/unit/customer-view.test.js.
+  /^\/api\/customer(\/|$)/,
 ];
 
 function collectRoutes(dir, base = "/api") {
@@ -81,6 +84,25 @@ describe("dashboard API auth gate", () => {
   it("a valid session passes non-local-only routes", async () => {
     expect(await proxy(request("/api/keys", { cookie: "valid-session" }))).toBe(mocks.next);
     expect(await proxy(request("/api/providers/x", { cookie: "valid-session" }))).toBe(mocks.next);
+  });
+
+  it.each(routes)("%s refuses a valid API key presented as a bearer", async (route) => {
+    const localDb = await import("@/lib/localDb");
+    localDb.validateApiKey.mockResolvedValue(true);
+    try {
+      for (const headers of [{ authorization: "Bearer sk-valid" }, { "x-api-key": "sk-valid" }]) {
+        const res = await proxy(request(route, { headers }));
+        expect(res).not.toBe(mocks.next);
+        expect([401, 403]).toContain(res.status);
+      }
+    } finally {
+      localDb.validateApiKey.mockResolvedValue(false);
+    }
+  });
+
+  it("the customer view is reachable without a session (its handler checks the key)", async () => {
+    expect(await proxy(request("/api/customer/usage"))).toBe(mocks.next);
+    expect(await proxy(request("/api/customers"))).not.toBe(mocks.next);
   });
 
   it("local-only routes stay closed to a remote caller even with a valid session", async () => {

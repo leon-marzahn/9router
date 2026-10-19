@@ -30,6 +30,9 @@ const PUBLIC_API_PATHS = [
   "/api/auth/oidc",
   "/api/auth/saml",
   "/api/settings/require-login",
+  // Customer view: authenticated by the caller's own API key inside the handler
+  // (constant-time lookup, per-IP failure limiter, feature off by default).
+  "/api/customer",
 ];
 
 // Public top-level prefixes (LLM API endpoints with their own API key auth).

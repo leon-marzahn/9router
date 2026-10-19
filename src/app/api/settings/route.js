@@ -6,6 +6,7 @@ import bcrypt from "bcryptjs";
 import { validatePipelines } from "@/lib/request-pipelines/config.js";
 import { UPDATE_STATE_KEYS, webhookHost } from "@/lib/updates/webhook.js";
 import { NOTIFY_KEYS } from "@/lib/notify/config.js";
+import { validateCustomerViewPatch } from "@/lib/customerView/index.js";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -90,6 +91,10 @@ export async function PATCH(request) {
         return NextResponse.json({ error: error.message }, { status: 400 });
       }
     }
+
+    const cv = validateCustomerViewPatch(body);
+    if (cv.error) return NextResponse.json({ error: cv.error }, { status: 400 });
+    Object.assign(body, cv.value);
 
     // Strip protected secrets before any internal handling sets them
     for (const key of PROTECTED_SETTING_KEYS) delete body[key];
