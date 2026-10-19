@@ -90,6 +90,7 @@ describe("Codex image usage persistence", () => {
     expect(mocks.saveRequestUsage).toHaveBeenCalledWith({
       provider: "codex",
       model: "gpt-5.6-sol-image",
+      requestedModel: "cx/gpt-5.6-sol-image",
       connectionId: "connection-a",
       apiKey: "client-key",
       endpoint: "/v1/images/generations",

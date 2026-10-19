@@ -6,6 +6,7 @@ import { cn } from "@/ui/cn";
 import { About, Appearance, Backup, Network, RequestLogging, Routing } from "./General";
 import { Login } from "./Login";
 import { GlobalBudget } from "./Budget";
+import { CustomerViewSettings } from "./CustomerView";
 import { Notifications } from "./Notifications";
 import { Sso } from "./Sso";
 import { Updates } from "./Updates";
@@ -20,6 +21,7 @@ const INDEX = [
   { id: "request-logging", icon: "receipt_long", title: "Request logging" },
   { id: "notifications", icon: "mail", title: "Notifications" },
   { id: "budget", icon: "savings", title: "Budget" },
+  { id: "customer-view", icon: "person", title: "Customer view" },
   { id: "backup", icon: "save", title: "Backup" },
   { id: "updates", icon: "update", title: "Updates" },
   { id: "about", icon: "info", title: "About" },
@@ -100,6 +102,7 @@ export function SettingsPage() {
           <RequestLogging api={api} />
           <Notifications />
           <GlobalBudget />
+          <CustomerViewSettings api={api} />
           <Backup api={api} />
           <Updates />
           <About />

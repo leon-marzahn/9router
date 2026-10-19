@@ -133,6 +133,7 @@ export async function handleSystemone(request) {
         saveRequestUsage({
           provider,
           model,
+          requestedModel: modelStr,
           connectionId: credentials.connectionId,
           apiKey,
           endpoint: url.pathname,
