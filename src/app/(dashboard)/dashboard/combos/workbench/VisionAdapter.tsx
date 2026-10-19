@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button, Icon, IconButton, Panel, Switch } from "@/ui";
+import { Button, IconButton, Panel, Switch } from "@/ui";
 import { ModelSelectModal } from "@/shared/components";
 import { notify } from "./useCombos";
 
@@ -29,7 +29,7 @@ const norm = (v: Adapter[string] | undefined): Cap =>
  * Vision fallback: when a request has images and the chosen model can't see,
  * these models describe the images first. Stored in settings.capacityAdapter.vision.
  */
-export function VisionAdapter({ onBack }: { onBack: () => void }) {
+export function VisionAdapter() {
   const [adapter, setAdapter] = useState<Adapter | null>(null);
   const [picking, setPicking] = useState(false);
 
@@ -63,15 +63,8 @@ export function VisionAdapter({ onBack }: { onBack: () => void }) {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 px-4 py-6 md:px-8 md:py-8">
-      <button
-        type="button"
-        onClick={onBack}
-        className="flex items-center gap-1 text-[13px] text-text-muted md:hidden"
-      >
-        <Icon name="arrow_back" size={16} /> Combos
-      </button>
       <header>
-        <h1 className="font-display text-2xl">Vision fallback</h1>
+        <h1 className="font-display text-3xl">Vision fallback</h1>
         <p className="mt-1 text-[13px] text-text-muted">
           When a request has images but the model it goes to can&rsquo;t see, one of these models
           looks at the images first. Applies to every model and combo.

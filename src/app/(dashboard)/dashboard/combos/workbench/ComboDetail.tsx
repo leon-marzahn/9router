@@ -30,10 +30,13 @@ import {
   Segmented,
   Tag,
   ConfirmDialog,
+  CopyButton,
+  StatusDot,
+  StatusLabel,
 } from "@/ui";
 import { cn } from "@/ui/cn";
 import { ModelSelectModal } from "@/shared/components";
-import { STEP_DOT, STEP_LABEL, STEP_TEXT, splitStep, stepDetail } from "./steps";
+import { STEP_LABEL, STEP_STATUS, splitStep, stepDetail } from "./steps";
 import type { Combo, CombosApi, Strategy } from "./useCombos";
 
 const Picker = ModelSelectModal as unknown as React.ComponentType<Record<string, unknown>>;
@@ -87,27 +90,16 @@ export function ComboDetail({
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 px-4 py-6 md:px-8 md:py-8">
-      <button
-        type="button"
-        onClick={onBack}
-        className="flex items-center gap-1 text-[13px] text-text-muted md:hidden"
-      >
-        <Icon name="arrow_back" size={16} /> Combos
-      </button>
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="truncate font-mono text-2xl">{combo.name}</h1>
+          <h1 className="truncate font-mono text-3xl">{combo.name}</h1>
           <p className="mt-1 text-[13px] text-text-muted">
             Send <code className="font-mono">{combo.name}</code> as the model, or{" "}
             <code className="font-mono">combo/{combo.name}</code> to always mean this combo.
           </p>
         </div>
         <span className="flex items-center gap-1">
-          <IconButton
-            icon="content_copy"
-            label="Copy model name"
-            onClick={() => void navigator.clipboard?.writeText(combo.name)}
-          />
+          <CopyButton value={combo.name} label="Copy model name" />
           <IconButton ref={menuRef} icon="more_horiz" label="More" onClick={() => setMenu(!menu)} />
         </span>
         <Popover
@@ -355,14 +347,15 @@ function StepRow({
             Next request
           </Tag>
         )}
-        <span className={cn("hidden items-center gap-1.5 text-[12px] sm:flex", STEP_TEXT[tone])}>
-          <span className={cn("size-2 rounded-full", STEP_DOT[tone])} />
-          {STEP_LABEL[tone]}
-        </span>
-        <span
-          className={cn("size-2 shrink-0 rounded-full sm:hidden", STEP_DOT[tone])}
-          aria-label={STEP_LABEL[tone]}
+        <StatusLabel
+          status={STEP_STATUS[tone]}
+          label={STEP_LABEL[tone]}
+          className="hidden sm:inline-flex"
         />
+        <span className="inline-flex sm:hidden">
+          <StatusDot status={STEP_STATUS[tone]} />
+          <span className="sr-only">{STEP_LABEL[tone]}</span>
+        </span>
         <IconButton icon="close" label="Remove step" onClick={onRemove} />
       </Panel>
     </li>

@@ -1,4 +1,5 @@
 import { getProviderByAlias } from "@/shared/constants/providers.js";
+import type { Status } from "@/ui";
 import type { StepReadiness } from "./useCombos";
 
 export type StepTone = "ready" | "cooling" | "off" | "combo" | "unknown";
@@ -11,20 +12,13 @@ export const STEP_LABEL: Record<StepTone, string> = {
   unknown: "Unknown",
 };
 
-export const STEP_DOT: Record<StepTone, string> = {
-  ready: "bg-success",
-  cooling: "bg-warning",
-  off: "bg-danger",
-  combo: "bg-info",
-  unknown: "bg-transparent ring-1 ring-inset ring-text-subtle",
-};
-
-export const STEP_TEXT: Record<StepTone, string> = {
-  ready: "text-success-text",
-  cooling: "text-warning-text",
-  off: "text-danger-text",
-  combo: "text-info-text",
-  unknown: "text-text-muted",
+/** Step tones on the shared status vocabulary (docs/DESIGN.md "Status"). */
+export const STEP_STATUS: Record<StepTone, Status> = {
+  ready: "ok",
+  cooling: "degraded",
+  off: "error",
+  combo: "ready",
+  unknown: "none",
 };
 
 type ProviderInfo = { id?: string; name?: string } | null;
