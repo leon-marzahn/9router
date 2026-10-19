@@ -7,6 +7,7 @@ import { About, Appearance, Backup, Network, RequestLogging, Routing } from "./G
 import { Login } from "./Login";
 import { GlobalBudget } from "./Budget";
 import { PricePlans } from "./PricePlans";
+import { CustomerViewSettings } from "./CustomerView";
 import { Notifications } from "./Notifications";
 import { Sso } from "./Sso";
 import { Updates } from "./Updates";
@@ -22,6 +23,7 @@ const INDEX = [
   { id: "notifications", icon: "mail", title: "Notifications" },
   { id: "budget", icon: "savings", title: "Budget" },
   { id: "pricing", icon: "sell", title: "Customer pricing" },
+  { id: "customer-view", icon: "person", title: "Customer view" },
   { id: "backup", icon: "save", title: "Backup" },
   { id: "updates", icon: "update", title: "Updates" },
   { id: "about", icon: "info", title: "About" },
@@ -104,6 +106,7 @@ export function SettingsPage() {
           <Notifications />
           <GlobalBudget />
           <PricePlans />
+          <CustomerViewSettings api={api} />
           <Backup api={api} />
           <Updates />
           <About />

@@ -114,7 +114,10 @@ describe("computeCharge", () => {
       ],
     };
     // 1M input at $3, nothing else. Cost is irrelevant once a rate matches.
-    close(billing.computeCharge({ cost: 1, provider: "openai", model: "m1", tokens: TOK_1M_IN }, p), 3);
+    close(
+      billing.computeCharge({ cost: 1, provider: "openai", model: "m1", tokens: TOK_1M_IN }, p),
+      3,
+    );
     // Same model via another provider: the bare-model rate.
     close(
       billing.computeCharge({ cost: 1, provider: "other", model: "m1", tokens: TOK_1M_IN }, p),
@@ -122,7 +125,10 @@ describe("computeCharge", () => {
     );
     // Cached input at the cached rate (falls back to input when unset).
     const cached = { prompt_tokens: 1_000_000, cached_tokens: 1_000_000 };
-    close(billing.computeCharge({ cost: 0, provider: "openai", model: "m1", tokens: cached }, p), 1);
+    close(
+      billing.computeCharge({ cost: 0, provider: "openai", model: "m1", tokens: cached }, p),
+      1,
+    );
     close(billing.computeCharge({ cost: 0, provider: "x", model: "m1", tokens: cached }, p), 9);
   });
 
@@ -445,7 +451,10 @@ describe("dashboard routes", () => {
     expect(await plansRepo.getKeyPlanIds()).toEqual({ [k.id]: "plan_a", [keyB.id]: "plan_a" });
 
     // Assignments for keys missing from the backup are dropped.
-    await db.importDb({ ...dump, keyPlans: [...dump.keyPlans, { keyId: "ghost", planId: "plan_a" }] });
+    await db.importDb({
+      ...dump,
+      keyPlans: [...dump.keyPlans, { keyId: "ghost", planId: "plan_a" }],
+    });
     expect(Object.keys(await plansRepo.getKeyPlanIds())).not.toContain("ghost");
 
     await db.importDb({ ...dump, pricePlans: [{ id: "bad id", name: "x" }] }).then(

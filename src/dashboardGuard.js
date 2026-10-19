@@ -32,6 +32,10 @@ const PUBLIC_API_PATHS = [
   "/api/settings/require-login",
 ];
 
+// Public exact paths only (no sub-paths). Customer view: authenticated by the caller's
+// own API key inside the handler (constant-time lookup, per-IP failure limiter, off by default).
+const PUBLIC_API_EXACT = ["/api/customer/usage"];
+
 // Public top-level prefixes (LLM API endpoints with their own API key auth).
 // Keep root-level rewrites here too: middleware runs before Next.js rewrites.
 const PUBLIC_PREFIXES = ["/v1", "/v1beta", "/api/v1", "/api/v1beta", "/codex", "/responses"];
@@ -198,6 +202,7 @@ const AUTH_TEST_PATHS = ["/api/auth/oidc/test", "/api/auth/saml/test"];
 function isPublicApi(pathname) {
   if (isPublicLlmApi(pathname)) return true;
   if (AUTH_TEST_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))) return false;
+  if (PUBLIC_API_EXACT.includes(pathname)) return true;
   return PUBLIC_API_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 

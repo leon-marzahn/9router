@@ -3,6 +3,7 @@ import { EventEmitter } from "events";
 import { getAdapter } from "../driver.js";
 import { parseJson, stringifyJson } from "../helpers/jsonCol.js";
 import { getMeta, setMeta } from "../helpers/metaStore.js";
+import { currentTrace, getTrace } from "@/lib/requestTrace.js";
 
 function maskApiKey(key) {
   if (!key || typeof key !== "string") return null;
@@ -271,6 +272,25 @@ export async function getActiveRequests() {
   return { activeRequests, recentRequests, errorProvider };
 }
 
+/** The model name the client asked for: explicit, else from the request's routing trace. */
+function requestedModelOf(entry) {
+  if (typeof entry.requestedModel === "string" && entry.requestedModel) return entry.requestedModel;
+  try {
+    const trace = (typeof entry.traceId === "string" && getTrace(entry.traceId)) || currentTrace();
+    return typeof trace?.requestedModel === "string" && trace.requestedModel ? trace.requestedModel : null;
+  } catch {
+    return null;
+  }
+}
+
+function rowMeta(entry) {
+  const meta = {};
+  if (typeof entry.traceId === "string") meta.traceId = entry.traceId.slice(0, 64);
+  const requested = requestedModelOf(entry);
+  if (requested) meta.requestedModel = requested.slice(0, 200);
+  return meta;
+}
+
 export async function saveRequestUsage(entry) {
   try {
     const db = await getAdapter();
@@ -326,7 +346,8 @@ export async function saveRequestUsage(entry) {
           promptTokens, completionTokens, entry.cost || 0, entry.charge ?? entry.cost ?? 0, entry.status || "ok",
           stringifyJson(tokens),
           // meta.traceId links the row to its in-memory routing trace (Usage inspector).
-          stringifyJson(typeof entry.traceId === "string" ? { traceId: entry.traceId.slice(0, 64) } : {}),
+          // meta.requestedModel is the name the client sent (combo/alias), shown to customers.
+          stringifyJson(rowMeta(entry)),
         ]
       );
 

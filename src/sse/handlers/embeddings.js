@@ -149,6 +149,7 @@ export async function handleEmbeddings(request) {
         saveRequestUsage({
           provider,
           model,
+          requestedModel: modelStr,
           connectionId: credentials.connectionId,
           apiKey,
           endpoint: url.pathname,
