@@ -155,6 +155,7 @@ export default defineConfig({
       "!/src/app/(dashboard)/dashboard/skills",
       "!/src/app/(dashboard)/dashboard/translator",
       "!/src/app/(dashboard)/dashboard/token-saver",
+      "!/src/app/(dashboard)/dashboard/pxpipe",
       "!/src/app/(dashboard)/dashboard/usage",
       "/src/app/(dashboard)/dashboard/usage/*",
       "!/src/app/(dashboard)/dashboard/usage/page.tsx",
