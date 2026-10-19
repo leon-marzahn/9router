@@ -1,4 +1,35 @@
 
+# v100.3.0 (2026-10-19)
+
+## Features
+- **ui**: Promote CodeBlock and Select, migrate code blocks and selects (#61)
+- **ui**: Shared workbench list shell and useListKeyboard, adopted in Providers and Media (#59)
+- **ui**: Dialog and ConfirmDialog with scrim token, migrate Combos and Quota (#58)
+- **cli-tools**: Align workbench with the shared list shell (#63)
+- **request-pipelines**: Align workbench with the shared list shell (#62)
+- **combos**: Align workbench with the shared list shell (#64)
+- **quota**: Align workbench with the shared list shell (#65)
+- **ui**: Reach the workbench overview on mobile (Providers, Media) (#66)
+
+## Fixes
+- **quota,providers**: DeepSeek balance and cooldown status (#71)
+- **cli-tools**: Stop returning tool configs with keys from settings routes (#72)
+- **request-pipelines**: Let "Keep the latest" be cleared while typing, block save until it has a value (#74)
+
+## Refactors
+- **usage**: Use StatGrid and EmptyState on live traffic (#60)
+- **ui**: Single-pane pages use canonical width, header and CopyButton (#57)
+- **ui**: Use the shared mobile overview row on Combos and Quota (#67)
+- **ui**: Explicit mobile detail state in the workbench shell (#68)
+- **ui**: Move remaining dialogs to the src/ui Dialog (#70)
+
+## Docs
+- **design**: Document canonical patterns and promote shared ui parts (#56)
+- **readme**: New README with screenshots and feature tour (#69)
+
+## Build & CI
+- **coverage**: Measure test coverage and show it in the PR checks summary (#55)
+
 # v100.2.0 (2026-10-18)
 
 ## Features
