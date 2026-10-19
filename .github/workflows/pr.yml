@@ -47,6 +47,9 @@ jobs:
           if [ -z "$BASE_REF" ] || [ "$BASE_REF" = "0000000000000000000000000000000000000000" ]; then BASE_REF=HEAD~1; fi
           scripts/ci/lint-changed.sh "$BASE_REF"
 
+      - name: Design lint (raw controls and colors; baseline in scripts/ci/design-lint-baseline.txt)
+        run: node scripts/ci/design-lint.mjs
+
       - name: Test
         run: bunx vp test run --coverage --coverage.reportOnFailure --reporter=default --reporter=json --outputFile=vitest-report.json || true
 
