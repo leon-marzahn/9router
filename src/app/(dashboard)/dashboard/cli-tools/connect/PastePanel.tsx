@@ -1,14 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Button, CopyButton, Field, Panel } from "@/ui";
+import { Button, CodeBlock, CopyButton, Field, Panel, Select } from "@/ui";
 import { ModelSelectModal } from "@/shared/components";
 import { CLI_TOOLS } from "@/shared/constants/cliTools.js";
 import { withV1 } from "./specs";
 import { maskKey, useConnectContext } from "./useConnectContext";
 
 const Picker = ModelSelectModal as unknown as React.ComponentType<Record<string, unknown>>;
-const SELECT = "h-9 w-full rounded-lg border border-border bg-surface px-3 text-[13px] text-text";
 
 interface Step {
   step: number;
@@ -49,22 +48,22 @@ export function PastePanel({ toolId }: { toolId: string }) {
     <div className="space-y-4">
       <Panel className="grid gap-3 p-4 sm:grid-cols-3">
         <Field label="Endpoint">
-          <select className={SELECT} value={endpoint} onChange={(e) => setEndpoint(e.target.value)}>
+          <Select value={endpoint} onChange={(e) => setEndpoint(e.target.value)}>
             {ctx.endpoints.map((e) => (
               <option key={e.id} value={e.id}>
                 {e.label}
               </option>
             ))}
-          </select>
+          </Select>
         </Field>
         <Field label="API key">
-          <select className={SELECT} value={keyId || key?.id || ""} onChange={(e) => setKeyId(e.target.value)}>
+          <Select value={keyId || key?.id || ""} onChange={(e) => setKeyId(e.target.value)}>
             {(ctx.keys ?? []).map((k) => (
               <option key={k.id} value={k.id}>
                 {k.name}
               </option>
             ))}
-          </select>
+          </Select>
         </Field>
         <Field label="Model">
           <Button className="w-full justify-between font-mono" onClick={() => setPicking(true)}>
@@ -122,13 +121,11 @@ export function PastePanel({ toolId }: { toolId: string }) {
       ) : null}
 
       {tool?.codeBlock && (
-        <Panel className="overflow-hidden">
-          <div className="flex items-center justify-between border-b border-border px-4 py-1.5 text-[12px] text-text-muted">
-            <span>{tool.codeBlock.language ?? "config"}</span>
-            <CopyButton value={fill(tool.codeBlock.code, true)} />
-          </div>
-          <pre className="overflow-x-auto p-4 font-mono text-[12px] leading-relaxed">{fill(tool.codeBlock.code)}</pre>
-        </Panel>
+        <CodeBlock
+          title={tool.codeBlock.language ?? "config"}
+          copy={fill(tool.codeBlock.code, true)}
+          text={fill(tool.codeBlock.code)}
+        />
       )}
 
       {tool?.docsUrl && (

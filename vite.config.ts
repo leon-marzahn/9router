@@ -38,6 +38,14 @@ export default defineConfig({
     maxConcurrency: 60,
     // Suppress noisy console output from handlers under test
     silent: false,
+    // Off by default; `bun run coverage` or `vp test run --coverage` turns it on (CI does).
+    coverage: {
+      provider: "v8",
+      include: ["src/**", "open-sse/**", "cli/**"],
+      exclude: ["**/node_modules/**", "**/*.d.ts", "cli/dist/**"],
+      reporter: ["text-summary", "json-summary", "html"],
+      reportsDirectory: "coverage",
+    },
   },
   resolve: {
     // Array form so subpath aliases (e.g. "@/lib/db/index.js") resolve correctly.

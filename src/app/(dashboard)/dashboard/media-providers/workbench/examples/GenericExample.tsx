@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Icon, Input, Segmented } from "@/ui";
+import { Icon, Input, Segmented, Select } from "@/ui";
 import {
   MEDIA_PROVIDER_KINDS,
   getProviderAlias,
@@ -19,7 +19,6 @@ import {
   RequestBlock,
   ResponseBlock,
   Row,
-  Select,
   authHeaders,
   errorText,
   maskB64,
