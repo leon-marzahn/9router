@@ -2,7 +2,7 @@
 // gateway. Each is one public URL; the user pastes it into their agent.
 "use client";
 
-import { Button, Icon, Panel, Tag } from "@/ui";
+import { Button, Icon, Panel, SectionTitle, Tag } from "@/ui";
 import { useCopyToClipboard as useCopyJs } from "@/shared/hooks/useCopyToClipboard";
 import {
   SKILLS as SKILLS_JS,
@@ -32,7 +32,7 @@ export function SkillsPage() {
   const prompt = `Read this skill and use it: ${getSkillRawUrl("regent")}`;
 
   return (
-    <div className="mx-auto max-w-4xl space-y-8">
+    <div className="mx-auto max-w-3xl space-y-8">
       <div>
         <h1 className="font-display text-3xl tracking-tight">Agent skills</h1>
         <p className="mt-1 max-w-2xl text-sm text-text-muted">
@@ -42,10 +42,7 @@ export function SkillsPage() {
       </div>
 
       <Panel className="p-5">
-        <div className="flex items-center gap-2 text-[13px] font-medium">
-          <Icon name="bolt" size={18} className="text-accent" />
-          Quickest start: paste this to your agent
-        </div>
+        <SectionTitle icon="bolt" title="Quickest start: paste this to your agent" />
         <p className="mt-1 text-xs text-text-muted">
           The main skill links to all the others, so this one line is usually enough.
         </p>
@@ -65,7 +62,7 @@ export function SkillsPage() {
       </Panel>
 
       <section className="space-y-2">
-        <h2 className="font-display text-xl">All skills</h2>
+        <SectionTitle icon="extension" title="All skills" />
         <p className="text-xs text-text-muted">
           Give an agent just one of these when it only needs a single capability.
         </p>

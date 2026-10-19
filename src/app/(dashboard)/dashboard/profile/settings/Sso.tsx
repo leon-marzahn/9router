@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useSyncExternalStore } from "react";
-import { Button, Field, IconButton, Input, Segmented } from "@/ui";
+import { Button, CopyButton, Field, Input, Segmented } from "@/ui";
 import { inputClass } from "@/ui";
 import { Note, SettingRow, SettingRowSkeleton, SettingsSection } from "@/ui";
 import { notify, type Settings, type SettingsApi } from "./useSettings";
@@ -22,11 +22,7 @@ function Copy({ label, value }: { label: string; value: string }) {
         <code className="min-w-0 flex-1 truncate font-mono text-[12px] text-text-muted">
           {value}
         </code>
-        <IconButton
-          icon="content_copy"
-          label={`Copy ${label}`}
-          onClick={() => void navigator.clipboard?.writeText(value)}
-        />
+        <CopyButton value={value} label={`Copy ${label}`} />
       </div>
     </div>
   );

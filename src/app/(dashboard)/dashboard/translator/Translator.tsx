@@ -6,7 +6,17 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
-import { Button, EmptyState, Eyebrow, Icon, ListRow, Panel, Tag } from "@/ui";
+import {
+  Button,
+  CopyButton,
+  EmptyState,
+  Eyebrow,
+  Icon,
+  ListRow,
+  Panel,
+  SectionTitle,
+  Tag,
+} from "@/ui";
 import { cn } from "@/ui/cn";
 import { useTheme as useThemeJs } from "@/shared/hooks/useTheme";
 import { Note } from "@/ui";
@@ -250,15 +260,6 @@ function Workbench() {
     }
   };
 
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(content);
-      notify().success("Copied");
-    } catch {
-      notify().error("Couldn't copy to the clipboard");
-    }
-  };
-
   const action =
     selected === 1
       ? { key: "toOpenAI", label: "Convert to OpenAI format", icon: "arrow_forward", fn: toOpenAI }
@@ -334,9 +335,7 @@ function Workbench() {
 
         <section className="min-w-0 space-y-3">
           <div>
-            <h2 className="font-display text-xl">
-              {step.id}. {step.label}
-            </h2>
+            <SectionTitle title={`${step.id}. ${step.label}`} />
             <p className="mt-0.5 text-xs text-text-muted">{step.desc}</p>
           </div>
           {selected === 4 && (
@@ -380,9 +379,7 @@ function Workbench() {
             <Button icon="data_object" onClick={format} disabled={!content}>
               Format
             </Button>
-            <Button icon="content_copy" onClick={copy} disabled={!content}>
-              Copy
-            </Button>
+            {content && <CopyButton value={content} label="Copy step content" />}
             {content && (
               <span className="ml-auto text-[11px] tabular-nums text-text-subtle">
                 {content.length.toLocaleString()} characters
