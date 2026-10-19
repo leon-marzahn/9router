@@ -316,14 +316,17 @@ describe("DefaultExecutor.refreshCredentials", () => {
     }
   });
 
-  // BUG: "gemini" is in the refreshers map but PROVIDER_OAUTH.gemini has no `refresh`
-  // block, so REFRESH_GRANTS.gemini is undefined and refreshFromGrant throws
-  // "Cannot read properties of undefined (reading 'params')" before any request is
-  // sent. The error is swallowed and refresh silently returns null.
-  it.skip("gemini OAuth refresh sends a refresh_token grant (BUG: REFRESH_GRANTS.gemini undefined)", async () => {
+  it("gemini OAuth refresh sends a refresh_token grant with Google client credentials", async () => {
     fetchMock.mockResolvedValueOnce(jsonRes(200, { access_token: "g" }));
     const out = await new DefaultExecutor("gemini").refreshCredentials({ refreshToken: "r" });
     expect(out?.accessToken).toBe("g");
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("https://oauth2.googleapis.com/token");
+    const body = Object.fromEntries(init.body);
+    expect(body.grant_type).toBe("refresh_token");
+    expect(body.refresh_token).toBe("r");
+    expect(body.client_id).toMatch(/apps\.googleusercontent\.com$/);
+    expect(body.client_secret).toBeTruthy();
   });
 
   it("kilocode has no refresh support", async () => {

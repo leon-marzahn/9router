@@ -35,6 +35,14 @@ export default {
       },
     },
   },
+  // OAuth token refresh (Google OAuth, same token endpoint as gemini-cli). client_id/secret
+  // come from transport via the gemini branch of REFRESH_GRANTS in executors/default.js.
+  oauth: {
+    tokenUrl: "https://oauth2.googleapis.com/token",
+    refresh: {
+      encoding: "form",
+    },
+  },
   models: [
     { id: "gemini-4-argon", name: "Gemini 4 Argon" },
     { id: "gemini-3.8-flash", name: "Gemini 3.8 Flash" },

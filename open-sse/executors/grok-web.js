@@ -103,8 +103,6 @@ async function* readGrokNdjsonEvents(body, signal) {
 async function* extractContent(eventStream, isThinkingModel, signal) {
   let fingerprint = "";
   let responseId = "";
-  let thinkOpened = false;
-
   for await (const event of readGrokNdjsonEvents(eventStream, signal)) {
     if (event.error) {
       yield { error: event.error.message || `Grok error: ${event.error.code}`, done: true };
@@ -117,16 +115,20 @@ async function* extractContent(eventStream, isThinkingModel, signal) {
     if (resp.responseId) responseId = resp.responseId;
 
     if (resp.modelResponse) {
+      // modelResponse.message is the final answer only; reasoning was already
+      // streamed as isThinking tokens below.
       const mr = resp.modelResponse;
-      if (thinkOpened && isThinkingModel) {
-        if (mr.message) yield { thinking: mr.message };
-        thinkOpened = false;
-      }
       if (mr.message) yield { fullMessage: mr.message, fingerprint, responseId };
       if (mr.metadata?.llm_info?.modelHash) fingerprint = mr.metadata.llm_info.modelHash;
       continue;
     }
 
+    // Grok flags reasoning tokens with `isThinking`; surface them as reasoning
+    // for thinking models instead of mixing them into the answer.
+    if (resp.token != null && resp.isThinking && isThinkingModel) {
+      if (resp.token) yield { thinking: resp.token, fingerprint, responseId };
+      continue;
+    }
     if (resp.token != null) yield { delta: resp.token, fingerprint, responseId };
   }
   yield { done: true, fingerprint, responseId };
