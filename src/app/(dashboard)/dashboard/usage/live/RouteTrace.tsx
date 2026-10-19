@@ -110,7 +110,15 @@ export function RouteTraceView({ trace }: { trace: Trace }) {
   const t = trace.tokens;
   return (
     <section aria-label="How this request was routed" className="space-y-3">
-      <Eyebrow>Route</Eyebrow>
+      <div className="flex items-center gap-2">
+        <Eyebrow>Route</Eyebrow>
+        <span className="ml-auto flex items-center gap-1.5">
+          <Tag mono>{trace.stream ? "stream" : "json"}</Tag>
+          <Tag tone={ok ? "success" : "danger"} mono>
+            {trace.outcome.statusCode ?? (ok ? "OK" : "ERR")}
+          </Tag>
+        </span>
+      </div>
 
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px]">
         <span className="font-mono break-all">{trace.requestedModel ?? "—"}</span>
@@ -122,12 +130,6 @@ export function RouteTraceView({ trace }: { trace: Trace }) {
             </Tag>
           </>
         )}
-        <span className="ml-auto flex items-center gap-2 text-text-muted">
-          <Tag mono>{trace.stream ? "stream" : "json"}</Tag>
-          <Tag tone={ok ? "success" : "danger"} mono>
-            {trace.outcome.statusCode ?? (ok ? "OK" : "ERR")}
-          </Tag>
-        </span>
       </div>
 
       {trace.combo && trace.combo.models.length > 0 && (

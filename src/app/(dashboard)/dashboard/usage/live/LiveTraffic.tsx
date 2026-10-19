@@ -219,7 +219,7 @@ function Feed({
             {paused ? (
               <>
                 <span className="material-symbols-outlined text-[16px] text-text-muted">pause</span>
-                <span className="text-text-muted">
+                <span className="min-w-0 truncate text-text-muted">
                   Paused
                   {selectedId
                     ? " while a request is open"
@@ -246,7 +246,7 @@ function Feed({
               <>
                 <StatusDot status="ok" live />
                 <span className="text-text-muted">Live</span>
-                <span className="hidden text-text-subtle [@media(hover:hover)]:inline">
+                <span className="hidden min-w-0 truncate text-text-subtle [@media(hover:hover)]:inline">
                   · hover the list to hold it still
                 </span>
                 <Button
