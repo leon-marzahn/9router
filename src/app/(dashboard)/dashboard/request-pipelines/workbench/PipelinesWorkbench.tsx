@@ -34,6 +34,8 @@ export function PipelinesWorkbench() {
   const sel = params.get("pipeline");
   const list = api.pipelines ?? [];
   const current = list.find((p) => p.name === sel);
+  // Mobile only: the overview as its own screen (desktop shows it with nothing selected)
+  const overview = !current && params.get("view") === "overview";
   const [q, setQ] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
   const needle = q.trim().toLowerCase();
@@ -41,6 +43,7 @@ export function PipelinesWorkbench() {
 
   const select = (name: string | null) =>
     router.replace(name ? `${PATH}?pipeline=${encodeURIComponent(name)}` : PATH, { scroll: false });
+  const openOverview = () => router.replace(`${PATH}?view=overview`, { scroll: false });
 
   const create = (template: Pipeline) => {
     const name = uniqueName(template.name, list);
@@ -75,7 +78,7 @@ export function PipelinesWorkbench() {
         </TopBarActions>
       )}
       <WorkbenchList
-        selected={current?.name ?? null}
+        selected={current?.name ?? (overview ? "overview" : null)}
         hints={[
           ["↑↓", "move"],
           ["/", "search"],
@@ -95,6 +98,14 @@ export function PipelinesWorkbench() {
           <ListSkeleton rows={3} />
         ) : (
           <>
+            <ListRow
+              className="md:hidden"
+              onClick={openOverview}
+              leading={<Icon name="alt_route" size={16} className="text-text-muted" />}
+              title="Overview"
+              subtitle="What pipelines do, where they run, templates"
+              trailing={<Icon name="chevron_right" size={16} className="text-text-subtle" />}
+            />
             <ListGroup title="Pipelines" count={shown.length}>
               {shown.map((p) => {
                 const u = api.usage[p.name];
@@ -136,7 +147,11 @@ export function PipelinesWorkbench() {
           </>
         )}
       </WorkbenchList>
-      <WorkbenchDetail selected={!!current} backLabel="All pipelines" onBack={() => select(null)}>
+      <WorkbenchDetail
+        selected={!!current || overview}
+        backLabel="All pipelines"
+        onBack={() => select(null)}
+      >
         {current ? (
           <PipelineDetail
             key={current.name}

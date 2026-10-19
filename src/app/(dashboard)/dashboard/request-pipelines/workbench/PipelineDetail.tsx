@@ -80,7 +80,7 @@ export function PipelineDetail({
           <Field
             label="Name"
             error={name !== p.name ? nameProblem : null}
-            className="min-w-0 max-w-sm flex-1"
+            className="min-w-0 flex-1"
           >
             <Input
               mono
@@ -90,7 +90,6 @@ export function PipelineDetail({
               onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
             />
           </Field>
-          <span className="flex-1" />
           <IconButton
             ref={menuRef}
             icon="more_horiz"
