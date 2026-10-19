@@ -30,7 +30,7 @@ bun run build && PORT=20128 HOSTNAME=0.0.0.0 bun run start           # productio
 - Formatting (`vp fmt`) is scoped by an allow-list in `vite.config.ts` `fmt.ignorePatterns` to fork-owned files only, so upstream files keep their style and merges stay clean. Add new fork-owned files/dirs there.
 
 ### Working in a fresh worktree (agents)
-**The tools are installed — don't conclude otherwise.** Bun is at `~/.bun/bin`; Vite+ is at `~/.local/share/vite-plus/bin/vp` (the user's shell defines `vp` as a function, so a non-interactive shell may say `vp: command not found`). The `SessionStart` hook (`.claude/hooks/ensure-deps.sh`) adds both to `PATH` and installs `node_modules` in a fresh worktree. If a command is still missing:
+**The tools are installed — don't conclude otherwise.** Bun is at `~/.bun/bin`; Vite+ is at `~/.local/share/vite-plus/bin/vp` (the user's shell defines `vp` as a function, so a non-interactive shell may say `vp: command not found`). The `SessionStart` hook (`.claude/hooks/ensure-deps.sh`) adds both to `PATH` and installs `node_modules` in a fresh worktree. Subagents and worktrees created by tools may not run that hook, so **run `bun install --frozen-lockfile` once before your first typecheck/lint/test** (a ~1s no-op when already complete; it fixes a missing or half-installed `node_modules`). If a command is still missing:
 - `vp …` → `~/.local/share/vite-plus/bin/vp …`, or `bunx vp …`, or the `bun run` script (`bun run test`, `bun run lint`, `bun run typecheck`).
 - no `node_modules` → `bun install --frozen-lockfile`.
 - Chromium for screenshots → `bunx playwright@1.63.0 install chromium`.
