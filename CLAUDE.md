@@ -30,13 +30,17 @@ bun run build && PORT=20128 HOSTNAME=0.0.0.0 bun run start           # productio
 - Formatting (`vp fmt`) is scoped by an allow-list in `vite.config.ts` `fmt.ignorePatterns` to fork-owned files only, so upstream files keep their style and merges stay clean. Add new fork-owned files/dirs there.
 
 ### Working in a fresh worktree (agents)
-A new git worktree has no `node_modules`, so `bun run typecheck`, `vp lint`, `vp test` and the dev server fail until you install. The `SessionStart` hook in `.claude/settings.json` runs `.claude/hooks/ensure-deps.sh` to do this automatically; if it didn't (or failed), run `vp install` (fallback `bun install`) first.
+**The tools are installed — don't conclude otherwise.** Bun is at `~/.bun/bin`; Vite+ is at `~/.local/share/vite-plus/bin/vp` (the user's shell defines `vp` as a function, so a non-interactive shell may say `vp: command not found`). The `SessionStart` hook (`.claude/hooks/ensure-deps.sh`) adds both to `PATH` and installs `node_modules` in a fresh worktree. If a command is still missing:
+- `vp …` → `~/.local/share/vite-plus/bin/vp …`, or `bunx vp …`, or the `bun run` script (`bun run test`, `bun run lint`, `bun run typecheck`).
+- no `node_modules` → `bun install --frozen-lockfile`.
+- Chromium for screenshots → `bunx playwright@1.63.0 install chromium`.
+Never skip a check or tell the user a tool "isn't installed" before trying these.
 
-To check UI in a browser from a worktree, don't use `bun run dev`: it always binds port 20127 (likely the user's own dev server) and reads the real `~/.regent` data. Start your own instance on a free port with a throwaway data dir:
+**Try every UI change in a running dev server before opening the PR.** Typecheck and tests don't catch a broken page. Start your own instance (never `bun run dev`: it binds port 20127, likely the user's own server, and reads the real `~/.regent` data):
 ```bash
 DATA_DIR="$(mktemp -d)" PORT=20137 NEXT_PUBLIC_BASE_URL=http://localhost:20137 bunx next dev --webpack --port 20137
 ```
-Pick another port if 20137 is taken. Usage/log files ignore `DATA_DIR` and still go to `~/.regent` (see Persistence), so avoid generating traffic you don't want in the user's usage history. The scratch data starts empty (default password, no providers), so seed what the check needs through the dashboard or API.
+Run it in the background, pick another port if 20137 is taken, open the changed pages in the browser tool (log in with the default password `123456`), click through the flows you touched at desktop and 375px width, and check the console for errors. The scratch data starts empty (no providers), so seed what the check needs through the dashboard or API; `scripts/pr-shots/seed.mjs` shows how to seed demo data. Usage/log files ignore `DATA_DIR` and still go to `~/.regent` (see Persistence), so don't send real model traffic. Stop the server when done.
 
 ### PR evidence (agents)
 CI (`.github/workflows/pr.yml`) runs typecheck, `vp lint` on the files the PR changes (`scripts/ci/lint-changed.sh`; fix errors in files you touch), and `vp test run`, which must be green: any failure fails the job unless it is listed in `tests/__baseline__/known-fails.txt` (empty; `scripts/ci/compare-tests.mjs` also reports listed tests that pass again). For UI changes, attach screenshots of demo data only (the repo is public):
