@@ -9,7 +9,7 @@ export default {
   display: {
     name: "Volink",
     icon: "hub",
-    color: "#7C3AED",
+    color: "#2F54EB",
     textIcon: "VL",
     website: "https://volink.org",
     notice: {
