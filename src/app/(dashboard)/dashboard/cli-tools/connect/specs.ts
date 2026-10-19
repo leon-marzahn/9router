@@ -81,6 +81,10 @@ export interface ToolSpec {
   /** Settings are per scope (`?profile=`), picked above the form. */
   scopes?: { label: string; hint?: string; load: () => Promise<{ id: string; label: string }[]> };
   body?: (v: Values) => Record<string, unknown>;
+  /** Slots take a typed model id as well as a picked one (Claude Code: ids regent doesn't list). */
+  slotsFreeText?: boolean;
+  /** Offer "New combo" beside the model picker (Cowork). */
+  comboShortcut?: boolean;
   /** Excluded from "Connect all" (needs more than one model to make sense). */
   noBulk?: boolean;
 }
@@ -109,6 +113,7 @@ export const SPECS: Record<string, ToolSpec> = {
   claude: {
     file: "~/.claude/settings.json (+ ~/.claude.json for web search)",
     slotsOnly: true,
+    slotsFreeText: true,
     slotsTitle: "Model per tier",
     slots: () => CLAUDE_TIERS.map((t) => ({ id: t.alias, label: t.name })),
     readSlots: (s) =>
@@ -197,6 +202,7 @@ export const SPECS: Record<string, ToolSpec> = {
     body: ({ baseUrl, apiKey, models, slots }) => ({ baseUrl, apiKey, model: models[0], subagentModels: pick(slots) }),
   },
   cowork: {
+    comboShortcut: true,
     multi: true,
     file: "Claude Desktop's 3p config library (configLibrary/<id>.json)",
     Extras: CoworkPlugins,
