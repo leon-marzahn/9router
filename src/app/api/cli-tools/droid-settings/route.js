@@ -79,7 +79,6 @@ export async function GET() {
 
     return NextResponse.json({
       installed: true,
-      settings,
       hasRegent: hasRegentConfig(settings),
       current: droidCurrent(settings),
       settingsPath: getDroidSettingsPath(),

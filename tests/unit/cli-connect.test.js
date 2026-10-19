@@ -1,5 +1,13 @@
 // `regent connect` — arg parsing, URL/cookie helpers and per-tool config writers.
 import { describe, it, expect, beforeEach, afterEach, vi } from "vite-plus/test";
+import {
+  codexCurrent,
+  opencodeCurrent,
+  droidCurrent,
+  crushCurrent,
+  clineCurrent,
+  piCurrent,
+} from "../../src/app/api/cli-tools/currentSummary.js";
 import { createRequire } from "node:module";
 import fs from "node:fs";
 import os from "node:os";
@@ -130,19 +138,23 @@ describe("connect tool writers", () => {
     expect(readJson(f).customModels.map((m) => m.id)).toEqual(["mine"]);
   });
 
-  it("serverModel extractors read only 9router-owned model ids", async () => {
-    expect(await tool("codex").serverModel({ config: 'model = "a"\nmodel_provider = "9router"\n' })).toBe("a");
+  it("serverModel extractors read the server's `current` summary (never the raw config)", async () => {
+    // Fed through the same summaries the settings GETs return, so ownership rules carry over.
+    const wrap = (current) => ({ current });
+    expect(await tool("codex").serverModel(wrap(codexCurrent('model = "a"\nmodel_provider = "9router"\n[model_providers.9router]\nbase_url = "http://x"\n')))).toBe("a");
     // A model belonging to another provider is not ours to inherit.
-    expect(await tool("codex").serverModel({ config: 'model = "gpt-6"\nmodel_provider = "openai"\n' })).toBeNull();
-    expect(await tool("codex").serverModel({ config: null })).toBeNull();
-    expect(tool("opencode").serverModel({ config: { model: "9router/b" } })).toBe("b");
-    expect(tool("opencode").serverModel({ config: { model: "anthropic/c" } })).toBeNull();
-    expect(tool("droid").serverModel({ settings: { customModels: [{ id: "x", model: "n" }] } })).toBeNull();
-    expect(tool("crush").serverModel({ config: { providers: { "9router": { models: [{ id: "d" }] } } } })).toBe("d");
-    expect(tool("cline").serverModel({ settings: { actModeApiProvider: "cline", openAiModelId: "e" } })).toBeNull();
+    expect(await tool("codex").serverModel(wrap(codexCurrent('model = "gpt-6"\nmodel_provider = "openai"\n[model_providers.9router]\nbase_url = "http://x"\n')))).toBeNull();
+    expect(await tool("codex").serverModel(wrap(null))).toBeNull();
+    expect(tool("opencode").serverModel(wrap(opencodeCurrent({ model: "9router/b", provider: { "9router": {} } })))).toBe("b");
+    expect(tool("opencode").serverModel(wrap(opencodeCurrent({ model: "anthropic/c", provider: { "9router": {} } })))).toBeNull();
+    expect(tool("droid").serverModel(wrap(droidCurrent({ customModels: [{ id: "x", model: "n" }] })))).toBeNull();
+    expect(tool("crush").serverModel(wrap(crushCurrent({ providers: { "9router": { base_url: "http://x", models: [{ id: "d" }] } } })))).toBe("d");
+    expect(tool("cline").serverModel(wrap(clineCurrent({ actModeApiProvider: "cline", openAiModelId: "e" })))).toBeNull();
     expect(tool("kilo").serverModel).toBeUndefined();
-    expect(tool("pi").serverModel({ config: { providers: { "9router": { models: [{ id: "f" }] } } } })).toBe("f");
-    expect(tool("pi").serverModel({ config: { providers: { other: { models: [{ id: "f" }] } } } })).toBeNull();
+    expect(tool("pi").serverModel(wrap(piCurrent({ providers: { "9router": { baseUrl: "http://x", models: [{ id: "f" }] } } })))).toBe("f");
+    expect(tool("pi").serverModel(wrap(piCurrent({ providers: { other: { models: [{ id: "f" }] } } })))).toBeNull();
+    // Raw config fields are ignored even if an old server still sends them.
+    expect(tool("opencode").serverModel({ config: { model: "9router/b" } })).toBeNull();
   });
 
   it("pi keeps other providers and writes our model list", async () => {
@@ -220,15 +232,14 @@ describe("connect run()", () => {
       if (u.endsWith("/api/auth/login")) return json({ success: true });
       if (u.endsWith("/api/keys")) return json({ keys: [{ name: `cli-${os.hostname()}`, key: MY_KEY, isActive: true }] });
       if (u.endsWith("/api/cli-tools/claude-settings")) {
-        return json({ installed: true, settings: { env: {
-          ANTHROPIC_BASE_URL: "http://127.0.0.1:20128/v1",
-          ANTHROPIC_AUTH_TOKEN: SERVER_KEY,
-          ANTHROPIC_DEFAULT_OPUS_MODEL: "srv/opus",
-          ANTHROPIC_DEFAULT_SONNET_MODEL: "srv/sonnet[1m]",
-        } } });
+        return json({ installed: true, current: {
+          baseUrl: "http://127.0.0.1:20128/v1",
+          hasKey: true,
+          models: { opus: "srv/opus", sonnet: "srv/sonnet[1m]", haiku: null, fable: null },
+        } });
       }
       if (u.endsWith("/api/cli-tools/opencode-settings")) {
-        return json({ installed: true, config: { model: "9router/srv/default", provider: { "9router": { options: { apiKey: SERVER_KEY } } } } });
+        return json({ installed: true, current: { baseUrl: "http://127.0.0.1:20128/v1", hasKey: true, models: { models: ["srv/default"], active: "srv/default", subagent: null } } });
       }
       if (u.endsWith("/v1/models")) return json({ data: [{ id: "srv/opus" }, { id: "srv/sonnet" }, { id: "srv/default" }] });
       return json({});
@@ -275,16 +286,11 @@ describe("connect run()", () => {
     const json = (b) => Promise.resolve(new Response(JSON.stringify(b), { status: 200, headers: { "content-type": "application/json" } }));
     fetchSpy.mockImplementation((url) => {
       const u = String(url);
-      // Server-side configs also hold the server's key — must be ignored.
-      if (u.endsWith("/api/cli-tools/codex-settings")) {
-        return json({ installed: true, config: `model = "srv/codex"\nmodel_provider = "9router"\n[model_providers.9router]\nhttp_headers = { Authorization = "Bearer ${SERVER_KEY}" }\n` });
-      }
-      if (u.endsWith("/api/cli-tools/droid-settings")) {
-        return json({ installed: true, settings: { customModels: [{ id: "mine", model: "x" }, { id: "custom:9Router-0", model: "srv/droid", apiKey: SERVER_KEY }] } });
-      }
-      if (u.endsWith("/api/cli-tools/cline-settings")) {
-        return json({ installed: true, settings: { actModeApiProvider: "openai", openAiModelId: "srv/cline" } });
-      }
+      // The server only sends its `current` summary (never its key); the base URL is the server's own.
+      const cur = (models) => ({ installed: true, current: { baseUrl: "http://127.0.0.1:20128/v1", hasKey: true, models } });
+      if (u.endsWith("/api/cli-tools/codex-settings")) return json(cur({ model: "srv/codex", subagent: null }));
+      if (u.endsWith("/api/cli-tools/droid-settings")) return json(cur({ models: ["srv/droid"], active: "srv/droid" }));
+      if (u.endsWith("/api/cli-tools/cline-settings")) return json(cur({ model: "srv/cline" }));
       if (u.endsWith("/api/cli-tools/crush-settings")) return json({ installed: false, config: null });
       return base(url);
     });

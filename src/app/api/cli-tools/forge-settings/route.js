@@ -71,7 +71,6 @@ export async function GET() {
 
     return NextResponse.json({
       installed: true,
-      config,
       hasRegent: hasRegentConfig(content),
       current: forgeCurrent(config, hasRegentConfig(content)),
       configPath: getForgeConfigPath(),

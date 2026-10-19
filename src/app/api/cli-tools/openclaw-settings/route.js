@@ -111,13 +111,19 @@ export async function GET() {
     const enrichedAgents = await Promise.all(
       agentList.map(async (agent) => {
         const agentModel = agent.agentDir ? await readAgentModel(agent.agentDir) : null;
-        return { ...agent, model: resolveAgentModel(agent.model), currentModel: agentModel };
+        // Only what the dashboard shows: never spread the raw agent entry (it can carry keys).
+        return {
+          id: agent.id,
+          name: typeof agent.name === "string" ? agent.name : null,
+          model: resolveAgentModel(agent.model) || null,
+          configurable: Boolean(agent.agentDir),
+          currentModel: agentModel,
+        };
       })
     );
 
     return NextResponse.json({
       installed: true,
-      settings,
       agents: enrichedAgents,
       hasRegent: hasRegentConfig(settings),
       current: openclawCurrent(settings),

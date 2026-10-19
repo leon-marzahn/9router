@@ -94,7 +94,6 @@ export async function GET() {
     const settings = parseGrokBuildConfig(await readConfigToml());
     return NextResponse.json({
       installed: true,
-      settings,
       hasRegent: hasRegentConfig(settings),
       current: grokBuildCurrent(settings),
       configPath: getGrokConfigPath(),

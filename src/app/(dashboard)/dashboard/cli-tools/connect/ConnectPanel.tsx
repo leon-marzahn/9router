@@ -1,22 +1,31 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Button, Field, Icon, Input, Panel, Skeleton, Tag } from "@/ui";
+import { Button, Field, Icon, Input, Panel, Select, SettingRow, Skeleton, Switch, Tag } from "@/ui";
 import { ModelSelectModal } from "@/shared/components";
 import { ConfirmDialog } from "@/ui";
 import { useNotificationStore as useNotificationStoreJs } from "@/store/notificationStore";
-import { SPECS, bodyFor, settingsUrl, withV1 } from "./specs";
+import { SPECS, bodyFor, settingsUrl, withV1, type Extra, type ToolStatus, type Values } from "./specs";
+import { ModelPick } from "./extras";
 import { maskKey, useConnectContext } from "./useConnectContext";
 
 type Notify = { getState: () => { error: (m: string) => void; success: (m: string) => void } };
 const notify = () => (useNotificationStoreJs as unknown as Notify).getState();
 
-export interface ToolStatus {
-  installed?: boolean;
-  hasRegent?: boolean;
-  current?: { baseUrl: string | null; hasKey: boolean; models: Record<string, string | string[] | null> } | null;
+export type { ToolStatus };
+
+const asList = (m: string | string[] | null | undefined) => (Array.isArray(m) ? m.filter(Boolean) : m ? [m] : []);
+
+/** Models the tool uses now, default first. */
+function readModels(s: ToolStatus): string[] {
+  const m = s.current?.models ?? {};
+  const list = asList(m.models ?? m.model);
+  const active = typeof m.active === "string" ? m.active : null;
+  return active && list.includes(active) ? [active, ...list.filter((x) => x !== active)] : list;
 }
 
+/** Shown open up to this many slots; longer lists fold behind "Show all". */
+const SLOTS_OPEN = 4;
 const SELECT = "h-9 w-full rounded-lg border border-border bg-surface px-3 text-[13px] text-text";
 
 /** Endpoint, key and model for one tool, a preview of what gets written, and Connect / Disconnect / Restore. */
@@ -32,20 +41,36 @@ export function ConnectPanel({ toolId, toolName, onChanged }: { toolId: string; 
   const [busy, setBusy] = useState<null | "apply" | "remove" | "restore">(null);
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [canRestore, setCanRestore] = useState(false);
+  const [slots, setSlots] = useState<Record<string, string>>({});
+  const [options, setOptions] = useState<Record<string, string | boolean>>({});
+  const [extra, setExtra] = useState<Extra>({});
+  const [scope, setScope] = useState(spec.scopes ? "default" : "");
+  const [scopes, setScopes] = useState<{ id: string; label: string }[]>([]);
+  const [allSlots, setAllSlots] = useState(false);
 
   const load = useCallback(async () => {
     const [s, r] = await Promise.all([
-      fetch(settingsUrl(toolId), { cache: "no-store" }).then((x) => (x.ok ? x.json() : {})).catch(() => ({})),
+      fetch(settingsUrl(toolId, scope), { cache: "no-store" }).then((x) => (x.ok ? x.json() : {})).catch(() => ({})),
       fetch(`/api/cli-tools/restore?toolId=${encodeURIComponent(toolId)}`).then((x) => (x.ok ? x.json() : null)).catch(() => null),
     ]);
-    setStatus(s as ToolStatus);
+    const st = s as ToolStatus;
+    setStatus(st);
     setCanRestore(!!r?.available);
-    const cur = (s as ToolStatus).current;
-    if (cur) {
-      const m = cur.models?.models ?? cur.models?.model;
-      setModels(Array.isArray(m) ? m.filter(Boolean) as string[] : m ? [m] : []);
-    }
-  }, [toolId]);
+    // Always reset: values from another scope (Hermes profile) must not leak in.
+    setModels(readModels(st));
+    setSlots(spec.readSlots ? spec.readSlots(st) : Object.fromEntries((spec.slots?.(st) ?? []).map((x) => [x.id, typeof st.current?.models?.[x.id] === "string" ? (st.current.models[x.id] as string) : ""])));
+    setOptions(spec.readOptions?.(st) ?? {});
+    setExtra(spec.initExtra?.(st) ?? {});
+  }, [toolId, scope, spec]);
+
+  useEffect(() => {
+    if (!spec.scopes) return;
+    let live = true;
+    void spec.scopes.load().then((list) => live && setScopes(list));
+    return () => {
+      live = false;
+    };
+  }, [spec]);
 
   useEffect(() => {
     const t = setTimeout(() => void load(), 0);
@@ -70,15 +95,17 @@ export function ConnectPanel({ toolId, toolName, onChanged }: { toolId: string; 
   const base = endpoint === "custom" ? custom.trim() : (ctx.endpoints.find((e) => e.id === endpoint)?.url ?? "");
   const key = ctx.keys?.find((k) => k.id === keyId);
   const connected = !!status?.hasRegent;
-  const ready = !!base && models.length > 0;
+  const slotList = status ? (spec.slots?.(status) ?? []) : [];
+  const ready = !!base && (spec.slotsOnly ? Object.values(slots).some((v) => v.trim()) : models.length > 0);
+  const values: Values = { baseUrl: withV1(base), apiKey: key?.key ?? "", models, slots, options, extra, scope };
 
   const apply = async () => {
     setBusy("apply");
     try {
-      const res = await fetch(settingsUrl(toolId), {
+      const res = await fetch(settingsUrl(toolId, scope), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(bodyFor(toolId, { baseUrl: withV1(base), apiKey: key?.key ?? "", models })),
+        body: JSON.stringify(bodyFor(toolId, values)),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error?.message || data.error || "Couldn't write the settings");
@@ -96,7 +123,11 @@ export function ConnectPanel({ toolId, toolName, onChanged }: { toolId: string; 
     setConfirmRemove(false);
     setBusy("remove");
     try {
-      const res = await fetch(settingsUrl(toolId), { method: "DELETE" });
+      const res = await fetch(settingsUrl(toolId, scope), {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(scope ? { profile: scope } : {}),
+      });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error?.message || data.error || "Couldn't remove the settings");
       notify().success(`Removed regent from ${toolName}`);
@@ -148,11 +179,27 @@ export function ConnectPanel({ toolId, toolName, onChanged }: { toolId: string; 
   const preview: [string, string][] = [
     ["Base URL", base ? withV1(base) : "—"],
     ["API key", key ? `${key.name} (${maskKey(key.key)})` : status.current?.hasKey ? "keep the one already there" : "your first active key"],
-    [spec.multi ? "Models" : "Model", models.length ? models.join(", ") : "—"],
+    ...(spec.slotsOnly ? [] : ([[spec.multi ? "Models" : "Model", models.length ? models.join(", ") : "—"]] as [string, string][])),
+    ...slotList.filter((x) => slots[x.id]?.trim()).map((x) => [x.label, slots[x.id]] as [string, string]),
   ];
+  const shownSlots = allSlots || slotList.length <= SLOTS_OPEN ? slotList : slotList.filter((x, i) => i < SLOTS_OPEN || slots[x.id]?.trim());
+  const Extras = spec.Extras;
 
   return (
     <div className="space-y-4">
+      {spec.scopes && (
+        <Panel className="px-4">
+          <SettingRow title={spec.scopes.label} hint={spec.scopes.hint}>
+            <Select className="sm:w-56" value={scope} disabled={!!busy} onChange={(e) => setScope(e.target.value)} aria-label={spec.scopes.label}>
+              {(scopes.length ? scopes : [{ id: scope, label: scope }]).map((x) => (
+                <option key={x.id} value={x.id}>
+                  {x.label}
+                </option>
+              ))}
+            </Select>
+          </SettingRow>
+        </Panel>
+      )}
       <Panel className="divide-y divide-border px-4">
         <div className="grid gap-3 py-4 sm:grid-cols-2">
           <Field label="Endpoint" hint="Where the tool sends requests.">
@@ -181,6 +228,7 @@ export function ConnectPanel({ toolId, toolName, onChanged }: { toolId: string; 
             </Field>
           )}
         </div>
+        {!spec.slotsOnly && (
         <div className="space-y-2 py-4">
           <div className="flex items-center justify-between">
             <div className="text-[13px] font-medium">{spec.multi ? "Models" : "Model"}</div>
@@ -206,7 +254,48 @@ export function ConnectPanel({ toolId, toolName, onChanged }: { toolId: string; 
           )}
           {spec.multi && models.length > 1 && <p className="text-[11px] text-text-subtle">The first one is the default.</p>}
         </div>
+        )}
+        {slotList.length > 0 && (
+          <div className="py-2">
+            {spec.slotsTitle && <div className="pt-2 text-[13px] font-medium">{spec.slotsTitle}</div>}
+            <div className="divide-y divide-border">
+              {shownSlots.map((x) => (
+                <div key={x.id} className="flex flex-col gap-1.5 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                  <div className="min-w-0">
+                    <div className="text-[12px] font-medium">{x.label}</div>
+                    {x.hint && <div className="text-[11px] text-text-muted">{x.hint}</div>}
+                  </div>
+                  <ModelPick value={slots[x.id] ?? ""} title={`${x.label} for ${toolName}`} disabled={!!busy} onChange={(m) => setSlots({ ...slots, [x.id]: m })} />
+                </div>
+              ))}
+            </div>
+            {shownSlots.length < slotList.length && (
+              <Button size="sm" variant="ghost" icon="expand_more" onClick={() => setAllSlots(true)}>
+                Show all {slotList.length}
+              </Button>
+            )}
+          </div>
+        )}
+        {spec.options?.map((o) => (
+          <SettingRow key={o.id} title={o.label} hint={o.hint}>
+            {o.choices ? (
+              <Select className="sm:w-40" value={String(options[o.id] ?? "")} disabled={!!busy} aria-label={o.label} onChange={(e) => setOptions({ ...options, [o.id]: e.target.value })}>
+                {o.choices.map((c) => (
+                  <option key={c.value} value={c.value}>
+                    {c.label}
+                  </option>
+                ))}
+              </Select>
+            ) : (
+              <Switch label={o.label} checked={!!options[o.id]} disabled={!!busy} onChange={(v) => setOptions({ ...options, [o.id]: v })} />
+            )}
+          </SettingRow>
+        ))}
       </Panel>
+
+      {Extras && (
+        <Extras toolName={toolName} status={status} values={values} customEndpoint={endpoint === "custom"} extra={extra} setExtra={setExtra} disabled={!!busy} onChanged={() => void load().then(onChanged)} />
+      )}
 
       <Panel className="overflow-hidden">
         <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-2 text-[12px]">

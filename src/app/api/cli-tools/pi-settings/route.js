@@ -95,7 +95,6 @@ export async function GET() {
 
     return NextResponse.json({
       installed: true,
-      config,
       hasRegent: hasRegentConfig(config),
       current: piCurrent(config),
       configPath,

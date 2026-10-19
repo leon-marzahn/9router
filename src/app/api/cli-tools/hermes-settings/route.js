@@ -110,6 +110,15 @@ const checkHermesInstalled = async () => {
   }
 };
 
+const hermesRoleModels = (delegation, auxiliary) => {
+  const roles = {};
+  if (typeof delegation?.model === "string" && delegation.model) roles.delegation = delegation.model;
+  for (const [role, cfg] of Object.entries(auxiliary || {})) {
+    if (typeof cfg?.model === "string" && cfg.model) roles[role] = cfg.model;
+  }
+  return roles;
+};
+
 export async function GET(request) {
   try {
     const installed = await checkHermesInstalled();
@@ -131,7 +140,9 @@ export async function GET(request) {
     return NextResponse.json({
       installed: true,
       profile: { name: home.name, dir: home.dir, isDefault: home.isDefault },
-      settings: { model, delegation, auxiliary, stt },
+      // Model names per slot only: the parsed blocks can carry a literal api_key.
+      roles: hermesRoleModels(delegation, auxiliary),
+      stt: { model: isRegentStt(stt) ? stt?.model || null : null },
       hasRegent: hasRegentConfig(model) || hasRegentConfig(delegation) || Object.values(auxiliary).some(hasRegentConfig),
       hasRegentStt: isRegentStt(stt),
       current: hasRegentConfig(model) ? hermesCurrent(model, await readEnvFile(home)) : null,
