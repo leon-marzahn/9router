@@ -1,4 +1,16 @@
 
+# v100.6.0 (2026-10-19)
+
+## Features
+- **usage**: Request inspector with per-request routing trace (#98)
+- **ui**: Mobile polish for the app frame and shared primitives (#99)
+
+## Fixes
+- **usage**: Stacked live request rows and tappable controls on mobile (#101)
+
+## Build & CI
+- **pr-shots**: Emulate a touch phone for mobile shots (#100)
+
 # v100.5.0 (2026-10-19)
 
 ## Features
