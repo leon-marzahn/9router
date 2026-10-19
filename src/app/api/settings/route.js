@@ -18,7 +18,7 @@ const SETTINGS_RESPONSE_HEADERS = {
 const PROTECTED_SETTING_KEYS = ["password", "mitmSudoEncrypted", ...UPDATE_STATE_KEYS];
 
 /** Drop secrets; say only whether the redeploy hook is set and where it points. */
-function toPublicSettings({ password, oidcClientSecret, updateWebhookUrl, updateWebhookToken, ...safe }) {
+function toPublicSettings({ password, oidcClientSecret, updateWebhookUrl, updateWebhookToken, mitmSudoEncrypted: _mitmSudo, ...safe }) {
   safe.oidcConfigured = !!(safe.oidcIssuerUrl && safe.oidcClientId && oidcClientSecret);
   safe.updateWebhookSet = !!updateWebhookUrl;
   safe.updateWebhookHost = updateWebhookUrl ? webhookHost(updateWebhookUrl) : null;

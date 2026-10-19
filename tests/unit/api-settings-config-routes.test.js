@@ -85,13 +85,8 @@ describe("/api/settings secrets", () => {
     expect(s).not.toHaveProperty("currentPassword");
   });
 
-  // BUG (security): GET /api/settings strips password/oidcClientSecret/updateWebhook*
-  // but not `mitmSudoEncrypted` — the host's sudo password, AES-GCM encrypted with a key
-  // derived from the machine id + a constant salt (src/mitm/manager.js deriveKey; constant
-  // salt alone if node-machine-id fails). Any dashboard session (or anyone, with
-  // requireLogin off) receives the ciphertext; whoever can read the machine id can decrypt it.
-  // Fix: drop it in toPublicSettings (src/app/api/settings/route.js). Un-skip once fixed.
-  it.skip("GET does not return the encrypted MITM sudo password", async () => {
+  // The host sudo password (AES-GCM, key from machine id + constant salt) must never leave the server.
+  it("GET does not return the encrypted MITM sudo password", async () => {
     const r = await import("@/app/api/settings/route.js");
     await db.updateSettings({ mitmSudoEncrypted: "aa:bb:FAKE-cipher" });
     const text = await (await r.GET()).text();
