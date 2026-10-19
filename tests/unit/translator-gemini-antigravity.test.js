@@ -96,16 +96,24 @@ describe("geminiToOpenAIRequest", () => {
     ]);
   });
 
-  // BUG: with tool calls, a single non-text part is collapsed via parts[0].text, so a lone
-  // image alongside a functionCall becomes content: undefined (image dropped).
-  it.skip("keeps a lone image next to a functionCall", () => {
+  it("keeps a lone image next to a functionCall", () => {
     const out = geminiToOpenAIRequest("m", {
       contents: [{ role: GEMINI_ROLE.MODEL, parts: [
         { inlineData: { mimeType: "image/png", data: B64 } },
         { functionCall: { name: "f" } },
       ] }],
     });
-    expect(out.messages[0].content).toBeDefined();
+    expect(out.messages[0].content).toEqual([
+      { type: OPENAI_BLOCK.IMAGE_URL, image_url: { url: `data:image/png;base64,${B64}` } },
+    ]);
+    expect(out.messages[0].tool_calls).toHaveLength(1);
+  });
+
+  it("still collapses a lone text part next to a functionCall to a string", () => {
+    const out = geminiToOpenAIRequest("m", {
+      contents: [{ role: GEMINI_ROLE.MODEL, parts: [{ text: "calling" }, { functionCall: { name: "f" } }] }],
+    });
+    expect(out.messages[0].content).toBe("calling");
   });
 });
 
