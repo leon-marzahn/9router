@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import PropTypes from "prop-types";
-import { Button, Modal } from "@/shared/components";
+import { Button } from "@/shared/components";
+import { Dialog } from "@/ui/Dialog";
 import { translate } from "@/i18n/runtime";
 
 const PLACEHOLDER = `[
@@ -84,7 +85,7 @@ export default function BulkImportCodexModal({ isOpen, onClose, onSuccess }) {
   const failedItems = result?.results?.filter((r) => !r.ok) || [];
 
   return (
-    <Modal isOpen={isOpen} title={translate("Bulk Add Codex Accounts")} onClose={handleClose}>
+    <Dialog open={isOpen} title={translate("Bulk Add Codex Accounts")} onClose={handleClose}>
       <div className="flex flex-col gap-4">
         <p className="text-xs text-text-muted">
           {translate(
@@ -139,7 +140,7 @@ export default function BulkImportCodexModal({ isOpen, onClose, onSuccess }) {
           </Button>
         </div>
       </div>
-    </Modal>
+    </Dialog>
   );
 }
 

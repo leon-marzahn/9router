@@ -11,7 +11,7 @@ import {
   StatusLabel,
 } from "@/ui";
 import { cn } from "@/ui/cn";
-import AutoPingScheduleModalJs from "@/app/(dashboard)/dashboard/providers/[id]/AutoPingScheduleModal";
+import AutoPingScheduleModal from "@/app/(dashboard)/dashboard/providers/[id]/AutoPingScheduleModal";
 import {
   AUTO_PING_KEYS,
   RESETTABLE,
@@ -24,15 +24,6 @@ import {
   type QuotaAccount,
   type QuotaWindow,
 } from "./useQuota";
-
-const AutoPingScheduleModal = AutoPingScheduleModalJs as unknown as React.ComponentType<{
-  isOpen: boolean;
-  onClose: () => void;
-  onSave: (r: AutoPing) => void;
-  connection: { id: string; provider: string; name?: string };
-  reactive?: boolean;
-  schedule?: Record<string, unknown> | null;
-}>;
 
 export interface Actions {
   refreshOne: (id: string) => void;

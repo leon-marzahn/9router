@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { Button, Field, Input, Segmented, Switch, Tag } from "@/ui";
-import { ConfirmModal, Modal } from "@/shared/components";
+import { ConfirmDialog, Dialog } from "@/ui";
 import LanguageSwitcherJs from "@/shared/components/LanguageSwitcher";
 import { useTheme as useThemeJs } from "@/shared/hooks/useTheme";
 import { APP_CONFIG } from "@/shared/constants/config";
@@ -63,7 +63,11 @@ export function Routing({ api }: { api: SettingsApi }) {
         ? "affinity"
         : "fill";
   const combos =
-    s?.comboStrategy === "round-robin" ? "rr" : s?.comboStrategy === "per-chat" ? "chat" : "fallback";
+    s?.comboStrategy === "round-robin"
+      ? "rr"
+      : s?.comboStrategy === "per-chat"
+        ? "chat"
+        : "fallback";
   return (
     <SettingsSection id="routing" icon="alt_route" title="Routing">
       {!s ? (
@@ -129,7 +133,10 @@ export function Routing({ api }: { api: SettingsApi }) {
               value={combos}
               onChange={(v) =>
                 void api
-                  .save({ comboStrategy: v === "rr" ? "round-robin" : v === "chat" ? "per-chat" : "fallback" })
+                  .save({
+                    comboStrategy:
+                      v === "rr" ? "round-robin" : v === "chat" ? "per-chat" : "fallback",
+                  })
                   .catch(() => {})
               }
               options={[
@@ -319,7 +326,10 @@ export function RequestLogging({ api }: { api: SettingsApi }) {
           )}
           {on && (
             <>
-              <SettingRow title="Keep the last" hint="Older requests are deleted as new ones come in.">
+              <SettingRow
+                title="Keep the last"
+                hint="Older requests are deleted as new ones come in."
+              >
                 <Segmented
                   value={KEEP.some((k) => k.value === keep) ? keep : "1000"}
                   onChange={(v) =>
@@ -434,12 +444,15 @@ export function Backup({ api }: { api: SettingsApi }) {
           }}
         />
       </SettingRow>
-      <SettingRow title="Stored in" hint="Set DATA_DIR when starting the app to keep it somewhere else.">
+      <SettingRow
+        title="Stored in"
+        hint="Set DATA_DIR when starting the app to keep it somewhere else."
+      >
         <code className="font-mono text-[12px] text-text-muted">~/.regent/db/data.sqlite</code>
       </SettingRow>
 
-      <ConfirmModal
-        isOpen={!!restoreConfirm}
+      <ConfirmDialog
+        open={!!restoreConfirm}
         onClose={() => setRestoreConfirm(null)}
         title="Replace everything?"
         message={`Restoring ${restoreConfirm?.name ?? "this file"} replaces all providers, accounts, keys, combos and settings here. Download a backup first if you might want them back.`}
@@ -451,8 +464,8 @@ export function Backup({ api }: { api: SettingsApi }) {
           setAsk("import");
         }}
       />
-      <Modal
-        isOpen={!!ask}
+      <Dialog
+        open={!!ask}
         onClose={() => {
           setAsk(null);
           setPassword("");
@@ -485,7 +498,7 @@ export function Backup({ api }: { api: SettingsApi }) {
             onKeyDown={(e) => e.key === "Enter" && password && void run()}
           />
         </Field>
-      </Modal>
+      </Dialog>
     </SettingsSection>
   );
 }
@@ -547,8 +560,8 @@ export function About() {
           Stop
         </Button>
       </SettingRow>
-      <ConfirmModal
-        isOpen={stop}
+      <ConfirmDialog
+        open={stop}
         onClose={() => setStop(false)}
         loading={busy}
         title={STOP_APP.title}

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Button, CodeBlock, Field, Icon, Input } from "@/ui";
-import { Modal } from "@/shared/components";
+import { Dialog } from "@/ui";
 
 interface Check {
   installed: boolean;
@@ -92,10 +92,10 @@ export function TailscaleSetup({
   };
 
   return (
-    <Modal
-      isOpen
+    <Dialog
+      open
       onClose={installing ? () => {} : onClose}
-      closeOnOverlay={!installing}
+      dismissible={!installing}
       title={check.installed ? "Connect Tailscale" : "Install Tailscale"}
       footer={
         <>
@@ -147,10 +147,16 @@ export function TailscaleSetup({
           )
         )}
         {(installing || log.length > 0) && (
-          <CodeBlock preRef={logRef} text={log.join("\n") || "Starting…"} wrap muted preClassName="max-h-48 text-[11px]" />
+          <CodeBlock
+            preRef={logRef}
+            text={log.join("\n") || "Starting…"}
+            wrap
+            muted
+            preClassName="max-h-48 text-[11px]"
+          />
         )}
         {error && <p className="text-danger-text">{error}</p>}
       </div>
-    </Modal>
+    </Dialog>
   );
 }

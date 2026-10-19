@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Button, Field, Input, Switch } from "@/ui";
-import { ConfirmModal, Modal } from "@/shared/components";
+import { ConfirmDialog, Dialog } from "@/ui";
 import { Note, SettingRow, SettingRowSkeleton, SettingsSection } from "@/ui";
 import { notify, type SettingsApi } from "./useSettings";
 
@@ -34,8 +34,8 @@ export function Login({ api }: { api: SettingsApi }) {
           {s.hasPassword ? (
             <TurnOffWithPassword open={turnOff} onClose={() => setTurnOff(false)} api={api} />
           ) : (
-            <ConfirmModal
-              isOpen={turnOff}
+            <ConfirmDialog
+              open={turnOff}
               onClose={() => setTurnOff(false)}
               title="Turn off login?"
               message="Anyone who can reach this machine can open the dashboard and see your providers, keys and settings."
@@ -81,8 +81,8 @@ function TurnOffWithPassword({
     }
   };
   return (
-    <Modal
-      isOpen={open}
+    <Dialog
+      open={open}
       onClose={close}
       title="Turn off login?"
       size="sm"
@@ -113,7 +113,7 @@ function TurnOffWithPassword({
           />
         </Field>
       </div>
-    </Modal>
+    </Dialog>
   );
 }
 

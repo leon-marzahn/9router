@@ -1,8 +1,9 @@
 "use client";
+// oxlint-disable react/set-state-in-effect -- upstream effects/render code, untouched here; only the dialog shell changed.
 
 import { useState, useEffect } from "react";
 import PropTypes from "prop-types";
-import Modal from "@/shared/components/Modal";
+import { Dialog } from "@/ui/Dialog";
 import Input from "@/shared/components/Input";
 import Button from "@/shared/components/Button";
 import Badge from "@/shared/components/Badge";
@@ -214,7 +215,7 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
   if (!connection) return null;
 
   return (
-    <Modal isOpen={isOpen} title="Edit Connection" onClose={onClose}>
+    <Dialog open={isOpen} title="Edit Connection" onClose={onClose}>
       <div className="flex flex-col gap-4">
         <Input
           label="Name"
@@ -396,7 +397,7 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
           <Button onClick={handleSubmit} disabled={saving}>{saving ? "Saving..." : "Save"}</Button>
         </div>
       </div>
-    </Modal>
+    </Dialog>
   );
 }
 

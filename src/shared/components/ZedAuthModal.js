@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import PropTypes from "prop-types";
-import { Modal, Button, Input } from "@/shared/components";
+import { Button, Input } from "@/shared/components";
+import { Dialog } from "@/ui/Dialog";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 
 /**
@@ -292,7 +293,7 @@ export default function ZedAuthModal({ isOpen, providerInfo, onSuccess, onClose 
   const showBrowserUi = phase === "browser" || phase === "error" || phase === "ide-found";
 
   return (
-    <Modal isOpen={isOpen} title={title} onClose={handleClose} size="lg">
+    <Dialog open={isOpen} title={title} onClose={handleClose} size="lg">
       <div className="flex flex-col gap-4">
         {(phase === "booting" || phase === "importing") && (
           <div className="flex items-center gap-2 px-3 py-2 border border-border rounded-lg bg-sidebar/50">
@@ -403,7 +404,7 @@ export default function ZedAuthModal({ isOpen, providerInfo, onSuccess, onClose 
           </>
         )}
       </div>
-    </Modal>
+    </Dialog>
   );
 }
 

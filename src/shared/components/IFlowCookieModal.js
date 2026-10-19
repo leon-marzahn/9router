@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import PropTypes from "prop-types";
-import { Modal, Button, Input } from "@/shared/components";
+import { Button, Input } from "@/shared/components";
+import { Dialog } from "@/ui/Dialog";
 
 /**
  * iFlow Cookie Authentication Modal
@@ -56,7 +57,7 @@ export default function IFlowCookieModal({ isOpen, onSuccess, onClose }) {
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={handleClose} title="iFlow Cookie Authentication">
+    <Dialog open={isOpen} onClose={handleClose} title="iFlow Cookie Authentication">
       <div className="space-y-4">
         {success ? (
           <div className="text-center py-8">
@@ -121,7 +122,7 @@ export default function IFlowCookieModal({ isOpen, onSuccess, onClose }) {
           </>
         )}
       </div>
-    </Modal>
+    </Dialog>
   );
 }
 

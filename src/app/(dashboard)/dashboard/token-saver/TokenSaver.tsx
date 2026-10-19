@@ -11,7 +11,7 @@ import {
   type ReactNode,
 } from "react";
 import { Button, CodeBlock, CopyButton, Icon, Input, Segmented, Switch, Tag } from "@/ui";
-import { ConfirmModal } from "@/shared/components";
+import { ConfirmDialog } from "@/ui";
 import { getCurrentLocale, onLocaleChange } from "@/i18n/runtime";
 import { Note, SettingRow, SettingRowSkeleton, SettingsSection } from "@/ui";
 import { notify, useSettings, type Settings } from "../profile/settings/useSettings";
@@ -596,8 +596,8 @@ function Headroom({
         )}
       </SettingsSection>
       {/* Outside the card: its (hidden) wrapper would get a divider line from divide-y. */}
-      <ConfirmModal
-        isOpen={!!confirm}
+      <ConfirmDialog
+        open={!!confirm}
         onClose={() => setConfirm(null)}
         onConfirm={() => {
           const run = confirm?.run;
@@ -612,4 +612,3 @@ function Headroom({
     </>
   );
 }
-

@@ -1,8 +1,10 @@
 "use client";
+// oxlint-disable react/set-state-in-effect -- upstream effects/render code, untouched here; only the dialog shell changed.
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import PropTypes from "prop-types";
-import { Modal, Button, Input } from "@/shared/components";
+import { Button, Input } from "@/shared/components";
+import { Dialog } from "@/ui/Dialog";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 
 // Providers using the dynamic-port local callback proxy.
@@ -762,7 +764,7 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
       : placeholderUrl;
 
   return (
-    <Modal isOpen={isOpen} title={modalTitle} onClose={handleClose} size="lg">
+    <Dialog open={isOpen} title={modalTitle} onClose={handleClose} size="lg">
       <div className="flex flex-col gap-4">
         {/* Proxy OAuth (trae/windsurf/zed): browser flow; paste-token only when configured */}
         {PROXY_OAUTH_PROVIDERS.has(provider) && (step === "waiting" || step === "input" || step === "error") && (
@@ -993,7 +995,7 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
           </div>
         )}
       </div>
-    </Modal>
+    </Dialog>
   );
 }
 

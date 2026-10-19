@@ -13,8 +13,9 @@ import {
   ProviderLogo,
   Segmented,
   Tag,
+  ConfirmDialog,
 } from "@/ui";
-import { ConfirmModal, ModelSelectModal } from "@/shared/components";
+import { ModelSelectModal } from "@/shared/components";
 import { AI_PROVIDERS } from "@/shared/constants/providers";
 import { useNotificationStore } from "@/store/notificationStore";
 import type { Connection } from "../../providers/model";
@@ -35,28 +36,6 @@ type Notify = { getState: () => { error: (m: string) => void; success: (m: strin
 const notify = () => (useNotificationStore as unknown as Notify).getState();
 type Info = { name?: string; color?: string; textIcon?: string };
 const PROVIDERS = AI_PROVIDERS as Record<string, Info>;
-
-const PickerModal = ModelSelectModal as unknown as (p: {
-  isOpen: boolean;
-  onClose: () => void;
-  onSelect: (m: unknown) => void;
-  onDeselect: (m: unknown) => void;
-  activeProviders: Connection[];
-  modelAliases: Record<string, string>;
-  title: string;
-  kindFilter: string;
-  addedModelValues: string[];
-  closeOnSelect: boolean;
-}) => ReactNode;
-
-const Confirm = ConfirmModal as unknown as (p: {
-  isOpen: boolean;
-  onClose: () => void;
-  onConfirm: () => void;
-  title: string;
-  message: string;
-  confirmText: string;
-}) => ReactNode;
 
 const VALID_NAME = /^[a-zA-Z0-9_.-]+$/;
 
@@ -451,7 +430,7 @@ export function MediaComboDetail({
       </section>
 
       {picker && (
-        <PickerModal
+        <ModelSelectModal
           isOpen
           onClose={() => setPicker(false)}
           onSelect={(m) => {
@@ -470,8 +449,8 @@ export function MediaComboDetail({
           closeOnSelect={false}
         />
       )}
-      <Confirm
-        isOpen={confirmDelete}
+      <ConfirmDialog
+        open={confirmDelete}
         onClose={() => setConfirmDelete(false)}
         title={`Delete ${combo.name}?`}
         message="Apps sending this combo as the model get an error until you point them somewhere else."

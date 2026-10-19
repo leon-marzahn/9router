@@ -1,8 +1,18 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { Button, Eyebrow, Icon, ProviderLogo, StatusLabel, Switch, Tag, cn } from "@/ui";
-import { AddCustomEmbeddingModal, ConfirmModal } from "@/shared/components";
+import {
+  Button,
+  ConfirmDialog,
+  Eyebrow,
+  Icon,
+  ProviderLogo,
+  StatusLabel,
+  Switch,
+  Tag,
+  cn,
+} from "@/ui";
+import { AddCustomEmbeddingModal } from "@/shared/components";
 import ProviderManager from "../../providers/[id]/ProviderManager";
 import { useNotificationStore } from "@/store/notificationStore";
 import { kindById, providerInfo, type MediaEntry, type MediaKind } from "./model";
@@ -16,20 +26,6 @@ import { GenericExample } from "./examples/GenericExample";
 type Notify = { getState: () => { error: (m: string) => void; success: (m: string) => void } };
 const notify = () => (useNotificationStore as unknown as Notify).getState();
 
-const EditEmbeddingModal = AddCustomEmbeddingModal as unknown as (p: {
-  isOpen: boolean;
-  node: unknown;
-  onClose: () => void;
-  onSaved: (n: unknown) => void;
-}) => ReactNode;
-const Confirm = ConfirmModal as unknown as (p: {
-  isOpen: boolean;
-  onClose: () => void;
-  onConfirm: () => void;
-  title: string;
-  message: string;
-  confirmText: string;
-}) => ReactNode;
 const Manager = ProviderManager as unknown as (p: {
   providerId: string;
   embedded: boolean;
@@ -252,8 +248,8 @@ export function MediaDetail({
       </div>
 
       {p.custom && (
-        <Confirm
-          isOpen={confirmDelete}
+        <ConfirmDialog
+          open={confirmDelete}
           onClose={() => setConfirmDelete(false)}
           title={`Delete ${p.name}?`}
           message="Requests for this embedding prefix stop working."
@@ -262,7 +258,7 @@ export function MediaDetail({
         />
       )}
       {p.custom && (
-        <EditEmbeddingModal
+        <AddCustomEmbeddingModal
           isOpen={editing}
           node={p.custom}
           onClose={() => setEditing(false)}

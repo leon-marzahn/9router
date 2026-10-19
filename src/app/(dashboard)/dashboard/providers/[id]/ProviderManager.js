@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { getProviderIconSrc, markProviderIconMissing } from "@/shared/utils/providerIcon";
-import { Card, Button, Badge, Input, Modal, CardSkeleton, OAuthModal, KiroOAuthWrapper, CursorAuthModal, ZedAuthModal, XiaomiMimoAuthModal, IFlowCookieModal, GitLabAuthModal, Toggle, Select, EditConnectionModal, NoAuthProxyCard, ConfirmModal } from "@/shared/components";
+import { Card, Button, Badge, Input, CardSkeleton, OAuthModal, KiroOAuthWrapper, CursorAuthModal, ZedAuthModal, XiaomiMimoAuthModal, IFlowCookieModal, GitLabAuthModal, Toggle, Select, EditConnectionModal, NoAuthProxyCard } from "@/shared/components";
+import { ConfirmDialog, Dialog } from "@/ui/Dialog";
 import { OAUTH_PROVIDERS, APIKEY_PROVIDERS, FREE_PROVIDERS, FREE_TIER_PROVIDERS, WEB_COOKIE_PROVIDERS, getProviderAlias, isOpenAICompatibleProvider, isAnthropicCompatibleProvider, AI_PROVIDERS } from "@/shared/constants/providers";
 import { getModelsByProviderId, getModelKind } from "@/shared/constants/models";
 import { getThinkingLevels } from "open-sse/providers/thinkingLevels.js";
@@ -1138,8 +1139,8 @@ export default function ProviderManager({ providerId, embedded = false, liveVers
   const activePools = proxyPools.filter((p) => p.isActive === true);
 
   const bulkActionModal = (
-    <Modal
-      isOpen={showBulkProxyModal}
+    <Dialog
+      open={showBulkProxyModal}
       onClose={closeBulkProxyModal}
       title={`Apply Proxy (${connections.length} connections)`}
     >
@@ -1183,7 +1184,7 @@ export default function ProviderManager({ providerId, embedded = false, liveVers
           Cancel
         </Button>
       </div>
-    </Modal>
+    </Dialog>
   );
 
   const handleTestModel = async (modelId) => {
@@ -1848,8 +1849,8 @@ export default function ProviderManager({ providerId, embedded = false, liveVers
       )}
 
       {/* AG Risk Confirmation Modal */}
-      <ConfirmModal
-        isOpen={showAgRiskModal}
+      <ConfirmDialog
+        open={showAgRiskModal}
         onClose={() => setShowAgRiskModal(false)}
         onConfirm={handleAgRiskConfirm}
         title="Risk Notice"
@@ -1860,8 +1861,8 @@ export default function ProviderManager({ providerId, embedded = false, liveVers
       />
 
       {/* Confirm Modal */}
-      <ConfirmModal
-        isOpen={!!confirmState}
+      <ConfirmDialog
+        open={!!confirmState}
         onClose={() => setConfirmState(null)}
         onConfirm={confirmState?.onConfirm}
         title={confirmState?.title || "Confirm"}

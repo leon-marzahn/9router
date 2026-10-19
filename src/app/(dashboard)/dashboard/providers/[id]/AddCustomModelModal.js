@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import PropTypes from "prop-types";
-import { Button, Modal, Select, Toggle } from "@/shared/components";
+import { Button, Select, Toggle } from "@/shared/components";
+import { Dialog } from "@/ui/Dialog";
 import { CAPACITY_META, STT_TRANSPORT_META, STT_TRANSPORTS } from "@/shared/constants/models";
 
 const defaultCaps = () => Object.fromEntries(Object.keys(CAPACITY_META).map((key) => [key, false]));
@@ -70,7 +71,7 @@ export default function AddCustomModelModal({ isOpen, providerAlias, providerDis
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={isEdit ? "Edit Custom Model" : "Add Custom Model"}>
+    <Dialog open={isOpen} onClose={onClose} title={isEdit ? "Edit Custom Model" : "Add Custom Model"}>
       <div className="flex flex-col gap-4">
         <div>
           <label htmlFor="custom-model-id" className="text-sm font-medium mb-1.5 block">Model ID</label>
@@ -196,7 +197,7 @@ export default function AddCustomModelModal({ isOpen, providerAlias, providerDis
           </Button>
         </div>
       </div>
-    </Modal>
+    </Dialog>
   );
 }
 
