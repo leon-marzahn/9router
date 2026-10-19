@@ -273,7 +273,7 @@ export function PlanEditor({
             className="md:ml-auto"
             onClick={() => {
               setBusy("remove");
-              onRemove().finally(() => setBusy(null));
+              void onRemove().finally(() => setBusy(null));
             }}
           >
             {removeLabel}

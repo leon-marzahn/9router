@@ -195,6 +195,27 @@ await createCombo({
   models: ["cc/claude-opus-4-1", "cx/gpt-5"],
 });
 
+// Customer pricing: a default markup and two named plans, set before the usage so
+// every row gets a charge.
+{
+  const { setPricePlan, setKeyPlanId } = await import("@/lib/db/repos/pricePlansRepo.js");
+  await setPricePlan("default", { name: "Default", markupPercent: 20, minFee: null, rates: [] });
+  await setPricePlan("plan_demo_starter", {
+    name: "Starter",
+    markupPercent: 35,
+    minFee: 0.002,
+    rates: [],
+  });
+  await setPricePlan("plan_demo_pro", {
+    name: "Pro",
+    markupPercent: 15,
+    minFee: null,
+    rates: [{ model: "openai/gpt-4o-mini", input: 0.2, output: 0.8, cached: 0.1 }],
+  });
+  await setKeyPlanId("demo-key-laptop", "plan_demo_pro");
+  await setKeyPlanId("demo-key-team", "plan_demo_starter");
+}
+
 // Usage over the last 30 days: busier on weekdays and during working hours,
 // with a fixed pseudo-random sequence so totals are stable between runs.
 const models = [
