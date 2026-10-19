@@ -1,4 +1,25 @@
 
+# v100.4.0 (2026-10-19)
+
+## Features
+- **proxy-pools**: Move the page onto the src/ui workbench (#81)
+- **ui**: Move the pricing editor onto the src/ui Dialog (#77)
+- **ui**: Move the MCP marketplace onto the src/ui Dialog (#78)
+- **ui**: Move the PXPIPE page onto the src/ui design system (#79)
+- **ui**: Move Basic Chat onto the src/ui workbench (#80)
+- **ui**: Shared ListAddRow and one create pattern across workbench lists (#83)
+- **cli-tools**: Port manual config, Cowork combos, Claude free-text models and saved endpoints (#87)
+
+## Fixes
+- **agents**: Repair half-installed node_modules at session start (#84)
+
+## Refactors
+- **ui**: Remove the unused legacy Modal, ConfirmModal and their last wrappers (#85)
+
+## Docs
+- **agents**: Put vp/bun on PATH and require trying UI changes in a dev server (#82)
+- **agents**: Install deps before the first check in any worktree (#88)
+
 # v100.3.0 (2026-10-19)
 
 ## Features
