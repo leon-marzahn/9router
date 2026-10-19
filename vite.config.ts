@@ -43,7 +43,7 @@ export default defineConfig({
       provider: "v8",
       include: ["src/**", "open-sse/**", "cli/**"],
       exclude: ["**/node_modules/**", "**/*.d.ts", "cli/dist/**"],
-      reporter: ["text-summary", "json-summary", "html"],
+      reporter: ["text-summary", "json-summary", "lcov"],
       reportsDirectory: "coverage",
     },
   },
