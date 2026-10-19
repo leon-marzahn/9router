@@ -1,0 +1,133 @@
+[
+  {
+    "comment": "Catch-all: per-connection quota lookups never reach the dev server, so a seeded fake token is never sent to a provider.",
+    "url": "**/api/usage/demo-conn-*",
+    "status": 503,
+    "json": {
+      "error": "Quota not mocked in demo data"
+    }
+  },
+  {
+    "url": "**/api/usage/demo-conn-claude-1*",
+    "json": {
+      "plan": "Max 20x",
+      "quotas": {
+        "session (5h)": {
+          "used": 64,
+          "total": 100,
+          "remaining": 36,
+          "remainingPercentage": 36,
+          "resetAt": "{{+2h}}"
+        },
+        "weekly (7d)": {
+          "used": 41,
+          "total": 100,
+          "remaining": 59,
+          "remainingPercentage": 59,
+          "resetAt": "{{+3d}}"
+        },
+        "weekly opus (7d)": {
+          "used": 22,
+          "total": 100,
+          "remaining": 78,
+          "remainingPercentage": 78,
+          "resetAt": "{{+3d}}"
+        }
+      }
+    }
+  },
+  {
+    "url": "**/api/usage/demo-conn-claude-2*",
+    "json": {
+      "plan": "Pro",
+      "quotas": {
+        "session (5h)": {
+          "used": 97,
+          "total": 100,
+          "remaining": 3,
+          "remainingPercentage": 3,
+          "resetAt": "{{+38m}}"
+        },
+        "weekly (7d)": {
+          "used": 78,
+          "total": 100,
+          "remaining": 22,
+          "remainingPercentage": 22,
+          "resetAt": "{{+5d}}"
+        }
+      }
+    }
+  },
+  {
+    "url": "**/api/usage/demo-conn-codex-1*",
+    "json": {
+      "plan": "pro",
+      "limitReached": false,
+      "resetCredits": {
+        "availableCount": 0
+      },
+      "quotas": {
+        "session": {
+          "used": 18,
+          "total": 100,
+          "remaining": 82,
+          "resetAt": "{{+4h}}"
+        },
+        "weekly": {
+          "used": 35,
+          "total": 100,
+          "remaining": 65,
+          "resetAt": "{{+6d}}"
+        }
+      }
+    }
+  },
+  {
+    "url": "**/api/usage/demo-conn-groq-1*",
+    "json": {
+      "quotas": {
+        "Requests / day": {
+          "used": 2310,
+          "total": 14400,
+          "resetAt": "{{+9h}}"
+        },
+        "Tokens / day": {
+          "used": 212000,
+          "total": 500000,
+          "resetAt": "{{+9h}}"
+        }
+      }
+    }
+  },
+  {
+    "url": "**/api/usage/demo-conn-groq-2*",
+    "json": {
+      "quotas": {
+        "Requests / day": {
+          "used": 14400,
+          "total": 14400,
+          "resetAt": "{{+40m}}"
+        },
+        "Tokens / day": {
+          "used": 461000,
+          "total": 500000,
+          "resetAt": "{{+40m}}"
+        }
+      }
+    }
+  },
+  {
+    "url": "**/api/usage/demo-conn-github-1*",
+    "json": {
+      "plan": "individual",
+      "quotas": {
+        "premium_interactions": {
+          "used": 96,
+          "total": 300,
+          "unlimited": false,
+          "resetAt": "{{+12d}}"
+        }
+      }
+    }
+  }
+]

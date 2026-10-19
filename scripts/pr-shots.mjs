@@ -21,6 +21,11 @@
 // wait (ms). Saved as <label>-<name>-<desktop|mobile>-<light|dark>.png.
 // Set `"viewports": ["desktop"]` on an entry to skip mobile.
 //
+// Browser requests can be answered without the server: scripts/pr-shots/mocks.json
+// always applies (it keeps the Quota page off real providers), and a shot may add
+// `"mocks": [{ "url": "**/api/x*", "status": 200, "json": {...} }]`; later entries win.
+// String values like "{{+2h}}" become an ISO time that far from now (m, h, d).
+//
 // Before/after: run it on the base branch with `--label before` and on your
 // branch with `--label after` into the same --out dir.
 //
@@ -64,10 +69,12 @@ for (const r of routes) {
 const shots = args.shots ? JSON.parse(readFileSync(resolve(args.shots), "utf8")) : [];
 for (const sh of shots) {
   if (!/^[\w-]+$/.test(sh.name ?? "")) throw new Error(`shot needs a plain "name": ${sh.name}`);
-  if (!/^\/[\w\-/]*$/.test(sh.route ?? "")) throw new Error(`shot "${sh.name}" needs a plain "route"`);
+  if (!/^\/[\w\-/]*$/.test(sh.route ?? ""))
+    throw new Error(`shot "${sh.name}" needs a plain "route"`);
 }
 
 const root = resolve(import.meta.dirname, "..");
+const defaultMocks = JSON.parse(readFileSync(join(root, "scripts/pr-shots/mocks.json"), "utf8"));
 const outDir = resolve(args.out);
 mkdirSync(outDir, { recursive: true });
 
@@ -121,6 +128,7 @@ try {
       });
       const login = await context.request.post(`${base}/api/auth/login`, { data: { password } });
       if (!login.ok()) throw new Error(`login failed: ${login.status()} ${await login.text()}`);
+      await applyMocks(context, defaultMocks);
       const page = await context.newPage();
       const fileFor = (slug) =>
         join(outDir, `${args.label ? args.label + "-" : ""}${slug}-${vpName}-${theme}.png`);
@@ -152,6 +160,7 @@ try {
       }
       for (const shot of shots) {
         if (shot.viewports && !shot.viewports.includes(vpName)) continue;
+        if (shot.mocks) await applyMocks(context, shot.mocks);
         await page.goto(base + shot.route, { waitUntil: "load", timeout: 180_000 });
         await settle();
         for (const step of shot.steps ?? []) await runStep(page, shot.name, step);
@@ -172,6 +181,24 @@ try {
     } catch {}
   }
   if (!args.keep) rmSync(tmp, { recursive: true, force: true });
+}
+
+async function applyMocks(context, mocks) {
+  for (const m of mocks) {
+    if (typeof m.url !== "string" || !m.url)
+      throw new Error(`mock needs a "url" glob: ${JSON.stringify(m)}`);
+    await context.route(m.url, (route) =>
+      route.fulfill({
+        status: m.status ?? 200,
+        contentType: "application/json",
+        body: JSON.stringify(m.json ?? {}).replace(/\{\{\+(\d+)([mhd])\}\}/g, (_, n, unit) =>
+          new Date(
+            Date.now() + Number(n) * { m: 60_000, h: 3_600_000, d: 86_400_000 }[unit],
+          ).toISOString(),
+        ),
+      }),
+    );
+  }
 }
 
 async function runStep(page, name, step) {
