@@ -10,6 +10,7 @@ import {
   addCustomModel,
   createCombo,
   createProviderConnection,
+  createProviderNode,
   createProxyPool,
   initDb,
   updateProviderConnection,
@@ -68,6 +69,21 @@ const conns = [
     apiKey: "gsk_demo_00000000000000000000",
   }),
 ];
+// A custom OpenAI-compatible node (its edit dialog has node-level settings).
+await createProviderNode({
+  id: "openai-compatible-chat-demo",
+  type: "openai-compatible",
+  name: "Demo Compatible",
+  prefix: "democ",
+  apiType: "chat",
+  baseUrl: "https://llm.example.com/v1",
+});
+await seedConnection("demo-conn-compatible-1", {
+  provider: "openai-compatible-chat-demo",
+  name: "Demo Compatible",
+  apiKey: "sk-demo-compatible-000000000000",
+  providerSpecificData: { prefix: "democ", apiType: "chat", baseUrl: "https://llm.example.com/v1", nodeName: "Demo Compatible" },
+});
 await seedConnection("demo-conn-groq-2", {
   provider: "groq",
   name: "Demo Groq (spare)",

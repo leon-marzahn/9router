@@ -79,7 +79,7 @@ describe("pending response.completed watchdog", () => {
 
       const completed = completedResponses(await readAll(reader));
       expect(completed.length, "exactly one response.completed").toBe(1);
-      expect(completed[0].usage).toMatchObject({ input_tokens: 120, output_tokens: 30 });
+      expect(completed[0].usage).toMatchObject({ input_tokens: 120 + 2000, output_tokens: 30 }) // + client context buffer;
     } finally {
       vi.useRealTimers();
     }

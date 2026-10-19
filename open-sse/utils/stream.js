@@ -27,6 +27,15 @@ const STREAM_MODE = {
 // forever when the upstream stalls with no usage trailer and no [DONE].
 const PENDING_COMPLETION_FLUSH_MS = 3000;
 
+// The Chat→Responses translator puts the upstream's real usage on
+// response.completed. Like every other client format, the copy sent to the
+// client gets the context-window buffer (see BUFFER_TOKENS); recorded usage is
+// taken from the upstream chunks and stays real.
+function withClientUsageBuffer(item) {
+  if (item?.event !== "response.completed" || !item.data?.response?.usage) return item;
+  return { ...item, data: { ...item.data, response: { ...item.data.response, usage: addBufferToUsage(item.data.response.usage) } } };
+}
+
 /**
  * Create unified SSE transform stream
  * @param {object} options
@@ -55,11 +64,24 @@ export function createSSEStream(options = {}) {
     body = null,
     onStreamComplete = null,
     apiKey = null,
-    credentials = null
+    credentials = null,
+    // Passthrough only. awaitTrailer: the upstream was asked for
+    // stream_options.include_usage, so real usage arrives in a `choices: []`
+    // chunk after the finish chunk; hold the finish chunk until then.
+    // dropTrailer: the gateway (not the client) asked for it, so the
+    // usage-only chunk is not forwarded.
+    streamUsage = null
   } = options;
 
   let buffer = "";
   let usage = null;
+  // True while `usage` (or state.usage) holds a length-based estimate: real
+  // upstream usage arriving later replaces it instead of max-merging with it.
+  let usageEstimated = false;
+  let heldFinish = null;
+  let heldFinishTimer = null;
+  const awaitUsageTrailer = mode === STREAM_MODE.PASSTHROUGH && streamUsage?.awaitTrailer === true;
+  const dropUsageTrailer = awaitUsageTrailer && streamUsage?.dropTrailer === true;
 
   // Per-stream decoder with stream:true to correctly handle multi-byte chars split across chunks
   const decoder = new TextDecoder("utf-8", { fatal: false });
@@ -125,12 +147,29 @@ export function createSSEStream(options = {}) {
     const completed = translateResponse(targetFormat, sourceFormat, null, state);
     for (const item of completed || []) {
       if (item === null || item === undefined) continue;
-      const output = formatSSE(item, sourceFormat);
+      const output = formatSSE(withClientUsageBuffer(item), sourceFormat);
       reqLogger?.appendConvertedChunk?.(output);
       controller.enqueue(sharedEncoder.encode(output));
       sseEmittedCount++;
     }
     finalizeStream();
+  };
+
+  // Passthrough: release a finish chunk held for the usage trailer, carrying
+  // the real usage if it came, else an estimate (client copy gets the buffer).
+  const emitHeldFinish = (controller) => {
+    if (heldFinishTimer) { clearTimeout(heldFinishTimer); heldFinishTimer = null; }
+    if (!heldFinish) return;
+    const parsed = heldFinish;
+    heldFinish = null;
+    if (!hasValidUsage(usage)) {
+      usage = estimateUsage(body, totalContentLength, FORMATS.OPENAI);
+      usageEstimated = true;
+    }
+    parsed.usage = filterUsageForFormat(addBufferToUsage(usage), FORMATS.OPENAI);
+    const output = `data: ${JSON.stringify(parsed)}\n\n`;
+    reqLogger?.appendConvertedChunk?.(output);
+    controller.enqueue(sharedEncoder.encode(output));
   };
 
   return new TransformStream({
@@ -223,17 +262,33 @@ export function createSSEStream(options = {}) {
 
               const extracted = extractUsage(parsed);
               if (extracted) {
-                usage = mergeUsage(usage, extracted);
+                usage = usageEstimated ? extracted : mergeUsage(usage, extracted);
+                usageEstimated = false;
               }
+
+              // include_usage trailer: `choices: []` + usage, after the finish chunk.
+              const isUsageTrailer = Array.isArray(parsed.choices) && parsed.choices.length === 0 && !!extracted;
+              if (isUsageTrailer && heldFinish) emitHeldFinish(controller);
+              if (isUsageTrailer && dropUsageTrailer) continue;
 
               responsesTerminal = isOpenAIResponsesTerminalEvent(currentOpenAIResponsesEvent, parsed);
 
               const isFinishChunk = parsed.choices?.[0]?.finish_reason;
-              if (isFinishChunk && !hasValidUsage(parsed.usage)) {
+              if (isFinishChunk && !hasValidUsage(parsed.usage) && awaitUsageTrailer) {
+                heldFinish = parsed;
+                // Bounded wait: a stalled upstream must not delay finish_reason.
+                // A trailer arriving later still replaces the recorded estimate.
+                heldFinishTimer = setTimeout(() => {
+                  heldFinishTimer = null;
+                  try { emitHeldFinish(controller); } catch { /* controller already closed */ }
+                }, PENDING_COMPLETION_FLUSH_MS);
+                continue;
+              } else if (isFinishChunk && !hasValidUsage(parsed.usage)) {
                 const estimated = estimateUsage(body, totalContentLength, FORMATS.OPENAI);
-                parsed.usage = filterUsageForFormat(estimated, FORMATS.OPENAI);
+                parsed.usage = filterUsageForFormat(addBufferToUsage(estimated), FORMATS.OPENAI);
                 output = `data: ${JSON.stringify(parsed)}\n`;
                 usage = estimated;
+                usageEstimated = true;
                 injectedUsage = true;
               } else if (isFinishChunk && usage) {
                 const buffered = addBufferToUsage(usage);
@@ -250,6 +305,14 @@ export function createSSEStream(options = {}) {
               // messages) in the SSE stream that would break downstream JSON decoders.
               continue;
             }
+          }
+
+          // [DONE] without a usage trailer: release the held finish chunk first.
+          const isDoneLine = trimmed.startsWith("data:") && trimmed.slice(5).trim() === "[DONE]";
+          if (isDoneLine) {
+            emitHeldFinish(controller);
+            // The upstream's own [DONE] goes out below; flush() must not add a second.
+            streamDoneSent = true;
           }
 
           if (!injectedUsage) {
@@ -353,7 +416,11 @@ export function createSSEStream(options = {}) {
 
         // Extract usage
         const extracted = extractUsage(parsed);
-        if (extracted) state.usage = mergeUsage(state.usage, extracted); // Keep original usage for logging
+        if (extracted) {
+          // Keep original usage for logging; a late real trailer replaces an estimate.
+          state.usage = usageEstimated ? extracted : mergeUsage(state.usage, extracted);
+          usageEstimated = false;
+        }
 
         // Responses same-format passthrough: re-emit with original event framing
         if (keepsOpenAIResponsesFormat && openAIResponsesEventName) {
@@ -392,15 +459,16 @@ export function createSSEStream(options = {}) {
             const isFinishChunk = item.type === "message_delta" || item.choices?.[0]?.finish_reason;
             if (state.finishReason && isFinishChunk && !hasValidUsage(item.usage) && totalContentLength > 0) {
               const estimated = estimateUsage(body, totalContentLength, sourceFormat);
-              item.usage = filterUsageForFormat(estimated, sourceFormat); // Filter + already has buffer
+              item.usage = filterUsageForFormat(addBufferToUsage(estimated), sourceFormat); // client copy gets the context buffer
               state.usage = estimated;
+              usageEstimated = true;
             } else if (state.finishReason && isFinishChunk && state.usage) {
               // Add buffer and filter usage for client (but keep original in state.usage for logging)
               const buffered = addBufferToUsage(state.usage);
               item.usage = filterUsageForFormat(buffered, sourceFormat);
             }
 
-            const output = formatSSE(item, sourceFormat);
+            const output = formatSSE(withClientUsageBuffer(item), sourceFormat);
             reqLogger?.appendConvertedChunk?.(output);
             controller.enqueue(sharedEncoder.encode(output));
             sseEmittedCount++;
@@ -430,6 +498,19 @@ export function createSSEStream(options = {}) {
         if (remaining) buffer += remaining;
 
         if (mode === STREAM_MODE.PASSTHROUGH) {
+          // A tail line without its newline may still be the usage trailer.
+          if (heldFinish && buffer.trim().startsWith("data:")) {
+            try {
+              const tail = JSON.parse(buffer.trim().slice(5).trim());
+              const extracted = Array.isArray(tail?.choices) && tail.choices.length === 0 ? extractUsage(tail) : null;
+              if (extracted) {
+                usage = usageEstimated ? extracted : mergeUsage(usage, extracted);
+                usageEstimated = false;
+                if (dropUsageTrailer) buffer = "";
+              }
+            } catch { /* not JSON ([DONE] or partial): leave it */ }
+          }
+          emitHeldFinish(controller);
           if (buffer) {
             let output = buffer;
             if (buffer.startsWith("data:") && !buffer.startsWith("data: ")) {
@@ -469,7 +550,10 @@ export function createSSEStream(options = {}) {
             // Same accumulation the transform loop does, so finalizeStream() can
             // log a tail chunk's tokens instead of falling back to null.
             const extracted = extractUsage(parsed);
-            if (extracted) state.usage = mergeUsage(state.usage, extracted);
+            if (extracted) {
+              state.usage = usageEstimated ? extracted : mergeUsage(state.usage, extracted);
+              usageEstimated = false;
+            }
 
             const translated = translateResponse(targetFormat, sourceFormat, parsed, state);
 
@@ -483,7 +567,7 @@ export function createSSEStream(options = {}) {
             if (translated?.length > 0) {
               for (const item of translated) {
                 if (item === null || item === undefined) continue;
-                const output = formatSSE(item, sourceFormat);
+                const output = formatSSE(withClientUsageBuffer(item), sourceFormat);
                 reqLogger?.appendConvertedChunk?.(output);
                 controller.enqueue(sharedEncoder.encode(output));
               }
@@ -503,7 +587,7 @@ export function createSSEStream(options = {}) {
         if (flushed?.length > 0) {
           for (const item of flushed) {
             if (item === null || item === undefined) continue;
-            const output = formatSSE(item, sourceFormat);
+            const output = formatSSE(withClientUsageBuffer(item), sourceFormat);
             reqLogger?.appendConvertedChunk?.(output);
             controller.enqueue(sharedEncoder.encode(output));
           }
@@ -553,7 +637,7 @@ export function createSSETransformStreamWithLogger(targetFormat, sourceFormat, p
   });
 }
 
-export function createPassthroughStreamWithLogger(provider = null, reqLogger = null, model = null, connectionId = null, body = null, onStreamComplete = null, apiKey = null) {
+export function createPassthroughStreamWithLogger(provider = null, reqLogger = null, model = null, connectionId = null, body = null, onStreamComplete = null, apiKey = null, streamUsage = null) {
   return createSSEStream({
     mode: STREAM_MODE.PASSTHROUGH,
     provider,
@@ -562,6 +646,7 @@ export function createPassthroughStreamWithLogger(provider = null, reqLogger = n
     connectionId,
     body,
     onStreamComplete,
-    apiKey
+    apiKey,
+    streamUsage
   });
 }
