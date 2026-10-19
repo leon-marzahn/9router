@@ -27,6 +27,7 @@ function ndjson(chunks) {
   }), { status: 200 });
 }
 const tok = (t) => JSON.stringify({ result: { response: { token: t, responseId: "r1" } } }) + "\n";
+const thinkTok = (t) => JSON.stringify({ result: { response: { token: t, isThinking: true, responseId: "r1" } } }) + "\n";
 const user = (content) => ({ messages: [{ role: "user", content }] });
 
 describe("GrokWebExecutor request building", () => {
@@ -153,12 +154,19 @@ describe("GrokWebExecutor NDJSON parsing", () => {
     expect(text).toContain("[DONE]");
   });
 
-  // BUG: extractContent() never sets `thinkOpened = true`, so the
-  // `{ thinking }` branch is dead and thinking models (grok-4-thinking, grok-3-mini,
-  // ...) never surface reasoning_content.
-  it.skip("stream: thinking models surface reasoning_content (BUG: thinkOpened never set)", async () => {
-    fetchQueue.push(ndjson([tok("think"), JSON.stringify({ result: { response: { modelResponse: { message: "answer" } } } }) + "\n"]));
+  it("stream: thinking models surface isThinking tokens as reasoning_content", async () => {
+    fetchQueue.push(ndjson([thinkTok("pondering"), tok("answer"), JSON.stringify({ result: { response: { modelResponse: { message: "answer" } } } }) + "\n"]));
     const text = await (await new GrokWebExecutor().execute({ model: "grok-4-thinking", body: user("q"), stream: true, credentials: {} })).response.text();
-    expect(text).toContain("reasoning_content");
+    expect(text).toContain('"reasoning_content":"pondering"');
+    expect(text).not.toContain('"content":"pondering"');
+    expect(text).toContain('"content":"answer"');
+    expect(text).not.toContain('"reasoning_content":"answer"');
+  });
+
+  it("non-stream: thinking models put isThinking tokens in reasoning_content, not content", async () => {
+    fetchQueue.push(ndjson([thinkTok("pondering"), tok("answer"), JSON.stringify({ result: { response: { modelResponse: { message: "answer" } } } }) + "\n"]));
+    const json = await (await new GrokWebExecutor().execute({ model: "grok-4-thinking", body: user("q"), stream: false, credentials: {} })).response.json();
+    expect(json.choices[0].message.reasoning_content).toBe("pondering");
+    expect(json.choices[0].message.content).toBe("answer");
   });
 });
