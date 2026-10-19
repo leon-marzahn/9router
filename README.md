@@ -87,7 +87,9 @@ Anything else: use base URL `http://localhost:20128/v1` and a key from **Endpoin
 
   <img alt="Live traffic and usage totals" src="docs/images/readme/usage.webp" width="720">
 
-- **Quota.** Remaining subscription quota per account, where the provider exposes it.
+- **Quota.** Remaining limits per subscription account (Claude Code, Codex, GitHub Copilot, Groq and others that report them): session and weekly windows, a timeline of upcoming resets, and capacity left across all accounts of a provider.
+
+  <img alt="Quota page with per-account limits and a reset timeline" src="docs/images/readme/quota.webp" width="720">
 
 **Shaping requests**
 
@@ -103,7 +105,7 @@ Anything else: use base URL `http://localhost:20128/v1` and a key from **Endpoin
 
   <img alt="Endpoint page with access checks and API keys" src="docs/images/readme/endpoint.webp" width="720">
 
-- **Update notices.** About once a day the dashboard checks GitHub for a newer release and shows a quiet notice. Only the version list is fetched. Optionally it can call a redeploy webhook (Coolify, Portainer, Dokploy…) when a new version lands; set it up in **Settings → Updates**. `REGENT_UPDATE_CHECK=false` turns both off.
+- **Update notices.** About once a day the dashboard checks GitHub for a newer release and shows a quiet notice. Only the version list is fetched. Optionally it can call a redeploy webhook (Coolify, Portainer, Dokploy…) when a new version lands; set it up in **Settings → Updates**. `REGENT_UPDATE_CHECK=false` turns both off. Details, image tags and a Coolify example: [`docs/UPDATES.md`](docs/UPDATES.md).
 
 ## Security
 
@@ -117,6 +119,7 @@ Anything else: use base URL `http://localhost:20128/v1` and a key from **Endpoin
 
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md): request lifecycle, fallback, OAuth and token refresh, data model.
 - [`docs/DESIGN.md`](docs/DESIGN.md): the dashboard's design system.
+- [`docs/UPDATES.md`](docs/UPDATES.md): update notices, image tags, the redeploy webhook.
 - [`CHANGELOG.md`](CHANGELOG.md): what changed in each release.
 - [`CLAUDE.md`](CLAUDE.md): commands, tests and conventions for contributors.
 

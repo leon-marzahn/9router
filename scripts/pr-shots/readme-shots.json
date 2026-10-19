@@ -1,0 +1,44 @@
+[
+  {
+    "name": "providers",
+    "route": "/dashboard/providers",
+    "steps": [{ "wait": 3000 }],
+    "viewports": ["desktop"]
+  },
+  {
+    "name": "combos",
+    "route": "/dashboard/combos",
+    "steps": [{ "wait": 2500 }, { "click": "text=coding" }, { "wait": 2000 }],
+    "viewports": ["desktop"]
+  },
+  {
+    "name": "usage",
+    "route": "/dashboard/usage",
+    "steps": [{ "wait": 3000 }, { "click": "text=7d" }, { "wait": 2000 }],
+    "viewports": ["desktop"]
+  },
+  {
+    "name": "quota",
+    "route": "/dashboard/quota",
+    "steps": [{ "wait": 5000 }],
+    "viewports": ["desktop"]
+  },
+  {
+    "name": "cli-tools",
+    "route": "/dashboard/cli-tools",
+    "steps": [{ "wait": 2500 }, { "click": "text=Claude Code >> nth=0" }, { "wait": 2000 }],
+    "viewports": ["desktop"]
+  },
+  {
+    "name": "request-pipelines",
+    "route": "/dashboard/request-pipelines",
+    "steps": [{ "wait": 2500 }, { "click": "text=agent-trim" }, { "wait": 2500 }],
+    "viewports": ["desktop"]
+  },
+  {
+    "name": "endpoint",
+    "route": "/dashboard/endpoint",
+    "steps": [{ "wait": 3000 }],
+    "viewports": ["desktop"]
+  }
+]
