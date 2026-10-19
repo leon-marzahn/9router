@@ -133,12 +133,32 @@ export function errorTag(c: Connection): string {
   return "ERR";
 }
 
-// "unavailable" without an active model cooldown means the account recovered.
-function effectiveStatus(c: Connection): string | undefined {
-  const cooling = Object.entries(c).some(
-    ([k, v]) => k.startsWith("modelLock_") && v && new Date(v as string).getTime() > Date.now(),
-  );
-  return c.testStatus === "unavailable" && !cooling ? "active" : c.testStatus;
+/**
+ * Latest active cooldown expiry (ISO) for an account — any `modelLock_*` or the
+ * account-level `rateLimitedUntil` still in the future — or null.
+ */
+export function cooldownUntil(c: Connection, now = Date.now()): string | null {
+  let latest: string | null = null;
+  for (const [k, v] of Object.entries(c)) {
+    if (!(k.startsWith("modelLock_") || k === "rateLimitedUntil") || typeof v !== "string")
+      continue;
+    const t = new Date(v).getTime();
+    if (t > now && (!latest || t > new Date(latest).getTime())) latest = v;
+  }
+  return latest;
+}
+
+/**
+ * The account's status as the UI should read it. An active cooldown makes an
+ * otherwise healthy account "unavailable" (rate-limited); "unavailable" without
+ * one means the cooldown expired and the account recovered.
+ */
+export function effectiveStatus(c: Connection, now = Date.now()): string | undefined {
+  const cooling = cooldownUntil(c, now) != null;
+  if (c.testStatus === "unavailable") return cooling ? "unavailable" : "active";
+  if (cooling && ["active", "success", "unknown", undefined].includes(c.testStatus))
+    return "unavailable";
+  return c.testStatus;
 }
 
 export const isFailing = (c: Connection) =>
