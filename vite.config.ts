@@ -138,6 +138,7 @@ export default defineConfig({
       "!/src/app/(dashboard)/dashboard/combos/workbench",
       "!/src/app/(dashboard)/dashboard/media-providers",
       "!/src/app/(dashboard)/dashboard/request-pipelines",
+      "!/src/app/(dashboard)/dashboard/proxy-pools",
       "!/src/app/(dashboard)/dashboard/quota",
       "/src/app/(dashboard)/dashboard/quota/*",
       "!/src/app/(dashboard)/dashboard/quota/page.tsx",
