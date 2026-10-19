@@ -1,11 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Button, Dialog, Field, Icon, Input, SearchInput, Segmented, Skeleton } from "@/ui";
-import { cn } from "@/ui/cn";
+import {
+  Button,
+  Dialog,
+  EmptyState,
+  Field,
+  Icon,
+  Input,
+  ListGroup,
+  ListRow,
+  ListSkeleton,
+  SearchInput,
+  Segmented,
+  StatusDot,
+  WorkbenchDetail,
+  WorkbenchList,
+  useListKeyboard,
+  type Status,
+} from "@/ui";
 import { ComboDetail } from "./ComboDetail";
-import { STEP_DOT } from "./steps";
 import { useCombos, type Combo, type CombosApi, type Strategy } from "./useCombos";
 import { VisionAdapter } from "./VisionAdapter";
 
@@ -17,28 +32,34 @@ const STRATEGY_LABEL: Record<Strategy, string> = {
 };
 const VALID_NAME = /^[a-zA-Z0-9_.-]+$/;
 const VISION = "__vision";
+const PATH = "/dashboard/combos";
 type Scope = "all" | "attention";
 
 const down = (api: CombosApi, m: string) =>
   ["cooling", "off"].includes(api.readiness[m]?.state ?? "");
+
+/** One status per combo: no steps → not set up, every step down → failing, some → degraded. */
+function statusOf(api: CombosApi, c: Combo): Status {
+  if (c.models.length === 0) return "none";
+  const n = c.models.filter((m) => down(api, m)).length;
+  return n === 0 ? "ok" : n === c.models.length ? "error" : "degraded";
+}
 
 export function CombosWorkbench() {
   const api = useCombos();
   const params = useSearchParams();
   const router = useRouter();
   const sel = params.get("combo");
+  const searchRef = useRef<HTMLInputElement>(null);
   const [q, setQ] = useState("");
   const [scope, setScope] = useState<Scope>("all");
   const [naming, setNaming] = useState<null | { mode: "new" } | { mode: "rename"; combo: Combo }>(
     null,
   );
 
-  const select = (id: string | null) => {
-    const p = new URLSearchParams(params.toString());
-    if (id) p.set("combo", id);
-    else p.delete("combo");
-    router.replace(`/dashboard/combos${p.size ? `?${p}` : ""}`, { scroll: false });
-  };
+  const select = (id: string | null) =>
+    router.replace(id ? `${PATH}?combo=${encodeURIComponent(id)}` : PATH, { scroll: false });
+  const openOverview = () => router.replace(`${PATH}?view=overview`, { scroll: false });
 
   const all = api.combos ?? [];
   const attention = all.filter((c) => c.models.length === 0 || c.models.some((m) => down(api, m)));
@@ -46,129 +67,118 @@ export function CombosWorkbench() {
     (c) => !q || c.name.toLowerCase().includes(q.toLowerCase()),
   );
   const current = all.find((c) => c.name === sel);
-  const showDetail = !!current || sel === VISION;
+  const vision = sel === VISION;
+  // Mobile only: the overview as its own screen (desktop shows it with nothing selected)
+  const overview = !current && !vision && params.get("view") === "overview";
+  const selId = current ? current.name : vision ? VISION : null;
+  const order = [...shown.map((c) => c.name), VISION];
+  const failing = all.filter((c) => statusOf(api, c) === "error").length;
+
+  useListKeyboard({ order, selected: selId, onSelect: select, searchRef });
 
   return (
     <div className="flex min-h-0 flex-1">
-      <aside
-        className={cn(
-          "flex min-h-0 w-full flex-1 flex-col border-r border-border bg-pane md:w-[340px] md:flex-none",
-          showDetail && "hidden md:flex",
-        )}
-      >
-        <div className="space-y-2 p-3">
-          <div className="flex gap-2">
-            <SearchInput
-              placeholder="Search combos"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              shortcut="/"
-              className="min-w-0 flex-1"
+      <WorkbenchList
+        selected={selId ?? (overview ? "overview" : null)}
+        hints={[
+          ["↑↓", "move"],
+          ["/", "search"],
+          ["esc", "overview"],
+        ]}
+        header={
+          <>
+            <div className="flex gap-2">
+              <div className="min-w-0 flex-1">
+                <SearchInput
+                  ref={searchRef}
+                  placeholder="Search combos"
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  shortcut="/"
+                />
+              </div>
+              <Button
+                variant="primary"
+                size="sm"
+                icon="add"
+                onClick={() => setNaming({ mode: "new" })}
+              >
+                New
+              </Button>
+            </div>
+            <Segmented<Scope>
+              value={scope}
+              onChange={setScope}
+              options={[
+                { value: "all", label: api.combos ? `All · ${all.length}` : "All" },
+                {
+                  value: "attention",
+                  label: `Needs attention${attention.length ? ` · ${attention.length}` : ""}`,
+                },
+              ]}
             />
-            <Button
-              variant="primary"
-              size="sm"
-              icon="add"
-              onClick={() => setNaming({ mode: "new" })}
-            >
-              New
-            </Button>
-          </div>
-          <Segmented<Scope>
-            value={scope}
-            onChange={setScope}
-            options={[
-              { value: "all", label: api.combos ? `All · ${all.length}` : "All" },
-              {
-                value: "attention",
-                label: `Needs attention${attention.length ? ` · ${attention.length}` : ""}`,
-              },
-            ]}
-          />
-        </div>
-        <div className="min-h-0 flex-1 space-y-1 overflow-y-auto px-2 py-1">
-          {!api.combos
-            ? [0, 1, 2].map((i) => (
-                <div key={i} className="space-y-1.5 rounded-lg px-2.5 py-2">
-                  <Skeleton className="h-4 w-32" />
-                  <Skeleton className="h-3 w-24" />
-                </div>
-              ))
-            : shown.map((c) => {
-                const active = c.name === sel;
-                return (
-                  <button
+          </>
+        }
+      >
+        <ListRow
+          className="mt-2 md:hidden"
+          onClick={openOverview}
+          leading={<Icon name="dashboard" size={18} className="text-text-muted" />}
+          title="Overview"
+          trailing={<Icon name="chevron_right" size={16} className="text-text-subtle" />}
+        />
+        {!api.combos ? (
+          <ListSkeleton rows={4} />
+        ) : (
+          <>
+            {shown.length > 0 && (
+              <ListGroup title="Combos" count={shown.length}>
+                {shown.map((c) => (
+                  <ListRow
                     key={c.id}
-                    type="button"
-                    onClick={() => select(active ? null : c.name)}
-                    className={cn(
-                      "flex w-full flex-col gap-1 rounded-lg px-2.5 py-2 text-left transition-colors",
-                      active ? "bg-accent-soft ring-1 ring-accent-ring" : "hover:bg-surface-2",
-                    )}
-                  >
-                    <span className="flex items-center gap-2">
-                      <Icon
-                        name="layers"
-                        size={16}
-                        className={active ? "text-accent" : "text-text-muted"}
-                      />
-                      <span
-                        className={cn(
-                          "min-w-0 truncate font-mono text-[13px]",
-                          active && "font-medium text-accent-text",
-                        )}
-                      >
-                        {c.name}
-                      </span>
-                      <span className="ml-auto flex shrink-0 items-center gap-1">
-                        {c.models.slice(0, 6).map((m, i) => (
-                          <span
-                            key={i}
-                            className={cn(
-                              "size-1.5 rounded-full",
-                              STEP_DOT[
-                                api.readiness[m]?.state ?? (m.includes("/") ? "unknown" : "combo")
-                              ],
-                            )}
-                          />
-                        ))}
-                      </span>
-                    </span>
-                    <span className="pl-6 text-[11px] text-text-subtle">
-                      {STRATEGY_LABEL[api.strategyOf(c.name)]} · {c.models.length} step
-                      {c.models.length === 1 ? "" : "s"}
-                    </span>
-                  </button>
-                );
-              })}
-          {api.combos && !shown.length && (
-            <p className="px-3 py-6 text-sm text-text-muted">
-              {all.length
-                ? "No combos match."
-                : "No combos yet. A combo is a list of models tried in order, or in turns, under one name."}
-            </p>
-          )}
-        </div>
-        <div className="border-t border-border p-2">
-          <button
-            type="button"
-            onClick={() => select(sel === VISION ? null : VISION)}
-            className={cn(
-              "flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[13px] transition-colors",
-              sel === VISION
-                ? "bg-accent-soft font-medium text-accent-text ring-1 ring-accent-ring"
-                : "text-text-muted hover:bg-surface-2",
+                    id={c.name}
+                    active={c.name === selId}
+                    onClick={() => select(c.name === selId ? null : c.name)}
+                    leading={<Icon name="layers" size={18} className="text-text-muted" />}
+                    title={<span className="font-mono">{c.name}</span>}
+                    subtitle={`${STRATEGY_LABEL[api.strategyOf(c.name)]} · ${c.models.length} step${
+                      c.models.length === 1 ? "" : "s"
+                    }`}
+                    trailing={<StatusDot status={statusOf(api, c)} />}
+                    version={statusOf(api, c)}
+                  />
+                ))}
+              </ListGroup>
             )}
-          >
-            <Icon name="visibility" size={16} />
-            Vision fallback
-          </button>
-        </div>
-      </aside>
+            {!shown.length && (
+              <p className="px-3 py-6 text-[13px] text-text-muted">
+                {all.length
+                  ? q
+                    ? `Nothing matches “${q}”.`
+                    : "Nothing needs attention."
+                  : "No combos yet. A combo is a list of models tried in order, or in turns, under one name."}
+              </p>
+            )}
+            <ListGroup title="For every model">
+              <ListRow
+                id={VISION}
+                active={vision}
+                onClick={() => select(vision ? null : VISION)}
+                leading={<Icon name="visibility" size={18} className="text-text-muted" />}
+                title="Vision fallback"
+              />
+            </ListGroup>
+          </>
+        )}
+      </WorkbenchList>
 
-      <section className={cn("min-h-0 flex-1 overflow-y-auto", !showDetail && "hidden md:block")}>
-        {sel === VISION ? (
-          <VisionAdapter onBack={() => select(null)} />
+      <WorkbenchDetail
+        selected={!!selId || overview}
+        backLabel="All combos"
+        onBack={() => select(null)}
+      >
+        {vision ? (
+          <VisionAdapter />
         ) : current ? (
           <ComboDetail
             key={current.id}
@@ -178,14 +188,30 @@ export function CombosWorkbench() {
             onRename={() => setNaming({ mode: "rename", combo: current })}
           />
         ) : (
-          <div className="grid h-full place-items-center p-8 text-center text-[13px] text-text-muted">
-            <div className="flex flex-col items-center gap-2">
-              <Icon name="layers" size={28} className="text-text-subtle" />
-              Pick a combo to see its steps and how it routes.
+          <div className="mx-auto max-w-3xl space-y-6 px-4 py-6 md:px-8 md:py-8">
+            <div>
+              <h1 className="font-display text-3xl">Combos</h1>
+              <p className="mt-1 text-[13px] text-text-muted">
+                {api.combos ? (
+                  <>
+                    <strong className="font-medium text-text">
+                      {all.length} combo{all.length === 1 ? "" : "s"}
+                    </strong>
+                    {attention.length > 0 && ` · ${attention.length} need attention`}
+                    {failing > 0 && ` · ${failing} with every step down`}
+                  </>
+                ) : (
+                  "Loading combos…"
+                )}
+              </p>
             </div>
+            <EmptyState icon="layers">
+              A combo is a list of models under one name. Apps send that name as the model; regent
+              tries the steps in order, in turns, or all at once. Pick one to see its steps.
+            </EmptyState>
           </div>
         )}
-      </section>
+      </WorkbenchDetail>
 
       {naming && (
         <NameDialog
