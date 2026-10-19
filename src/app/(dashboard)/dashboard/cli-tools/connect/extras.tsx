@@ -33,7 +33,7 @@ export function ModelPick({
 }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className={free ? "flex min-w-0 items-center gap-1.5 sm:w-80" : "flex min-w-0 items-center gap-1.5"}>
+    <div className={free ? "flex w-full min-w-0 items-center gap-1.5 sm:w-80" : "flex min-w-0 items-center gap-1.5"}>
       {free ? (
         <Input mono className="min-w-0 flex-1" value={value} placeholder="provider/model-id" aria-label={title} disabled={disabled} onChange={(e) => onChange(e.target.value)} />
       ) : value ? (
@@ -43,7 +43,7 @@ export function ModelPick({
       ) : (
         <span className="text-[12px] text-text-subtle">{placeholder}</span>
       )}
-      <Button size="sm" variant="ghost" disabled={disabled} onClick={() => setOpen(true)}>
+      <Button className="shrink-0" size="sm" variant="ghost" disabled={disabled} onClick={() => setOpen(true)}>
         {free ? "Pick" : value ? "Change" : "Choose"}
       </Button>
       {value && !free && <IconButton icon="close" label="Clear" disabled={disabled} onClick={() => onChange("")} />}
