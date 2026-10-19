@@ -1,6 +1,8 @@
 # Known UI smoke findings (scripts/ui-smoke.mjs). Format: check | viewport | route | detail
 # `*` matches any field. Every entry is a real bug to fix: delete the line when it is.
 # Regenerate with `node scripts/ui-smoke.mjs --update-baseline` only to accept current findings.
+axe | desktop | /customer | color-contrast  # TODO: fix accessibility violation
+axe | desktop | /customer#signed-in | color-contrast  # TODO: fix accessibility violation
 axe | desktop | /dashboard | color-contrast  # TODO: fix accessibility violation
 axe | desktop | /dashboard/basic-chat | color-contrast  # TODO: fix accessibility violation
 axe | desktop | /dashboard/cli-tools | color-contrast  # TODO: fix accessibility violation
@@ -31,6 +33,7 @@ axe | desktop | /dashboard/usage | color-contrast  # TODO: fix accessibility vio
 axe | desktop-dark | /dashboard/endpoint | color-contrast  # TODO: fix accessibility violation
 axe | desktop-dark | /dashboard/providers | color-contrast  # TODO: fix accessibility violation
 axe | desktop-dark | /dashboard/usage | color-contrast  # TODO: fix accessibility violation
+axe | mobile | /customer#signed-in | color-contrast  # TODO: fix accessibility violation
 axe | mobile | /dashboard | color-contrast  # TODO: fix accessibility violation
 axe | mobile | /dashboard/basic-chat | color-contrast  # TODO: fix accessibility violation
 axe | mobile | /dashboard/cli-tools | color-contrast  # TODO: fix accessibility violation
@@ -59,34 +62,20 @@ axe | mobile | /dashboard/skills | color-contrast  # TODO: fix accessibility vio
 axe | mobile | /dashboard/token-saver | color-contrast  # TODO: fix accessibility violation
 axe | mobile | /dashboard/usage | color-contrast  # TODO: fix accessibility violation
 tap | mobile | /dashboard | a "Fix"  # TODO: enlarge tap target to 40px
-tap | mobile | /dashboard | button "Limit models"  # TODO: enlarge tap target to 40px
-tap | mobile | /dashboard | button "Pause key"  # TODO: enlarge tap target to 40px
-tap | mobile | /dashboard | button "Require API key"  # TODO: enlarge tap target to 40px
 tap | mobile | /dashboard/basic-chat | button "addNew chat"  # TODO: enlarge tap target to 40px
 tap | mobile | /dashboard/basic-chat | input "Search chats"  # TODO: enlarge tap target to 40px
 tap | mobile | /dashboard/cli-tools | input "Search tools"  # TODO: enlarge tap target to 40px
-tap | mobile | /dashboard/cli-tools/claude | button "Filter naming requests"  # TODO: enlarge tap target to 40px
-tap | mobile | /dashboard/cli-tools/claude | button "NM context"  # TODO: enlarge tap target to 40px
-tap | mobile | /dashboard/cli-tools/claude | button "Web search (Exa MCP)"  # TODO: enlarge tap target to 40px
 tap | mobile | /dashboard/cli-tools/claude | select "Keep current keyLaptop (demo)CI runner ("  # TODO: enlarge tap target to 40px
 tap | mobile | /dashboard/cli-tools/claude | select "This machine · localhost:NCustom add"  # TODO: enlarge tap target to 40px
 tap | mobile | /dashboard/combos | button "addAdd combo"  # TODO: enlarge tap target to 40px
 tap | mobile | /dashboard/combos | input "Search combos"  # TODO: enlarge tap target to 40px
 tap | mobile | /dashboard/console-log | input "Filter lines"  # TODO: enlarge tap target to 40px
 tap | mobile | /dashboard/endpoint | a "Fix"  # TODO: enlarge tap target to 40px
-tap | mobile | /dashboard/endpoint | button "Limit models"  # TODO: enlarge tap target to 40px
-tap | mobile | /dashboard/endpoint | button "Pause key"  # TODO: enlarge tap target to 40px
-tap | mobile | /dashboard/endpoint | button "Require API key"  # TODO: enlarge tap target to 40px
 tap | mobile | /dashboard/media-providers | input "Search speech providers"  # TODO: enlarge tap target to 40px
 tap | mobile | /dashboard/media-providers/web | button "addAdd web search combo"  # TODO: enlarge tap target to 40px
 tap | mobile | /dashboard/media-providers/web | input "Search web search providers"  # TODO: enlarge tap target to 40px
 tap | mobile | /dashboard/mitm | input ""  # TODO: enlarge tap target to 40px
 tap | mobile | /dashboard/mitm | input "No key (uses first active key)"  # TODO: enlarge tap target to 40px
-tap | mobile | /dashboard/profile | button "Budget enforced"  # TODO: enlarge tap target to 40px
-tap | mobile | /dashboard/profile | button "Hard stop"  # TODO: enlarge tap target to 40px
-tap | mobile | /dashboard/profile | button "Outbound proxy"  # TODO: enlarge tap target to 40px
-tap | mobile | /dashboard/profile | button "Require login"  # TODO: enlarge tap target to 40px
-tap | mobile | /dashboard/profile | button "Save request bodies"  # TODO: enlarge tap target to 40px
 tap | mobile | /dashboard/providers | button "addConnect another provider"  # TODO: enlarge tap target to 40px
 tap | mobile | /dashboard/providers | input "Search providers"  # TODO: enlarge tap target to 40px
 tap | mobile | /dashboard/providers/new | a "Cancel"  # TODO: enlarge tap target to 40px
@@ -99,10 +88,8 @@ tap | mobile | /dashboard/providers/new | input "e.g., Production API, Dev Envir
 tap | mobile | /dashboard/providers/new | select "Select a providerGemini CLIKiro AIMiMo C"  # TODO: enlarge tap target to 40px
 tap | mobile | /dashboard/providers/openai | a "arrow_backBack to Providers"  # TODO: enlarge tap target to 40px
 tap | mobile | /dashboard/providers/openai | a "open_in_newGet API Key"  # TODO: enlarge tap target to 40px
-tap | mobile | /dashboard/providers/openai | button "Disable account"  # TODO: enlarge tap target to 40px
 tap | mobile | /dashboard/providers/openai | button "Move down"  # TODO: enlarge tap target to 40px
 tap | mobile | /dashboard/providers/openai | button "Move up"  # TODO: enlarge tap target to 40px
-tap | mobile | /dashboard/providers/openai | button "Round robin"  # TODO: enlarge tap target to 40px
 tap | mobile | /dashboard/providers/openai | input "Select Demo OpenAI (backup)"  # TODO: enlarge tap target to 40px
 tap | mobile | /dashboard/providers/openai | input "Select Demo OpenAI"  # TODO: enlarge tap target to 40px
 tap | mobile | /dashboard/providers/openai | input.size-N.N.accent-accent  # TODO: enlarge tap target to 40px
@@ -134,6 +121,3 @@ tap | mobile | /dashboard/token-saver | a "Cavemanopen_in_new"  # TODO: enlarge 
 tap | mobile | /dashboard/token-saver | a "Headroomopen_in_new"  # TODO: enlarge tap target to 40px
 tap | mobile | /dashboard/token-saver | a "Ponytailopen_in_new"  # TODO: enlarge tap target to 40px
 tap | mobile | /dashboard/token-saver | a "RTKopen_in_new"  # TODO: enlarge tap target to 40px
-tap | mobile | /dashboard/token-saver | button "Compress the whole conversation"  # TODO: enlarge tap target to 40px
-tap | mobile | /dashboard/token-saver | button "Enabled"  # TODO: enlarge tap target to 40px
-tap | mobile | /dashboard/token-saver | button "Shrink tool output"  # TODO: enlarge tap target to 40px

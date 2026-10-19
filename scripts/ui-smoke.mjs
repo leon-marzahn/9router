@@ -46,6 +46,10 @@ const { values: args } = parseArgs({
 const BASELINE = join(root, "scripts/ui-smoke/baseline.txt");
 const DARK_ROUTES = ["/dashboard/endpoint", "/dashboard/providers", "/dashboard/usage"];
 const MIN_TAP = 40;
+/** `route#state` entries that need sessionStorage set before load (demo key from seed.mjs). */
+const SESSION_STATES = {
+  "/customer#signed-in": ["regent.customerKey", "sk-regent-demo-laptop-0000000000"],
+};
 const FONT_HOSTS = ["fonts.googleapis.com", "fonts.gstatic.com"];
 
 /** Expected non-2xx same-origin responses. Each needs a reason. */
@@ -86,6 +90,14 @@ try {
       (url) => url.origin !== base && !FONT_HOSTS.includes(url.hostname),
       (r) => r.abort("blockedbyclient"),
     );
+    // Seed sessionStorage before any page script runs, keyed on `path#state`
+    // (the hash never reaches the server); every other route starts clean.
+    await context.addInitScript((states) => {
+      if (location.protocol === "about:") return;
+      const entry = states[location.pathname + location.hash];
+      for (const [k] of Object.values(states)) sessionStorage.removeItem(k);
+      if (entry) sessionStorage.setItem(entry[0], entry[1]);
+    }, SESSION_STATES);
     const page = await context.newPage();
     const viewport = theme === "light" ? vp : `${vp}-dark`;
     let current = [];
@@ -130,6 +142,8 @@ try {
       current = [];
       const t0 = Date.now();
       try {
+        // A hash-only change would be a same-document navigation (no init script).
+        if (route.includes("#")) await page.goto("about:blank");
         await page.goto(base + route, { waitUntil: "load", timeout: 180_000 });
         await settle(page);
         current.push(...(await checkPage(page, vp)));
@@ -207,6 +221,25 @@ async function checkPage(page, vp) {
         return false;
       };
 
+      // Effective hit area: the box grown by absolutely positioned ::before/::after
+      // overlays (e.g. src/ui/Switch's invisible `after:-inset-*` tap area).
+      const hitArea = (el) => {
+        const b = el.getBoundingClientRect();
+        let { left, top, right, bottom } = b;
+        for (const pseudo of ["::before", "::after"]) {
+          const ps = getComputedStyle(el, pseudo);
+          if (ps.content === "none" || ps.display === "none" || ps.position !== "absolute")
+            continue;
+          const px = (v) => (v === "auto" ? null : parseFloat(v));
+          const [l, t, r, bt] = [px(ps.left), px(ps.top), px(ps.right), px(ps.bottom)];
+          if (l !== null) left = Math.min(left, b.left + l);
+          if (t !== null) top = Math.min(top, b.top + t);
+          if (r !== null) right = Math.max(right, b.right - r);
+          if (bt !== null) bottom = Math.max(bottom, b.bottom - bt);
+        }
+        return { width: right - left, height: bottom - top };
+      };
+
       const doc = document.documentElement;
       if (doc.scrollWidth > doc.clientWidth) {
         const vw = doc.clientWidth;
@@ -251,7 +284,7 @@ async function checkPage(page, vp) {
           if (el.tagName === "INPUT" && el.getBoundingClientRect().width <= 1) {
             target = el.closest("label") || el;
           }
-          const r = target.getBoundingClientRect();
+          const r = hitArea(target);
           if (r.width < minTap || r.height < minTap) {
             out.push({
               check: "tap",
@@ -315,6 +348,7 @@ function discoverRoutes() {
     "/dashboard/request-pipelines?view=overview",
     "/dashboard/providers/openai",
     "/dashboard/cli-tools/claude",
+    ...Object.keys(SESSION_STATES),
   ])
     set.add(r);
   return [...set].sort((a, b) => a.localeCompare(b));
