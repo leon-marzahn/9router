@@ -186,14 +186,13 @@ describe("usePricePlans", () => {
       "fetch",
       vi.fn(async () => new Response("{}", { status: 500 })),
     );
-    let api;
     const Probe = () => {
-      api = usePricePlans();
-      return null;
+      const { list } = usePricePlans();
+      return h("pre", null, JSON.stringify(list));
     };
     await render(h(Probe));
     await flush();
-    expect(api.list).toEqual({ plans: {}, keyPlans: {}, resolved: {} });
+    expect(JSON.parse(container.textContent)).toEqual({ plans: {}, keyPlans: {}, resolved: {} });
   });
 });
 
