@@ -7,8 +7,9 @@
 // Rules:
 // - Metadata only. Never bodies, headers, keys, tokens or cookies; error text is
 //   redacted and clamped. Connection ids/labels, not credentials.
-// - Bounded: in-memory, at most MAX_TRACES traces (oldest evicted), TRACE_TTL_MS
-//   retention, MAX_ATTEMPTS attempts per trace.
+// - Bounded: an in-memory write-through cache of MAX_TRACES traces (TRACE_TTL_MS),
+//   persisted in batches to SQLite (requestTracesRepo, capped by the request-log limit),
+//   MAX_ATTEMPTS attempts per trace. Writes are batched off the hot path.
 // - Fail-open: every exported function swallows its own errors. Tracing must
 //   never break or slow a request.
 import { AsyncLocalStorage } from "node:async_hooks";
@@ -25,7 +26,45 @@ const store = (globalThis.__regentRequestTraces ??= {
   traces: new Map(),
   als: new AsyncLocalStorage(),
   seq: 0,
+  dirty: new Set(),
+  flushTimer: null,
 });
+
+export const FLUSH_DELAY_MS = 1000;
+
+/** Queue a trace for the next batched DB write. Never throws, never awaits. */
+function markDirty(id) {
+  try {
+    if (!id) return;
+    store.dirty.add(id);
+    if (store.flushTimer) return;
+    store.flushTimer = setTimeout(() => {
+      store.flushTimer = null;
+      flushTraces().catch(() => {});
+    }, FLUSH_DELAY_MS);
+    store.flushTimer.unref?.();
+  } catch {
+    /* fail-open */
+  }
+}
+
+/** Write queued traces to SQLite. Errors are logged once per batch and dropped. */
+export async function flushTraces() {
+  const ids = [...store.dirty];
+  store.dirty.clear();
+  if (!ids.length) return;
+  try {
+    const snaps = ids
+      .map((id) => store.traces.get(id))
+      .filter(Boolean)
+      .map(snapshot)
+      .filter(Boolean);
+    const { saveRequestTraces } = await import("@/lib/db/repos/requestTracesRepo.js");
+    await saveRequestTraces(snaps);
+  } catch (e) {
+    console.warn("[requestTrace] persist failed:", e?.message);
+  }
+}
 
 const str = (v, max = MAX_STR) => (v == null || v === "" ? undefined : String(v).slice(0, max));
 const num = (v) => (typeof v === "number" && Number.isFinite(v) ? v : undefined);
@@ -149,7 +188,7 @@ export function traceCombo({ name, strategy, models } = {}, trace = currentTrace
 
 /** Start an attempt on the current trace. Returns a handle (or null). */
 export function beginAttempt(
-  { provider, model, connectionId, connectionLabel } = {},
+  { provider, model, connectionId, connectionLabel, requestedModel } = {},
   trace = currentTrace(),
 ) {
   try {
@@ -166,6 +205,7 @@ export function beginAttempt(
       model: str(model),
       connectionId: str(connectionId, 80),
       connectionLabel: str(connectionLabel, 120),
+      requestedModel: requestedModel && requestedModel !== model ? str(requestedModel) : undefined,
       status: "pending",
     };
     trace.attempts.push(attempt);
@@ -176,13 +216,18 @@ export function beginAttempt(
 }
 
 /** Translation pair + streaming, set by chatCore once known. */
-export function annotateAttempt(attempt, { sourceFormat, targetFormat, stream, passthrough } = {}) {
+export function annotateAttempt(
+  attempt,
+  { sourceFormat, targetFormat, stream, passthrough, upstreamModel } = {},
+) {
   try {
     if (!attempt) return;
     if (sourceFormat) attempt.sourceFormat = str(sourceFormat, 40);
     if (targetFormat) attempt.targetFormat = str(targetFormat, 40);
     if (typeof stream === "boolean") attempt.stream = stream;
     if (typeof passthrough === "boolean") attempt.passthrough = passthrough;
+    if (upstreamModel) attempt.upstreamModel = str(upstreamModel);
+    markDirty(attempt.traceId);
   } catch {
     /* fail-open */
   }
@@ -232,6 +277,7 @@ export function traceDetail(attempt, detail) {
     const tokens = compactTokens(detail.tokens);
     if (tokens && (tokens.in || tokens.out)) attempt.tokens = tokens;
     if (detail.id) attempt.detailId = str(detail.id, 200);
+    markDirty(attempt.traceId);
   } catch {
     /* fail-open */
   }
@@ -257,6 +303,7 @@ export function endAttempt(attempt, { status, error, fallback, reason, skipped }
       attempt.reason = reason;
     }
     if (fallback) attempt.fallback = str(fallback, 20);
+    markDirty(attempt.traceId);
   } catch {
     /* fail-open */
   }
@@ -272,6 +319,7 @@ export function finishTrace(trace, { status, stream } = {}) {
     };
     if (typeof stream === "boolean") trace.stream = stream;
     trace.totalLatencyMs = Date.now() - trace.startedAt;
+    markDirty(trace.id);
   } catch {
     /* fail-open */
   }
@@ -282,7 +330,35 @@ export function getTrace(id) {
   try {
     prune();
     const t = store.traces.get(id);
+    return t ? snapshot(t) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Memory first (live, includes in-flight streams), then the persisted copy. */
+export async function loadTrace(id) {
+  const live = getTrace(id);
+  if (live) return live;
+  try {
+    const { getRequestTraceById } = await import("@/lib/db/repos/requestTracesRepo.js");
+    const t = await getRequestTraceById(id);
     if (!t) return null;
+    // Stored rows were redacted on write; redact again in case of older rows.
+    return {
+      ...t,
+      attempts: (t.attempts || []).map((a) => ({
+        ...a,
+        error: a.error ? redactSecrets(a.error) : undefined,
+      })),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function snapshot(t) {
+  try {
     const attempts = t.attempts.map(({ startedAt, traceId: _traceId, ...a }, i) => ({
       ...a,
       offsetMs: startedAt - t.startedAt,
@@ -325,6 +401,9 @@ export function getTrace(id) {
 export const __test__ = {
   reset() {
     store.traces.clear();
+    store.dirty.clear();
+    if (store.flushTimer) clearTimeout(store.flushTimer);
+    store.flushTimer = null;
   },
   size() {
     return store.traces.size;

@@ -178,7 +178,7 @@ export async function handleChatCore({ traceAttempt = null, body, modelInfo, cre
   // Skip all translation/normalization — only model and Bearer are swapped
   const clientTool = detectClientTool(clientRawRequest?.headers || {}, body);
   const passthrough = isNativePassthrough(clientTool, provider);
-  annotateAttempt(traceAttempt, { sourceFormat, targetFormat, stream, passthrough });
+  annotateAttempt(traceAttempt, { sourceFormat, targetFormat, stream, passthrough, upstreamModel: stripThinkingSuffix(upstreamModel) });
 
   // Expose raw client headers to translators/executors for session-id resolution
   if (credentials) credentials.rawHeaders = clientRawRequest?.headers || {};

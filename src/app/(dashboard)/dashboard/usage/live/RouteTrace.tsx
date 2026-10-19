@@ -22,6 +22,12 @@ export interface TraceAttempt {
   model?: string;
   connectionId?: string;
   connectionLabel?: string;
+  /** Resolved at read time: node name or registry display name. */
+  providerName?: string;
+  /** Exact model id sent upstream (aliases/thinking suffixes resolved). */
+  upstreamModel?: string;
+  /** What the client (or combo step) asked for, when it differs. */
+  requestedModel?: string;
   sourceFormat?: string;
   targetFormat?: string;
   passthrough?: boolean;
@@ -92,8 +98,8 @@ export function RouteTrace({ traceId }: { traceId?: string }) {
   if (state === "missing" || !trace)
     return (
       <p className="text-[12px] text-text-muted">
-        No routing trace for this request. Traces are kept in memory for the last 500 requests (24h)
-        and reset when the server restarts.
+        No routing trace for this request. Traces are kept up to the same limit as logged requests
+        (Settings → Request logging).
       </p>
     );
   return <RouteTraceView trace={trace} />;
@@ -191,10 +197,20 @@ function AttemptRow({ attempt: a, last }: { attempt: TraceAttempt; last: boolean
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[13px]">
             <span className="text-text-subtle tabular-nums">#{a.index + 1}</span>
-            <span className="font-medium">{a.provider ?? "—"}</span>
-            <span className="min-w-0 break-all font-mono text-[12px] text-text-muted">
-              {a.model}
+            <span className="font-medium break-all" title={a.provider}>
+              {a.providerName ?? a.provider ?? "—"}
             </span>
+            <span
+              className="min-w-0 break-all font-mono text-[12px] text-text-muted"
+              title="Model id sent upstream"
+            >
+              {a.upstreamModel ?? a.model}
+            </span>
+            {a.requestedModel && a.requestedModel !== (a.upstreamModel ?? a.model) && (
+              <span className="min-w-0 break-all text-[11px] text-text-subtle">
+                for <span className="font-mono">{a.requestedModel}</span>
+              </span>
+            )}
           </div>
           <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-text-muted">
             {a.connectionLabel && (

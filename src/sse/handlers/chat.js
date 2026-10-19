@@ -339,7 +339,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
     // Use shared chatCore
     const chatSettings = await getSettings();
     const providerThinking = (chatSettings.providerThinking || {})[provider] || null;
-    const traceAttempt = beginAttempt({ provider, model, connectionId: credentials.connectionId, connectionLabel: credentials.connectionName });
+    const traceAttempt = beginAttempt({ provider, model, connectionId: credentials.connectionId, connectionLabel: credentials.connectionName, requestedModel: modelStr });
     const result = await handleChatCore({
       traceAttempt,
       body: { ...body, model: `${provider}/${model}` },
