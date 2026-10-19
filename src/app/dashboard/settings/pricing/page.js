@@ -1,37 +1,36 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import Card from "@/shared/components/Card";
-import PricingModal from "@/shared/components/PricingModal";
+import PricingDialog from "./PricingDialog";
+
+async function fetchPricing() {
+  try {
+    const response = await fetch("/api/pricing");
+    if (response.ok) return await response.json();
+  } catch (error) {
+    console.error("Failed to load pricing:", error);
+  }
+  return null;
+}
 
 export default function PricingSettingsPage() {
-  const router = useRouter();
   const [showModal, setShowModal] = useState(false);
   const [currentPricing, setCurrentPricing] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const loadPricing = () =>
+    fetchPricing().then((data) => {
+      if (data) setCurrentPricing(data);
+      setLoading(false);
+    });
+
   useEffect(() => {
-    loadPricing();
+    void loadPricing();
   }, []);
 
-  const loadPricing = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch("/api/pricing");
-      if (response.ok) {
-        const data = await response.json();
-        setCurrentPricing(data);
-      }
-    } catch (error) {
-      console.error("Failed to load pricing:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handlePricingUpdated = () => {
-    loadPricing();
+    void loadPricing();
   };
 
   // Count total models with pricing
@@ -161,13 +160,11 @@ export default function PricingSettingsPage() {
       </Card>
 
       {/* Pricing Modal */}
-      {showModal && (
-        <PricingModal
-          isOpen={showModal}
-          onClose={() => setShowModal(false)}
-          onSave={handlePricingUpdated}
-        />
-      )}
+      <PricingDialog
+        open={showModal}
+        onClose={() => setShowModal(false)}
+        onSave={handlePricingUpdated}
+      />
     </div>
   );
 }
