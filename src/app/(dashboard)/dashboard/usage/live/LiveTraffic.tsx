@@ -281,7 +281,7 @@ function Feed({
                     now={now}
                     active={r.id === selectedId}
                     onClick={
-                      r.logged
+                      r.logged || r.traceId
                         ? () => {
                             freeze();
                             setSelectedId(r.id === selectedId ? null : r.id);
@@ -310,7 +310,7 @@ function Feed({
               <Link href="/dashboard/profile" className="text-accent-text hover:underline">
                 Settings
               </Link>{" "}
-              to open requests and see credits, cost and latency per request.
+              to capture request bodies and see credits, cost and latency per request.
             </p>
           )}
         </Panel>

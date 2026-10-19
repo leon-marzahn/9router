@@ -248,6 +248,8 @@ for (let i = 0; i < 6; i++) {
   const timestamp = new Date(now - (6 - i) * 600_000).toISOString();
   const record = {
     id: `demo-detail-${i}`,
+    // Routing traces live in server memory; mocks.json answers /api/usage/traces/tr_demo*.
+    traceId: `tr_demo${i}trace`,
     provider,
     model,
     connectionId: conns[ci].id,

@@ -119,6 +119,7 @@ async function flushToDatabase() {
             providerResponse: truncateField(item.providerResponse, config.maxJsonSize),
             response: truncateField(item.response, config.maxJsonSize),
             pxpipe: item.pxpipe || undefined,
+            traceId: typeof item.traceId === "string" ? item.traceId : undefined,
           };
 
           db.run(

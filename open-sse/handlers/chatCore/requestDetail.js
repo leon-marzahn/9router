@@ -1,5 +1,6 @@
 import { saveRequestUsage, appendRequestLog, saveRequestDetail } from "@/lib/usageDb.js";
 import { COLORS } from "../../utils/stream.js";
+import { traceDetail } from "@/lib/requestTrace.js";
 import { canonicalizeUsage } from "../../utils/usageTracking.js";
 
 const OPTIONAL_PARAMS = [
@@ -135,7 +136,7 @@ export function formatDoneLine({ usage, latency }) {
   return `DONE ${latency?.total ?? 0}ms${ttftStr} · ${inStr} · OUT ${outTok}`;
 }
 
-export function saveUsageStats({ provider, model, tokens, connectionId, apiKey, endpoint, label = "USAGE", silent = false }) {
+export function saveUsageStats({ provider, model, tokens, connectionId, apiKey, traceId, endpoint, label = "USAGE", silent = false }) {
   if (!tokens || typeof tokens !== "object") return;
 
   const inTokens = tokens.input_tokens ?? tokens.prompt_tokens ?? 0;
@@ -163,6 +164,21 @@ export function saveUsageStats({ provider, model, tokens, connectionId, apiKey, 
     timestamp: new Date().toISOString(),
     connectionId: connectionId || undefined,
     apiKey: apiKey || undefined,
+    traceId: traceId || undefined,
     endpoint: endpoint || null
   }).catch(() => {});
+}
+
+/**
+ * Save a request detail for the Usage feed and fold its metadata into the
+ * routing trace attempt (if any). Trace errors never affect the save.
+ */
+export function recordRequestDetail(traceAttempt, detail) {
+  if (traceAttempt && detail) {
+    try {
+      detail.traceId = traceAttempt.traceId;
+      traceDetail(traceAttempt, detail);
+    } catch { /* tracing is fail-open */ }
+  }
+  return saveRequestDetail(detail);
 }

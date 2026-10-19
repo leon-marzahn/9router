@@ -154,7 +154,7 @@ async function ensureRingInitialized() {
   } catch {}
 }
 
-async function calculateCost(provider, model, tokens) {
+export async function calculateCost(provider, model, tokens) {
   if (!tokens || !provider || !model) return 0;
   try {
     // Credit-billed providers (e.g. Kiro) report real spend; prefer that over a token-price guess.
@@ -317,7 +317,9 @@ export async function saveRequestUsage(entry) {
           entry.timestamp, entry.provider || null, entry.model || null,
           entry.connectionId || null, entry.apiKey || null, entry.endpoint || null,
           promptTokens, completionTokens, entry.cost || 0, entry.status || "ok",
-          stringifyJson(tokens), stringifyJson({}),
+          stringifyJson(tokens),
+          // meta.traceId links the row to its in-memory routing trace (Usage inspector).
+          stringifyJson(typeof entry.traceId === "string" ? { traceId: entry.traceId.slice(0, 64) } : {}),
         ]
       );
 
@@ -404,13 +406,15 @@ export async function getUsageStats(period = "all") {
   }
 
   // recentRequests from live history (last 100 entries enough for 20 deduped)
-  const recentRows = db.all(`SELECT timestamp, provider, model, tokens, status FROM usageHistory ORDER BY id DESC LIMIT 100`);
+  const recentRows = db.all(`SELECT timestamp, provider, model, tokens, status, meta FROM usageHistory ORDER BY id DESC LIMIT 100`);
   const seen = new Set();
   const recentRequests = recentRows
     .map((r) => {
       const t = parseJson(r.tokens, {}) || {};
+      const traceId = parseJson(r.meta, {})?.traceId;
       return {
         timestamp: r.timestamp, model: r.model, provider: r.provider || "",
+        ...(typeof traceId === "string" && { traceId }),
         promptTokens: t.prompt_tokens || t.input_tokens || 0,
         completionTokens: t.completion_tokens || t.output_tokens || 0,
         cachedTokens: t.cached_tokens || t.cache_read_input_tokens || 0,
