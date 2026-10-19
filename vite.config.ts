@@ -85,6 +85,7 @@ export default defineConfig({
       "!/src/lib/requestTrace.js",
       "!/src/lib/translatorDebug.js",
       "!/src/lib/updates",
+      "!/src/lib/notify",
       "!/src/lib/tunnel",
       "/src/lib/tunnel/*",
       "!/src/lib/tunnel/exposureGuard.js",
@@ -102,6 +103,7 @@ export default defineConfig({
       "!/src/app/api/settings",
       "/src/app/api/settings/*",
       "!/src/app/api/settings/updates",
+      "!/src/app/api/settings/notifications",
       "!/src/app/api/providers",
       "/src/app/api/providers/*",
       "!/src/app/api/providers/stream",
@@ -190,6 +192,7 @@ export default defineConfig({
       "!/tests/unit/deepseek-tui-config-merge.test.js",
       "!/tests/unit/kilo-vscode-path.test.js",
       "!/tests/unit/translator-debug.test.js",
+      "!/tests/unit/notify-email.test.js",
     ],
   },
   lint: {

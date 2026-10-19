@@ -5,6 +5,7 @@ import { resetComboRotation } from "open-sse/services/combo.js";
 import bcrypt from "bcryptjs";
 import { validatePipelines } from "@/lib/request-pipelines/config.js";
 import { UPDATE_STATE_KEYS, webhookHost } from "@/lib/updates/webhook.js";
+import { NOTIFY_KEYS } from "@/lib/notify/config.js";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -15,13 +16,16 @@ const SETTINGS_RESPONSE_HEADERS = {
 
 // Secrets must never be mass-assigned from request body (CWE-915)
 // (the redeploy hook is set through /api/settings/updates, which validates it)
-const PROTECTED_SETTING_KEYS = ["password", "mitmSudoEncrypted", ...UPDATE_STATE_KEYS];
+// (email delivery is set through /api/settings/notifications, which validates it)
+const PROTECTED_SETTING_KEYS = ["password", "mitmSudoEncrypted", ...UPDATE_STATE_KEYS, ...NOTIFY_KEYS];
 
 /** Drop secrets; say only whether the redeploy hook is set and where it points. */
 function toPublicSettings({ password, oidcClientSecret, updateWebhookUrl, updateWebhookToken, mitmSudoEncrypted: _mitmSudo, ...safe }) {
   safe.oidcConfigured = !!(safe.oidcIssuerUrl && safe.oidcClientId && oidcClientSecret);
   safe.updateWebhookSet = !!updateWebhookUrl;
   safe.updateWebhookHost = updateWebhookUrl ? webhookHost(updateWebhookUrl) : null;
+  // Email delivery has its own route (GET /api/settings/notifications) that reports secrets as booleans.
+  for (const key of NOTIFY_KEYS) delete safe[key];
   return { safe, password };
 }
 

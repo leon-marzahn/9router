@@ -140,7 +140,8 @@ export async function getCloudUrl() {
 
 // Server-managed update-hook state (the URL embeds a deploy token). Kept out of
 // backups and kept across restores; mirrors UPDATE_STATE_KEYS in lib/updates/webhook.js.
-export const NON_EXPORTED_SETTING_KEYS = ["updateWebhookUrl", "updateWebhookToken", "updateWebhookLastVersion", "updateWebhookLastResult"];
+// Email delivery secrets (lib/notify/config.js NOTIFY_SECRET_KEYS) are left out too.
+export const NON_EXPORTED_SETTING_KEYS = ["updateWebhookUrl", "updateWebhookToken", "updateWebhookLastVersion", "updateWebhookLastResult", "notifySmtpPassword", "notifyResendKey", "notifyLastTest"];
 
 export async function exportSettings() {
   const raw = await readRaw();
