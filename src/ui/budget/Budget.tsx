@@ -23,7 +23,13 @@ export interface Budget {
 export interface BudgetStatus {
   periodStart: string;
   resetsAt: string;
+  /** Upstream cost this period. */
   cost: number;
+  /** What the customer was charged this period (= cost for global). */
+  charge?: number;
+  /** What the spend limit measures: charge for a key, cost for global. */
+  spend?: number;
+  spendBasis?: "charge" | "cost";
   tokens: number;
   requests: number;
   ratio: number;
@@ -98,8 +104,10 @@ const count = (n: number) => n.toLocaleString();
 /** The metric closest to its limit, as "spent of limit". */
 function headline(b: Budget, s: BudgetStatus) {
   const rows: [number, string][] = [];
+  const spend = s.spend ?? s.cost;
+  const what = s.spendBasis === "charge" ? " charged" : "";
   if (b.spendLimit)
-    rows.push([s.cost / b.spendLimit, `${money(s.cost)} of ${money(b.spendLimit)}`]);
+    rows.push([spend / b.spendLimit, `${money(spend)} of ${money(b.spendLimit)}${what}`]);
   if (b.tokenLimit)
     rows.push([s.tokens / b.tokenLimit, `${count(s.tokens)} of ${count(b.tokenLimit)} tokens`]);
   if (b.requestLimit)
@@ -244,7 +252,10 @@ export function BudgetEditor({
         />
       </Field>
       <div className="grid gap-3 sm:grid-cols-3">
-        <Field label="Spend limit (USD)">
+        <Field
+          label="Spend limit (USD)"
+          hint={forKey ? "What the customer is charged." : "Upstream cost."}
+        >
           <Input
             inputMode="decimal"
             value={spend}

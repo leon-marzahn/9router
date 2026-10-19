@@ -43,28 +43,32 @@ export async function claimAlert(scope, periodKey, threshold) {
   return (res?.changes ?? 0) > 0;
 }
 
-/** Sum of usage since `sinceIso`; `apiKey` null = every request. */
+/** Sum of usage (upstream cost and customer charge) since `sinceIso`; `apiKey` null = every request. */
 export async function sumUsageSince(apiKey, sinceIso) {
   const db = await getAdapter();
   const row = apiKey
     ? db.get(
-        `SELECT COALESCE(SUM(cost), 0) AS cost, COALESCE(SUM(promptTokens + completionTokens), 0) AS tokens, COUNT(*) AS requests FROM usageHistory WHERE apiKey = ? AND timestamp >= ?`,
+        `SELECT COALESCE(SUM(cost), 0) AS cost, COALESCE(SUM(COALESCE(charge, cost)), 0) AS charge, COALESCE(SUM(promptTokens + completionTokens), 0) AS tokens, COUNT(*) AS requests FROM usageHistory WHERE apiKey = ? AND timestamp >= ?`,
         [apiKey, sinceIso],
       )
     : db.get(
-        `SELECT COALESCE(SUM(cost), 0) AS cost, COALESCE(SUM(promptTokens + completionTokens), 0) AS tokens, COUNT(*) AS requests FROM usageHistory WHERE timestamp >= ?`,
+        `SELECT COALESCE(SUM(cost), 0) AS cost, COALESCE(SUM(COALESCE(charge, cost)), 0) AS charge, COALESCE(SUM(promptTokens + completionTokens), 0) AS tokens, COUNT(*) AS requests FROM usageHistory WHERE timestamp >= ?`,
         [sinceIso],
       );
-  return { cost: Number(row?.cost) || 0, tokens: Number(row?.tokens) || 0, requests: Number(row?.requests) || 0 };
+  return { cost: Number(row?.cost) || 0, charge: Number(row?.charge) || 0, tokens: Number(row?.tokens) || 0, requests: Number(row?.requests) || 0 };
 }
 
-/** Provider/model pairs with tokens but no recorded cost since `sinceIso` (max 20). */
-export async function zeroCostModelsSince(apiKey, sinceIso) {
+/**
+ * Provider/model pairs with tokens but nothing recorded since `sinceIso` (max 20):
+ * no upstream cost, or with `basis` "charge" no customer charge (a custom rate prices it).
+ */
+export async function zeroCostModelsSince(apiKey, sinceIso, { basis = "cost" } = {}) {
+  const col = basis === "charge" ? "COALESCE(charge, cost)" : "cost";
   const db = await getAdapter();
   const where = apiKey ? "apiKey = ? AND timestamp >= ?" : "timestamp >= ?";
   const params = apiKey ? [apiKey, sinceIso] : [sinceIso];
   return db.all(
-    `SELECT provider, model FROM usageHistory WHERE ${where} AND provider IS NOT NULL AND model IS NOT NULL GROUP BY provider, model HAVING COALESCE(SUM(cost), 0) = 0 AND SUM(promptTokens + completionTokens) > 0 LIMIT 20`,
+    `SELECT provider, model FROM usageHistory WHERE ${where} AND provider IS NOT NULL AND model IS NOT NULL GROUP BY provider, model HAVING COALESCE(SUM(${col}), 0) = 0 AND SUM(promptTokens + completionTokens) > 0 LIMIT 20`,
     params,
   );
 }

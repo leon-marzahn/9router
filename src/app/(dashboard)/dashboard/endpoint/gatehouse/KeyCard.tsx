@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { CopyButton, IconButton, Panel, Switch, Tag } from "@/ui";
+import { CopyButton, IconButton, Panel, Select, Switch, Tag } from "@/ui";
 import { cn } from "@/ui/cn";
 import { ModelSelectModal } from "@/shared/components";
 import { BudgetDialog, BudgetMeter, type Budget, type BudgetEntry } from "@/ui/budget/Budget";
+import { DEFAULT_PLAN_ID, PlanDialog, planSummary, type PricePlan } from "@/ui/pricing/PricePlan";
 import type { ApiKey, KeyAccess } from "./useEndpoint";
 
 const mask = (k: string) => (k.length <= 10 ? k : `${k.slice(0, 6)}••••••••${k.slice(-4)}`);
@@ -19,6 +20,10 @@ export function KeyCard({
   budget,
   onBudgetSave,
   onBudgetRemove,
+  plans,
+  planId,
+  onPlanAssign,
+  onPlanSave,
 }: {
   k: ApiKey;
   onActive: (on: boolean) => void;
@@ -27,6 +32,12 @@ export function KeyCard({
   budget?: BudgetEntry | null;
   onBudgetSave: (b: Partial<Budget>) => Promise<void>;
   onBudgetRemove: () => Promise<void>;
+  /** Every plan by id ("default" included); null while loading. */
+  plans: Record<string, PricePlan> | null;
+  planId: string;
+  onPlanAssign: (planId: string) => Promise<void>;
+  /** `id` null creates a plan and returns its id. */
+  onPlanSave: (id: string | null, plan: PricePlan) => Promise<string>;
   confirm: (opts: {
     title: string;
     message: string;
@@ -38,6 +49,8 @@ export function KeyCard({
 }) {
   const [show, setShow] = useState(false);
   const [editBudget, setEditBudget] = useState(false);
+  const [editPlan, setEditPlan] = useState<null | "current" | "new">(null);
+  const plan = plans?.[planId] ?? plans?.[DEFAULT_PLAN_ID] ?? null;
   const [picker, setPicker] = useState<null | {
     providers: unknown[];
     aliases: Record<string, string>;
@@ -146,6 +159,42 @@ export function KeyCard({
 
       <div className="space-y-2">
         <div className="flex items-center justify-between gap-2 text-[12px]">
+          <span className="text-text-muted">Price plan</span>
+          <button
+            type="button"
+            disabled={!plan}
+            onClick={() => setEditPlan("current")}
+            className="rounded-md px-2 py-1 text-[12px] text-text-muted hover:bg-surface-2 hover:text-text max-md:min-h-10 max-md:px-3"
+          >
+            Edit plan
+          </button>
+        </div>
+        <Select
+          aria-label={`Price plan for ${k.name}`}
+          value={plans ? planId : ""}
+          disabled={!plans}
+          onChange={(e) =>
+            e.target.value === "__new" ? setEditPlan("new") : void onPlanAssign(e.target.value)
+          }
+        >
+          {plans ? (
+            <>
+              {Object.entries(plans).map(([id, p]) => (
+                <option key={id} value={id}>
+                  {id === DEFAULT_PLAN_ID ? "Default plan" : p.name}
+                </option>
+              ))}
+              <option value="__new">New plan…</option>
+            </>
+          ) : (
+            <option value="">Loading…</option>
+          )}
+        </Select>
+        {plan && <div className="text-[11px] text-text-subtle">{planSummary(plan)}</div>}
+      </div>
+
+      <div className="space-y-2">
+        <div className="flex items-center justify-between gap-2 text-[12px]">
           <span className="text-text-muted">{budget ? "Budget" : "No budget"}</span>
           <button
             type="button"
@@ -185,6 +234,32 @@ export function KeyCard({
           onClose={() => setEditBudget(false)}
           onSave={onBudgetSave}
           onRemove={budget ? onBudgetRemove : undefined}
+        />
+      )}
+
+      {editPlan && (
+        <PlanDialog
+          title={
+            editPlan === "new"
+              ? `New plan for "${k.name}"`
+              : planId === DEFAULT_PLAN_ID
+                ? "Default plan"
+                : `Plan "${plan?.name ?? ""}"`
+          }
+          description={
+            editPlan === "current"
+              ? planId === DEFAULT_PLAN_ID
+                ? "Applies to every key without a plan of its own."
+                : "Changes apply to every key on this plan."
+              : undefined
+          }
+          initial={editPlan === "new" ? null : plan}
+          fixedName={editPlan === "current" && planId === DEFAULT_PLAN_ID ? "Default" : undefined}
+          onClose={() => setEditPlan(null)}
+          onSave={async (p) => {
+            if (editPlan === "new") await onPlanAssign(await onPlanSave(null, p));
+            else await onPlanSave(planId, p);
+          }}
         />
       )}
 

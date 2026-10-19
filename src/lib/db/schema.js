@@ -3,7 +3,7 @@
 // pre-change safety backup in migrate.js: when the stored version is lower,
 // one lightweight DB backup is taken before applying schema changes. Forgetting
 // to bump only skips that backup — it does NOT break the additive auto-sync.
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 export const PRAGMA_SQL = `
 PRAGMA journal_mode = WAL;
@@ -122,6 +122,8 @@ export const TABLES = {
       promptTokens: "INTEGER DEFAULT 0",
       completionTokens: "INTEGER DEFAULT 0",
       cost: "REAL DEFAULT 0",
+      // What the key's customer is billed (src/lib/billing), fixed at write time.
+      charge: "REAL",
       status: "TEXT",
       tokens: "TEXT",
       meta: "TEXT",

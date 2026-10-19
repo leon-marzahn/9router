@@ -6,6 +6,7 @@ import { cn } from "@/ui/cn";
 import { About, Appearance, Backup, Network, RequestLogging, Routing } from "./General";
 import { Login } from "./Login";
 import { GlobalBudget } from "./Budget";
+import { PricePlans } from "./PricePlans";
 import { Notifications } from "./Notifications";
 import { Sso } from "./Sso";
 import { Updates } from "./Updates";
@@ -20,6 +21,7 @@ const INDEX = [
   { id: "request-logging", icon: "receipt_long", title: "Request logging" },
   { id: "notifications", icon: "mail", title: "Notifications" },
   { id: "budget", icon: "savings", title: "Budget" },
+  { id: "pricing", icon: "sell", title: "Customer pricing" },
   { id: "backup", icon: "save", title: "Backup" },
   { id: "updates", icon: "update", title: "Updates" },
   { id: "about", icon: "info", title: "About" },
@@ -60,7 +62,8 @@ export function SettingsPage() {
       <div>
         <h1 className="font-display text-3xl tracking-tight">Settings</h1>
         <p className="mt-1 max-w-2xl text-sm text-text-muted">
-          Appearance, sign-in, routing, network, notifications, budget, backups and updates.
+          Appearance, sign-in, routing, network, notifications, budget, customer pricing, backups
+          and updates.
         </p>
       </div>
       <div className="flex gap-10">
@@ -100,6 +103,7 @@ export function SettingsPage() {
           <RequestLogging api={api} />
           <Notifications />
           <GlobalBudget />
+          <PricePlans />
           <Backup api={api} />
           <Updates />
           <About />
