@@ -48,10 +48,22 @@ jobs:
           scripts/ci/lint-changed.sh "$BASE_REF"
 
       - name: Test
-        run: bunx vp test run --reporter=default --reporter=json --outputFile=vitest-report.json || true
+        run: bunx vp test run --coverage --coverage.reportOnFailure --reporter=default --reporter=json --outputFile=vitest-report.json || true
 
       - name: Fail on any test failure (except tests/__baseline__/known-fails.txt, kept empty)
         run: node scripts/ci/compare-tests.mjs vitest-report.json
+
+      - name: Coverage summary
+        if: always()
+        run: node scripts/ci/coverage-summary.mjs coverage/coverage-summary.json >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: coverage-html
+          path: coverage/
+          retention-days: 14
 
       - name: Upload test report
         if: always()
