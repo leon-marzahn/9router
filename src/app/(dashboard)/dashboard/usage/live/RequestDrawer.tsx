@@ -4,6 +4,7 @@
 
 import { useEffect, useState } from "react";
 import { CodeBlock, Eyebrow, Icon, IconButton, Kbd, StatGrid, StatusLabel, Tag } from "@/ui";
+import { RouteTrace } from "./RouteTrace";
 import { fmtCost, fmtTokens, isFailed, type FeedItem } from "./useUsage";
 
 type Raw = Record<string, any>;
@@ -30,6 +31,8 @@ export function RequestDrawer({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // Bodies exist only when request logging is on; unlogged rows show the route alone.
+    if (!item.logged) return;
     let alive = true;
     fetch(`/api/usage/request-details/${encodeURIComponent(item.id)}`)
       .then((r) =>
@@ -48,7 +51,7 @@ export function RequestDrawer({
     return () => {
       alive = false;
     };
-  }, [item.id]);
+  }, [item.id, item.logged]);
 
   // On phones the drawer is full-screen: lock the page behind it so only the
   // drawer scrolls (otherwise both scroll areas fight over the same swipe).
@@ -122,6 +125,8 @@ export function RequestDrawer({
       <div className="min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain px-5 py-5">
         <StatGrid items={stats} />
 
+        <RouteTrace key={item.traceId ?? item.id} traceId={item.traceId} />
+
         {failed && detail?.providerResponse?.error && (
           <div className="rounded-xl border border-danger-border bg-danger-soft px-4 py-3 text-xs text-danger-text">
             <Tag tone="danger" mono className="mr-2">
@@ -131,7 +136,11 @@ export function RequestDrawer({
           </div>
         )}
 
-        {error ? (
+        {!item.logged ? (
+          <p className="text-[12px] text-text-muted">
+            Request and response bodies aren&apos;t captured while request logging is off.
+          </p>
+        ) : error ? (
           <p className="text-sm text-text-muted">{error}</p>
         ) : !detail ? (
           <p className="text-sm text-text-muted">Loading request…</p>

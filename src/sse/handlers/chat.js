@@ -32,6 +32,7 @@ import { PIPELINE_HEADER, LEGACY_PIPELINE_HEADER, hasKeyAttachments, selectPipel
 import { runPipelines } from "@/lib/request-pipelines/run.js";
 import { getKeyAccessContext, enforceKeyAccess, filterAdapterModels, extractClientApiKey } from "../services/keyAccess.js";
 import { getApiKeyByKey } from "@/lib/db/repos/apiKeysRepo.js";
+import { startTrace, runWithTrace, setRequestedModel, traceCombo, beginAttempt, endAttempt, finishTrace } from "@/lib/requestTrace.js";
 
 /**
  * Handle chat completion request
@@ -39,6 +40,20 @@ import { getApiKeyByKey } from "@/lib/db/repos/apiKeysRepo.js";
  * Format detection and translation handled by translator
  */
 export async function handleChat(request, clientRawRequest = null) {
+  // Routing trace for the Usage inspector: metadata only, bounded, fail-open.
+  let endpoint = null;
+  try { endpoint = new URL(request.url).pathname; } catch { /* no url */ }
+  const trace = startTrace({ endpoint });
+  const response = await runWithTrace(trace, () => handleChatTraced(request, clientRawRequest));
+  finishTrace(trace, { status: response?.status, stream: isEventStream(response) });
+  return response;
+}
+
+function isEventStream(response) {
+  try { return (response?.headers?.get?.("content-type") || "").includes("text/event-stream"); } catch { return undefined; }
+}
+
+async function handleChatTraced(request, clientRawRequest) {
   let body;
   try {
     body = await request.json();
@@ -63,6 +78,7 @@ export async function handleChat(request, clientRawRequest = null) {
   // "combo/<name>" always means the combo, even when a model has the same name.
   const modelStr = stripComboPrefix(rawModelStr);
   if (contextMarker || modelStr !== rawModelStr) body.model = modelStr;
+  setRequestedModel(rawModelStr);
 
   // Request summary is emitted as the unified "▶" line in chatCore (has fmt/thinking/account)
 
@@ -147,6 +163,7 @@ export async function handleChat(request, clientRawRequest = null) {
     const augmentedModels = await filterAdapterModels(keyAccess, augmentModelsWithCapacityAdapter(comboModels, requiredCapabilities, settings), comboModels);
     const adapterAdded = augmentedModels.filter((m) => !comboModels.includes(m));
 
+    traceCombo({ name: modelStr, strategy: comboStrategy, models: comboStrategy === "fusion" ? comboModels : augmentedModels });
     if (comboStrategy === "fusion") {
       log.info("CHAT", `Combo "${modelStr}" with ${comboModels.length} models (strategy: fusion)`);
       return handleFusionChat({
@@ -189,6 +206,7 @@ export async function handleChat(request, clientRawRequest = null) {
   const soloAugmented = await filterAdapterModels(keyAccess, augmentModelsWithCapacityAdapter([modelStr], requiredCapabilities, settings), [modelStr]);
   if (soloAugmented.length > 1) {
     const adapterAdded = soloAugmented.filter((m) => m !== modelStr);
+    traceCombo({ name: modelStr, strategy: "capacity-adapter", models: soloAugmented });
     log.info("CHAT", `Capacity adapter for [${[...requiredCapabilities].join(",")}] on "${modelStr}" → trying ${soloAugmented.join(", ")}`);
     return handleComboChat({
       body,
@@ -228,6 +246,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       const augmentedModels = await filterAdapterModels(keyAccess, augmentModelsWithCapacityAdapter(comboModels, requiredCapabilities, chatSettings), comboModels);
       const adapterAdded = augmentedModels.filter((m) => !comboModels.includes(m));
 
+      traceCombo({ name: modelStr, strategy: comboStrategy, models: comboStrategy === "fusion" ? comboModels : augmentedModels });
       if (comboStrategy === "fusion") {
         log.info("CHAT", `Combo "${modelStr}" with ${comboModels.length} models (strategy: fusion)`);
         return handleFusionChat({
@@ -291,6 +310,8 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       if (credentials?.allRateLimited) {
         const errorMsg = lastError || credentials.lastError || "Unavailable";
         const status = HTTP_STATUS.SERVICE_UNAVAILABLE;
+        // Every account is cooling down: record the skip so the trace explains the 503.
+        endAttempt(beginAttempt({ provider, model }), { status, error: errorMsg, reason: "cooldown", skipped: true });
         log.warn("CHAT", `[${provider}/${model}] ${errorMsg} (${credentials.retryAfterHuman})`);
         return unavailableResponse(status, `[${provider}/${model}] ${errorMsg}`, credentials.retryAfter, credentials.retryAfterHuman, lastHeaders);
       }
@@ -318,7 +339,9 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
     // Use shared chatCore
     const chatSettings = await getSettings();
     const providerThinking = (chatSettings.providerThinking || {})[provider] || null;
+    const traceAttempt = beginAttempt({ provider, model, connectionId: credentials.connectionId, connectionLabel: credentials.connectionName, requestedModel: modelStr });
     const result = await handleChatCore({
+      traceAttempt,
       body: { ...body, model: `${provider}/${model}` },
       modelInfo: { provider, model },
       credentials: refreshedCredentials,
@@ -362,7 +385,10 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       }
     });
 
-    if (result.success) return result.response;
+    if (result.success) {
+      endAttempt(traceAttempt, { status: result.response?.status ?? 200 });
+      return result.response;
+    }
 
     // Antigravity 409/429: refresh live quota to get exact resetAt before locking
     let quotaResetMs = null;
@@ -381,6 +407,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       ? true
       : (await markAccountUnavailable(credentials.connectionId, result.status, result.error, provider, model, resetsAtMs)).shouldFallback;
 
+    endAttempt(traceAttempt, { status: result.status ?? result.response?.status, error: result.error, fallback: shouldFallback ? "account" : null });
     if (shouldFallback) {
       log.warn("FALLBACK", `⇄ ACC:${credentials.connectionName} UNAVAILABLE (${result.status}) → NEXT ACCOUNT`);
       excludeConnectionIds.add(credentials.connectionId);

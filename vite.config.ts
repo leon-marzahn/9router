@@ -82,6 +82,7 @@ export default defineConfig({
       "!/src/lib",
       "/src/lib/*",
       "!/src/lib/liveEvents.js",
+      "!/src/lib/requestTrace.js",
       "!/src/lib/translatorDebug.js",
       "!/src/lib/updates",
       "!/src/lib/tunnel",

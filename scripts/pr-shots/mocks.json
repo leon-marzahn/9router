@@ -146,5 +146,104 @@
         }
       }
     }
+  },
+  {
+    "comment": "Request inspector: routing traces are in-memory on the server, so seeded feed rows (traceId tr_demo*) get this demo trace.",
+    "url": "**/api/usage/traces/tr_demo*",
+    "json": {
+      "id": "tr_demo5trace",
+      "endpoint": "/v1/chat/completions",
+      "requestedModel": "coding",
+      "combo": {
+        "name": "coding",
+        "strategy": "fallback",
+        "models": [
+          "cc/claude-sonnet-4-5",
+          "cx/gpt-5",
+          "office-vllm/qwen3-coder",
+          "openrouter/openai/gpt-4o"
+        ]
+      },
+      "attempts": [
+        {
+          "index": 0,
+          "provider": "claude",
+          "model": "claude-sonnet-4-5",
+          "connectionId": "demo-conn-claude-1",
+          "connectionLabel": "demo@example.com",
+          "sourceFormat": "claude",
+          "targetFormat": "claude",
+          "passthrough": true,
+          "stream": true,
+          "status": "error",
+          "statusCode": 429,
+          "reason": "rate_limit",
+          "error": "Rate limit reached for requests (session 5h)",
+          "fallback": "model",
+          "latencyMs": 412,
+          "offsetMs": 0,
+          "providerName": "Claude Code",
+          "upstreamModel": "claude-sonnet-4-5-20250929",
+          "requestedModel": "cc/claude-sonnet-4-5"
+        },
+        {
+          "index": 1,
+          "provider": "codex",
+          "model": "gpt-5",
+          "connectionId": "demo-conn-codex-1",
+          "connectionLabel": "demo-codex@example.com",
+          "sourceFormat": "claude",
+          "targetFormat": "openai-responses",
+          "stream": true,
+          "status": "error",
+          "statusCode": 503,
+          "reason": "unavailable",
+          "error": "Upstream overloaded, retry later",
+          "fallback": "model",
+          "latencyMs": 1830,
+          "offsetMs": 420,
+          "providerName": "OpenAI Codex",
+          "upstreamModel": "gpt-5"
+        },
+        {
+          "index": 2,
+          "provider": "openai-compatible-chat-demo",
+          "model": "qwen3-coder",
+          "connectionId": "demo-conn-vllm",
+          "connectionLabel": "GPU box 1",
+          "sourceFormat": "claude",
+          "targetFormat": "openai",
+          "passthrough": false,
+          "stream": true,
+          "status": "ok",
+          "statusCode": 200,
+          "latencyMs": 1950,
+          "ttftMs": 500,
+          "offsetMs": 2260,
+          "tokens": {
+            "in": 23950,
+            "out": 1415,
+            "cached": 17700,
+            "reasoning": 320
+          },
+          "providerName": "Office vLLM",
+          "upstreamModel": "Qwen/Qwen3-Coder-30B-A3B-Instruct",
+          "requestedModel": "office-vllm/qwen3-coder"
+        }
+      ],
+      "outcome": {
+        "status": "ok",
+        "statusCode": 200
+      },
+      "stream": true,
+      "tokens": {
+        "in": 23950,
+        "out": 1415,
+        "cached": 17700,
+        "reasoning": 320
+      },
+      "totalLatencyMs": 4210,
+      "cost": 0.0812
+    }
   }
 ]

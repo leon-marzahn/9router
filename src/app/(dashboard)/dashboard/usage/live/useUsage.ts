@@ -52,7 +52,9 @@ export interface FeedItem {
   ttft?: number;
   total?: number;
   pxpipeSavedPct?: number;
-  /** False for the stats fallback list (request logging off): not inspectable. */
+  /** Routing trace id (attempts, fallbacks) for the request inspector. */
+  traceId?: string;
+  /** False for the stats fallback list (request logging off): no bodies; only the route trace. */
   logged: boolean;
 }
 
@@ -104,6 +106,7 @@ export function feedItemOf(d: Raw): FeedItem {
     ttft: d.latency?.ttft,
     total: d.latency?.total,
     pxpipeSavedPct: d.pxpipe?.applied ? d.pxpipe.savedPct : undefined,
+    traceId: typeof d.traceId === "string" ? d.traceId : undefined,
     logged: true,
   };
 }
@@ -119,6 +122,7 @@ const recentItemOf = (r: Raw, i: number): FeedItem => ({
   cachedTokens: num(r.cachedTokens),
   credits: 0,
   cost: 0,
+  traceId: typeof r.traceId === "string" ? r.traceId : undefined,
   logged: false,
 });
 
