@@ -104,6 +104,7 @@ Each pattern below names its canonical form. Where a page does something else, i
 - **Loading:** `ListSkeleton` from `src/ui`.
 - **Keyboard:** ↑/↓ and j/k move the selection, `/` focuses search, Esc clears the selection and returns to the overview.
 - **Mobile (< md):** list *or* detail, never stacked. When something is selected the list gets `hidden md:flex`, and the detail starts with a ghost back button: `← All <things>`, 13px with a 16px `arrow_back` icon, at `px-4 pt-4`.
+- **Overview on mobile:** desktop shows the overview with nothing selected, which mobile can't (it shows the list). So the list starts with `WorkbenchOverviewRow` (hidden on md+), which opens the overview as its own screen at `?view=overview`. Treat that view as a selection: pass `sel ?? (overview ? "overview" : null)` to `WorkbenchList` and `!!sel || overview` to `WorkbenchDetail`, so it gets the same back button; selecting anything (or going back) drops `view`. Desktop never sets it.
 - **Detail header:** a logo tile (`ProviderLogo`, 56px) or icon, the name in `font-display text-3xl` (mono only for ids users type, e.g. combo names, at the same size), and a meta row (`StatusLabel`, kind, `Tag`s, mono id). Controls (routing `Switch`, `IconButton`s, More `Popover`) sit on the right. Headers scroll with the content; none are sticky.
 - **Nothing selected:** the page's **Overview** (below). If a page has no overview yet, show `EmptyState`, not a custom icon + sentence block.
 

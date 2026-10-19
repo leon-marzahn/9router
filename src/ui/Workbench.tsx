@@ -4,6 +4,7 @@ import { useEffect, useRef, type ReactNode } from "react";
 import { cn } from "./cn";
 import { Icon } from "./Icon";
 import { Kbd } from "./Field";
+import { ListRow } from "./ListRow";
 
 /**
  * The workbench list pane: 330px beside the detail on md+, full width below
@@ -87,5 +88,34 @@ export function WorkbenchDetail({
       )}
       {children}
     </main>
+  );
+}
+
+/**
+ * Mobile-only first row of a `WorkbenchList` that opens the page's overview
+ * as its own screen (desktop already shows it with nothing selected). The
+ * page keeps that screen in the URL as `?view=overview` and counts it as
+ * `selected` for `WorkbenchList` / `WorkbenchDetail`.
+ */
+export function WorkbenchOverviewRow({
+  icon,
+  subtitle,
+  onClick,
+}: {
+  /** Material icon for the page, e.g. "dns". */
+  icon: string;
+  /** What the overview holds, one short line. */
+  subtitle: string;
+  onClick: () => void;
+}) {
+  return (
+    <ListRow
+      className="md:hidden"
+      onClick={onClick}
+      leading={<Icon name={icon} size={16} className="text-text-muted" />}
+      title="Overview"
+      subtitle={subtitle}
+      trailing={<Icon name="chevron_right" size={16} className="text-text-subtle" />}
+    />
   );
 }

@@ -17,6 +17,7 @@ import {
   ListSkeleton,
   WorkbenchDetail,
   WorkbenchList,
+  WorkbenchOverviewRow,
   useListKeyboard,
 } from "@/ui";
 import { AddCustomEmbeddingModal } from "@/shared/components";
@@ -74,7 +75,12 @@ export function MediaWorkbench() {
   const searchRef = useRef<HTMLInputElement>(null);
 
   const navigate = useCallback(
-    (next: { kind?: string; provider?: string | null; combo?: string | null }) => {
+    (next: {
+      kind?: string;
+      provider?: string | null;
+      combo?: string | null;
+      view?: "overview";
+    }) => {
       const sp = new URLSearchParams(params.toString());
       const set = (k: string, v: string | null | undefined) => {
         if (v === undefined) return;
@@ -84,6 +90,7 @@ export function MediaWorkbench() {
       set("kind", next.kind);
       set("provider", next.provider);
       set("combo", next.combo);
+      set("view", next.view ?? null);
       const qs = sp.toString();
       router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
     },
@@ -160,6 +167,8 @@ export function MediaWorkbench() {
   const current = providers.find((p) => p.id === selProvider) ?? null;
   const selId = combo ? `c:${combo.id}` : current ? `p:${current.id}` : null;
   const hasSelection = !!(selProvider || selCombo);
+  // Mobile only: the overview as its own screen (desktop shows it with nothing selected)
+  const overview = !hasSelection && params.get("view") === "overview";
 
   const createCombo = async () => {
     const base = COMBO_BASE[kind.id] || `${kind.id}-combo`;
@@ -218,7 +227,7 @@ export function MediaWorkbench() {
 
       <div className="flex min-h-0 flex-1">
         <WorkbenchList
-          selected={selId ?? (selProvider || selCombo)}
+          selected={selId ?? (selProvider || selCombo || (overview ? "overview" : null))}
           hints={[
             ["↑↓", "move"],
             ["/", "search"],
@@ -247,6 +256,11 @@ export function MediaWorkbench() {
             <ListSkeleton />
           ) : (
             <>
+              <WorkbenchOverviewRow
+                icon={kind.icon}
+                subtitle={`${kind.short} providers and combos at a glance`}
+                onClick={() => navigate({ view: "overview" })}
+              />
               {groups.map((g) =>
                 g.items.length === 0 && g.title !== "Combos" ? null : (
                   <ListGroup key={g.title} title={g.title} count={g.items.length} tone={g.tone}>
@@ -287,7 +301,7 @@ export function MediaWorkbench() {
         </WorkbenchList>
 
         <WorkbenchDetail
-          selected={hasSelection}
+          selected={hasSelection || overview}
           backLabel={`All ${kind.short.toLowerCase()} providers`}
           onBack={() => selectItem(null)}
         >
