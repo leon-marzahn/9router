@@ -9,6 +9,7 @@ import {
   Field,
   Icon,
   Input,
+  ListAddRow,
   ListGroup,
   ListRow,
   ListSkeleton,
@@ -89,7 +90,7 @@ export function CombosWorkbench() {
         ]}
         header={
           <>
-            <div className="flex gap-2">
+            <div className="flex items-center gap-2">
               <div className="min-w-0 flex-1">
                 <SearchInput
                   ref={searchRef}
@@ -99,12 +100,7 @@ export function CombosWorkbench() {
                   shortcut="/"
                 />
               </div>
-              <Button
-                variant="primary"
-                size="sm"
-                icon="add"
-                onClick={() => setNaming({ mode: "new" })}
-              >
+              <Button size="sm" icon="add" onClick={() => setNaming({ mode: "new" })}>
                 New
               </Button>
             </div>
@@ -159,6 +155,9 @@ export function CombosWorkbench() {
                   : "No combos yet. A combo is a list of models tried in order, or in turns, under one name."}
               </p>
             )}
+            <ListAddRow className="mb-2" onClick={() => setNaming({ mode: "new" })}>
+              Add combo
+            </ListAddRow>
             <ListGroup title="For every model">
               <ListRow
                 id={VISION}

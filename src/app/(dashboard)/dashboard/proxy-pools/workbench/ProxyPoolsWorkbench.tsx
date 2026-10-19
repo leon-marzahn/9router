@@ -5,7 +5,7 @@ import { useRef, useState } from "react";
 import {
   Button,
   ConfirmDialog,
-  Icon,
+  ListAddRow,
   ListGroup,
   ListRow,
   ListSkeleton,
@@ -186,14 +186,7 @@ export function ProxyPoolsWorkbench() {
                 {needle ? "No proxies match." : "No proxy pools yet."}
               </p>
             )}
-            <button
-              type="button"
-              onClick={() => setOpen({ kind: "new" })}
-              className="flex w-full items-center gap-2 rounded-lg border border-dashed border-border px-2.5 py-2 text-[12px] text-text-muted hover:bg-surface-2 hover:text-text"
-            >
-              <Icon name="add" size={16} />
-              Add proxy pool
-            </button>
+            <ListAddRow onClick={() => setOpen({ kind: "new" })}>Add proxy pool</ListAddRow>
           </>
         )}
       </WorkbenchList>

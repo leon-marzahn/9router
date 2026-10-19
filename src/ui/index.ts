@@ -8,7 +8,7 @@ export { StatusDot, StatusLabel } from "./StatusDot";
 export { Tag } from "./Tag";
 export { Panel, SectionTitle, Eyebrow, EmptyState } from "./Panel";
 export { StatGrid, InlineStat, type StatItem } from "./Stat";
-export { ListRow, ListGroup } from "./ListRow";
+export { ListRow, ListGroup, ListAddRow } from "./ListRow";
 export { STATUS, STATUS_ORDER, needsAttention, type Status } from "./status";
 export { useFlashOnChange } from "./live/useFlashOnChange";
 export { LiveNumber } from "./live/LiveNumber";

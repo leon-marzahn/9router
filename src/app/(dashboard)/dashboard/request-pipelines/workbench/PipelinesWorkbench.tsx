@@ -5,6 +5,7 @@ import { useRef, useState } from "react";
 import {
   Button,
   Icon,
+  ListAddRow,
   ListGroup,
   ListRow,
   ListSkeleton,
@@ -51,6 +52,9 @@ export function PipelinesWorkbench() {
     api.change([...list, { ...structuredClone(template), name }]);
     select(name);
   };
+  const atLimit = list.length >= 50;
+  const createBlank = () =>
+    create({ name: "pipeline", rules: [{ regex: "", replacement: "", depth: 0 }] });
 
   useListKeyboard({
     order: shown.map((p) => p.name),
@@ -89,13 +93,19 @@ export function PipelinesWorkbench() {
           ["esc", "overview"],
         ]}
         header={
-          <SearchInput
-            ref={searchRef}
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Search pipelines"
-            shortcut="/"
-          />
+          <div className="flex items-center gap-2">
+            <SearchInput
+              ref={searchRef}
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Search pipelines"
+              shortcut="/"
+              className="min-w-0 flex-1"
+            />
+            <Button size="sm" icon="add" disabled={atLimit} onClick={createBlank}>
+              New
+            </Button>
+          </div>
         }
       >
         {!api.pipelines ? (
@@ -133,18 +143,9 @@ export function PipelinesWorkbench() {
                 );
               })}
             </ListGroup>
-            <Button
-              size="sm"
-              variant="ghost"
-              icon="add"
-              className="w-full justify-start"
-              disabled={list.length >= 50}
-              onClick={() =>
-                create({ name: "pipeline", rules: [{ regex: "", replacement: "", depth: 0 }] })
-              }
-            >
-              New pipeline
-            </Button>
+            <ListAddRow disabled={atLimit} onClick={createBlank}>
+              Add pipeline
+            </ListAddRow>
           </>
         )}
       </WorkbenchList>

@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { cn } from "./cn";
+import { Icon } from "./Icon";
 import { useFlashOnChange } from "./live/useFlashOnChange";
 
 /**
@@ -76,5 +77,40 @@ export function ListGroup({
       </div>
       {children}
     </div>
+  );
+}
+
+/**
+ * Dashed "Add …" row at the end of a list: the in-list twin of the header's
+ * secondary "New" button. The label goes in children ("Add proxy pool").
+ */
+export function ListAddRow({
+  icon = "add",
+  onClick,
+  disabled,
+  className,
+  children,
+}: {
+  icon?: string;
+  onClick: () => void;
+  disabled?: boolean;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={cn(
+        "flex w-full items-center gap-2 rounded-lg border border-dashed border-border px-2.5 py-2 text-left text-[12px] text-text-muted transition-colors",
+        "hover:bg-surface-2 hover:text-text focus-visible:outline-none focus-visible:shadow-focus",
+        "disabled:pointer-events-none disabled:opacity-50",
+        className,
+      )}
+    >
+      <Icon name={icon} size={16} className="shrink-0" />
+      <span className="min-w-0 truncate">{children}</span>
+    </button>
   );
 }
