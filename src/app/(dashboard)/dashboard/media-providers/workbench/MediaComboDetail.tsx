@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import {
   Button,
+  CodeBlock,
+  CopyButton,
   Eyebrow,
   Field,
   IconButton,
@@ -271,11 +273,7 @@ export function MediaComboDetail({
           </p>
         </div>
         <span className="flex items-center gap-1">
-          <IconButton
-            icon="content_copy"
-            label="Copy model name"
-            onClick={() => void navigator.clipboard?.writeText(combo.name)}
-          />
+          <CopyButton value={combo.name} label="Copy model name" />
           <IconButton icon="delete" label="Delete combo" onClick={() => setConfirmDelete(true)} />
         </span>
       </header>
@@ -448,9 +446,7 @@ export function MediaComboDetail({
             No requests through this combo yet.
           </Panel>
         ) : (
-          <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-all rounded-xl border border-border bg-bg-alt px-3 py-2.5 font-mono text-[11px] leading-relaxed">
-            {logs.join("\n")}
-          </pre>
+          <CodeBlock text={logs.join("\n")} wrap preClassName="max-h-80 text-[11px]" />
         )}
       </section>
 

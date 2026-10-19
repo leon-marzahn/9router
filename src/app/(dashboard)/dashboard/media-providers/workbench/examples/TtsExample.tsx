@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Button, IconButton, Input, SearchInput, Segmented, Tag, cn, inputClass } from "@/ui";
+import { Button, IconButton, Input, SearchInput, Segmented, Tag, cn, inputClass, Select } from "@/ui";
 import { AI_PROVIDERS, getProviderAlias } from "@/shared/constants/providers";
 import { getModelsByProviderId, getModelKind } from "@/shared/constants/models";
 import { TTS_PROVIDER_CONFIG } from "@/shared/constants/ttsProviders";
@@ -17,7 +17,6 @@ import {
   RequestBlock,
   ResponseBlock,
   Row,
-  Select,
   authHeaders,
   errorText,
   maskB64,

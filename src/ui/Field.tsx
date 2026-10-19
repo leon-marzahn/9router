@@ -1,6 +1,11 @@
 "use client";
 
-import { forwardRef, type InputHTMLAttributes, type ReactNode } from "react";
+import {
+  forwardRef,
+  type InputHTMLAttributes,
+  type ReactNode,
+  type SelectHTMLAttributes,
+} from "react";
 import { cn } from "./cn";
 import { Icon } from "./Icon";
 
@@ -43,6 +48,13 @@ export const Input = forwardRef<
     <input ref={ref} className={cn(inputClass, mono && "font-mono text-xs", className)} {...rest} />
   );
 });
+
+/** Native select styled like Input. */
+export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSelectElement>>(
+  function Select({ className, ...rest }, ref) {
+    return <select ref={ref} className={cn(inputClass, "pr-8", className)} {...rest} />;
+  },
+);
 
 /** Search input with leading icon and optional shortcut hint. */
 export const SearchInput = forwardRef<
