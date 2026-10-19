@@ -357,6 +357,7 @@ await updateProviderConnection("demo-conn-openrouter-1", {
 
 // Token Saver page, combo strategies and request pipelines.
 await updateSettings({
+  customerViewEnabled: true,
   cavemanEnabled: true,
   cavemanLevel: "full",
   comboStrategies: {

@@ -1,5 +1,13 @@
 [
   {
+    "comment": "Model lists for seeded accounts would call real providers with fake keys; stub them.",
+    "url": "**/api/providers/demo-conn-*/models*",
+    "status": 503,
+    "json": {
+      "error": "Model list not mocked in demo data"
+    }
+  },
+  {
     "comment": "Catch-all: per-connection quota lookups never reach the dev server, so a seeded fake token is never sent to a provider.",
     "url": "**/api/usage/demo-conn-*",
     "status": 503,
