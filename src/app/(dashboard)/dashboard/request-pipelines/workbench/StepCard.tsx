@@ -145,8 +145,17 @@ export function StepCard({
             <Input
               type="number"
               min={0}
-              value={s.depth}
-              onChange={(e) => set({ depth: Math.max(0, Math.floor(Number(e.target.value) || 0)) })}
+              value={s.depth ?? ""}
+              aria-invalid={s.depth == null}
+              className={cn(s.depth == null && "border-danger focus:border-danger")}
+              onChange={(e) =>
+                set({
+                  depth:
+                    e.target.value === ""
+                      ? null
+                      : Math.max(0, Math.floor(Number(e.target.value) || 0)),
+                })
+              }
             />
           </Field>
         )}

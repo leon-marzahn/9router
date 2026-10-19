@@ -5,7 +5,8 @@ export interface Step {
   enabled?: boolean;
   regex: string;
   replacement: string;
-  depth: number;
+  /** null while the "Keep the latest" field is cleared; saving is blocked until it has a value. */
+  depth: number | null;
   tag?: string;
   start?: string;
   end?: string;
@@ -70,8 +71,8 @@ export function blankStep(kind: StepKind): Step {
   return base;
 }
 
-const keepText = (depth: number) =>
-  depth > 0 ? `, keep the latest ${depth === 1 ? "one" : depth}` : "";
+const keepText = (depth: number | null) =>
+  depth && depth > 0 ? `, keep the latest ${depth === 1 ? "one" : depth}` : "";
 
 /** One-line plain-language summary of what a step does. */
 export function describe(s: Step): string {
