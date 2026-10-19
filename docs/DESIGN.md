@@ -163,7 +163,7 @@ Use `CodeBlock` (`<pre>` in a `Panel overflow-hidden`, `text` or `children` as t
 - **Dialogs:** `Dialog` and `ConfirmDialog` from `@/ui`. A centered `rounded-2xl` card (`size` `sm`–`xl`) on md+, a bottom sheet with full-width stacked buttons below `md`. They trap Tab, close on Esc / scrim / ×, lock page scroll, return focus to the trigger, and label the `role="dialog"` with the title (and `description`). Pass `dismissible={false}` while a request is in flight. `ConfirmDialog` (`title`, `message`, `confirmText`, `variant` `danger` default / `primary`, `confirmIcon`, `loading`) focuses Cancel first so a stray Enter never confirms, and can't be dismissed while `loading`. Prefer inline editing in the detail pane; use a dialog for confirmations and short single-field prompts (Combos' name dialog is the reference).
 - **Scrim:** `bg-scrim` (token `--color-scrim`) behind dialogs and the mobile nav drawer; never `bg-black/…`.
 - **Model picker:** `ModelSelectModal` from `@/shared/components` (typed, no cast needed) is built on `Dialog`. Dialogs can stack (a picker opened from a dialog): only the top one handles Esc / Tab.
-- Legacy `Modal` / `ConfirmModal` from `@/shared/components` are only left on pages not redesigned yet (Proxy Pools, Basic Chat, the per-tool CLI detail route) and the upstream modals they open; don't add new usages.
+- Legacy `Modal` / `ConfirmModal` from `@/shared/components` are only left on pages not redesigned yet (Basic Chat, the per-tool CLI detail route) and the upstream modals they open; don't add new usages.
 
 ### Forms
 - `Field` + `Input`/`Segmented`. Inline in the detail pane rather than in modals where possible.

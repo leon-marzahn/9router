@@ -1,18 +1,11 @@
 "use client";
 
-import type React from "react";
 import { useCallback, useEffect, useState } from "react";
 import { Button, CopyButton, Field, IconButton, Input, Panel, SettingRow, Switch, Tag, Dialog } from "@/ui";
-import { McpMarketplaceModal as McpMarketplaceModalJs, ModelSelectModal } from "@/shared/components";
+import { ModelSelectModal } from "@/shared/components";
 import { useNotificationStore as useNotificationStoreJs } from "@/store/notificationStore";
+import { McpMarketplace } from "./McpMarketplace";
 import type { ExtrasProps } from "./specs";
-
-const McpMarketplaceModal = McpMarketplaceModalJs as unknown as React.ComponentType<{
-  isOpen: boolean;
-  onClose: () => void;
-  onAdd: (p: Plugin) => void;
-  addedNames: string[];
-}>;
 
 type Notify = { getState: () => { error: (m: string) => void; success: (m: string) => void } };
 const notify = () => (useNotificationStoreJs as unknown as Notify).getState();
@@ -287,8 +280,8 @@ export function CoworkPlugins({ status, extra, setExtra, disabled }: ExtrasProps
         )}
         <p className="text-[11px] text-text-subtle">Saved with the rest when you connect. Quit and reopen Claude Desktop afterwards.</p>
       </div>
-      <McpMarketplaceModal
-        isOpen={market}
+      <McpMarketplace
+        open={market}
         onClose={() => setMarket(false)}
         onAdd={(p: Plugin) => !plugins.some((x) => x.name === p.name) && set({ plugins: [...plugins, p] })}
         addedNames={plugins.map((p) => p.name)}
