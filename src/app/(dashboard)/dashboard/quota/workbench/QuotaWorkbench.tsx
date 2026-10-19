@@ -17,12 +17,18 @@ import {
   Popover,
   ProviderLogo,
   SearchInput,
+  ListGroup,
+  ListRow,
+  ListSkeleton,
   Segmented,
   Skeleton,
   StatusDot,
   Tag,
   TopBarActions,
   ConfirmDialog,
+  WorkbenchDetail,
+  WorkbenchList,
+  useListKeyboard,
 } from "@/ui";
 import { STATUS_ORDER } from "@/ui/status";
 import { cn } from "@/ui/cn";
@@ -144,7 +150,7 @@ export function QuotaWorkbench({
   }, [qs, router]);
   const [scope, setScope] = useState<Scope>("all");
   const [q, setQ] = useState("");
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const searchRef = useRef<HTMLInputElement>(null);
   const [hover, setHover] = useState<string | null>(null);
 
   const filtered = accounts
@@ -162,147 +168,108 @@ export function QuotaWorkbench({
   const selAccount =
     sel?.kind === "account" ? (accounts.find((a) => a.id === sel.id) ?? null) : null;
   const selProvider = sel?.kind === "provider" ? sel.id : (selAccount?.provider ?? null);
-  const toggle = (p: string) =>
-    setCollapsed((c) => {
-      const n = new Set(c);
-      if (n.has(p)) n.delete(p);
-      else n.add(p);
-      return n;
-    });
+  const overview = !sel && mobileView === "overview";
+
+  // List rows: each provider group starts with its summary row, then its accounts.
+  const rowId = (s: NonNullable<Sel>) => `${s.kind === "provider" ? "p" : "a"}:${s.id}`;
+  const order = groups.flatMap((g) => [
+    rowId({ kind: "provider", id: g.provider }),
+    ...g.accounts.map((a) => rowId({ kind: "account", id: a.id })),
+  ]);
+  const selRow = sel ? rowId(sel) : null;
+  const pickRow = (id: string | null) =>
+    setSel(id ? { kind: id.startsWith("p:") ? "provider" : "account", id: id.slice(2) } : null);
+  useListKeyboard({ order, selected: selRow, onSelect: pickRow, searchRef });
 
   return (
-    <div className="flex h-full min-h-0 flex-col md:flex-row">
-      {/* Small screens: one pane at a time. The switch sits above both panes so it never moves. */}
-      {!sel && (
-        <div className="shrink-0 border-b border-border bg-pane px-3 py-2 md:hidden">
-          <MobileSwitch value={mobileView} onChange={setMobileView} />
-        </div>
-      )}
+    <div className="flex min-h-0 flex-1">
       <TopBarActions>
         <BulkMenu accounts={accounts} actions={actions} />
         <RefreshAll onRefresh={onRefreshAll} />
       </TopBarActions>
 
-      <aside
-        className={cn(
-          "flex min-h-0 w-full flex-1 flex-col border-r border-border bg-pane md:w-[360px] md:flex-none",
-          (sel || mobileView === "overview") && "hidden md:flex",
-        )}
+      <WorkbenchList
+        // The mobile overview counts as a selection so the list steps aside for it.
+        selected={selRow ?? (overview ? "overview" : null)}
+        hints={[
+          ["↑↓", "move"],
+          ["/", "search"],
+          ["esc", "overview"],
+        ]}
+        header={
+          <>
+            <MobileSwitch value={mobileView} onChange={setMobileView} />
+            <SearchInput
+              ref={searchRef}
+              placeholder="Search accounts or providers"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              shortcut="/"
+            />
+            <Segmented<Scope>
+              value={scope}
+              onChange={setScope}
+              options={[
+                { value: "all", label: `All · ${accounts.length}` },
+                { value: "low", label: "Running low" },
+                { value: "off", label: "Turned off" },
+              ]}
+            />
+          </>
+        }
       >
-        <div className="space-y-2 p-3">
-          <SearchInput
-            placeholder="Search accounts or providers"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            shortcut="/"
-          />
-          <Segmented<Scope>
-            value={scope}
-            onChange={setScope}
-            options={[
-              { value: "all", label: `All · ${accounts.length}` },
-              { value: "low", label: "Running low" },
-              { value: "off", label: "Turned off" },
-            ]}
-          />
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto px-2 py-1">
-          {groups.map((g) => {
-            const open = !collapsed.has(g.provider);
-            const provActive = sel?.kind === "provider" && sel.id === g.provider;
-            return (
-              <div key={g.provider} className="mb-2">
-                <div
-                  className={cn(
-                    "flex items-center gap-1 rounded-lg pr-1",
-                    provActive && "bg-accent-soft ring-1 ring-accent-ring",
-                  )}
-                >
-                  <button
-                    type="button"
-                    onClick={() => toggle(g.provider)}
-                    aria-label={open ? "Collapse" : "Expand"}
-                    className="grid size-7 place-items-center rounded-md text-text-subtle hover:bg-surface-2"
-                  >
-                    <Icon name={open ? "expand_more" : "chevron_right"} size={18} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSel(provActive ? null : { kind: "provider", id: g.provider })}
-                    className="flex min-w-0 flex-1 items-center gap-2 py-2 text-left"
-                  >
-                    <ProviderLogo
-                      providerId={g.provider}
-                      name={providerName(g.provider)}
-                      size={20}
-                    />
-                    <span
-                      className={cn(
-                        "truncate text-[13px] font-medium",
-                        provActive && "text-accent-text",
-                      )}
-                    >
-                      {providerName(g.provider)}
-                    </span>
-                    <span className="text-[11px] text-text-subtle">{g.accounts.length}</span>
-                    <StatusDot status={g.status} className="ml-auto" />
-                  </button>
-                </div>
-                {open && (
-                  <div className="mt-0.5 space-y-1">
-                    {g.accounts.map((a) => (
-                      <AccountRow
-                        key={a.id}
-                        a={a}
-                        now={now}
-                        active={sel?.kind === "account" && sel.id === a.id}
-                        hovered={hover === a.id}
-                        onClick={() =>
-                          setSel(
-                            sel?.kind === "account" && sel.id === a.id
-                              ? null
-                              : { kind: "account", id: a.id },
-                          )
-                        }
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-          {!groups.length &&
-            (loading ? (
-              <ListSkeleton />
-            ) : (
-              <p className="px-3 py-6 text-sm text-text-muted">No accounts match.</p>
-            ))}
-        </div>
-      </aside>
+        {loading && !groups.length ? (
+          <ListSkeleton />
+        ) : !groups.length ? (
+          <p className="px-2.5 py-6 text-[13px] text-text-muted">No accounts match.</p>
+        ) : (
+          groups.map((g) => (
+            <ListGroup key={g.provider} title={providerName(g.provider)} count={g.accounts.length}>
+              <ListRow
+                id={rowId({ kind: "provider", id: g.provider })}
+                active={sel?.kind === "provider" && sel.id === g.provider}
+                onClick={() => setSel({ kind: "provider", id: g.provider })}
+                leading={
+                  <ProviderLogo providerId={g.provider} name={providerName(g.provider)} size={22} />
+                }
+                title="Capacity and resets"
+                subtitle={`${g.accounts.filter((a) => a.isActive).length} of ${g.accounts.length} routing`}
+                trailing={<StatusDot status={g.status} />}
+              />
+              {g.accounts.map((a) => (
+                <AccountRow
+                  key={a.id}
+                  id={rowId({ kind: "account", id: a.id })}
+                  a={a}
+                  now={now}
+                  active={sel?.kind === "account" && sel.id === a.id}
+                  hovered={hover === a.id}
+                  onClick={() => setSel({ kind: "account", id: a.id })}
+                />
+              ))}
+            </ListGroup>
+          ))
+        )}
+      </WorkbenchList>
 
-      <section
-        className={cn(
-          "min-h-0 min-w-0 flex-1 overflow-y-auto",
-          !sel && mobileView !== "overview" && "hidden md:block",
-        )}
+      <WorkbenchDetail
+        selected={!!sel || overview}
+        backLabel={
+          sel?.kind === "account" && selProvider
+            ? providerName(selProvider)
+            : sel
+              ? "All accounts"
+              : "Accounts"
+        }
+        onBack={() =>
+          sel?.kind === "account" && selProvider
+            ? setSel({ kind: "provider", id: selProvider })
+            : sel
+              ? setSel(null)
+              : setMobileView("accounts")
+        }
       >
-        <div className="mx-auto max-w-4xl space-y-8 px-4 py-5 md:space-y-10 md:px-8 md:py-8">
-          {sel ? (
-            <button
-              type="button"
-              onClick={() =>
-                setSel(
-                  selAccount && sel.kind === "account" && selProvider
-                    ? { kind: "provider", id: selProvider }
-                    : null,
-                )
-              }
-              className="flex items-center gap-1 text-xs text-text-muted hover:text-text md:hidden"
-            >
-              <Icon name="arrow_back" size={16} />
-              {selAccount ? providerName(selAccount.provider) : "All accounts"}
-            </button>
-          ) : null}
+        <div className="mx-auto max-w-4xl space-y-8 px-4 py-6 md:space-y-10 md:px-8 md:py-8">
           {selAccount ? (
             <AccountDetail
               a={selAccount}
@@ -326,8 +293,28 @@ export function QuotaWorkbench({
               onPick={(id) => setSel({ kind: "account", id })}
               actions={actions}
             />
+          ) : sel && !loading ? (
+            <EmptyState icon="search_off">
+              This {sel.kind} isn&rsquo;t tracked any more. Pick another from the list.
+            </EmptyState>
           ) : (
             <>
+              <div>
+                <h1 className="font-display text-3xl">Quota</h1>
+                <p className="mt-1 text-[13px] text-text-muted">
+                  {loading ? (
+                    "Reading limits from your providers…"
+                  ) : (
+                    <>
+                      <strong className="font-medium text-text">
+                        {accounts.filter((a) => a.isActive).length} of {plural(accounts.length)}
+                      </strong>{" "}
+                      routing across {allGroups.length} provider
+                      {allGroups.length === 1 ? "" : "s"}
+                    </>
+                  )}
+                </p>
+              </div>
               <ResetTimeline
                 accounts={accounts}
                 now={now}
@@ -366,19 +353,21 @@ export function QuotaWorkbench({
             </>
           )}
         </div>
-      </section>
+      </WorkbenchDetail>
     </div>
   );
 }
 
 /** List row: account name + every window as a labeled mini bar. */
 function AccountRow({
+  id,
   a,
   now,
   active,
   hovered,
   onClick,
 }: {
+  id: string;
   a: QuotaAccount;
   now: number;
   active: boolean;
@@ -387,77 +376,73 @@ function AccountRow({
 }) {
   const shown = a.windows.slice(0, 3);
   return (
-    <button
-      type="button"
+    <ListRow
+      id={id}
+      active={active}
       onClick={onClick}
-      className={cn(
-        "ml-7 flex w-[calc(100%-1.75rem)] flex-col gap-1.5 rounded-lg px-2.5 py-2 text-left transition-colors",
-        active
-          ? "bg-accent-soft ring-1 ring-accent-ring"
-          : hovered
-            ? "bg-surface-2"
-            : "hover:bg-surface-2",
-        !a.isActive && "opacity-55",
-      )}
-    >
-      <span className="flex items-center gap-2">
-        <StatusDot status={a.status} />
-        <span className={cn("truncate text-[13px]", active && "font-medium")}>{a.label}</span>
-        {a.plan && <span className="truncate text-[10px] text-text-subtle">{a.plan}</span>}
-        {a.nextReset && (
-          <span className="ml-auto shrink-0 text-[10px] tabular-nums text-text-subtle">
+      version={a.worst}
+      className={cn(hovered && !active && "bg-surface-2", !a.isActive && "opacity-55")}
+      leading={
+        <span className="grid size-[22px] shrink-0 place-items-center">
+          <StatusDot status={a.status} />
+        </span>
+      }
+      title={
+        <>
+          {a.label}
+          {a.plan && <span className="ml-2 text-[10px] text-text-subtle">{a.plan}</span>}
+        </>
+      }
+      trailing={
+        a.nextReset && (
+          <span className="shrink-0 self-start text-[10px] tabular-nums text-text-subtle">
             ↻ {untilText(a.nextReset, now)}
           </span>
-        )}
-      </span>
-      {a.error ? (
-        <span className="truncate pl-3.5 text-[11px] text-danger-text">{a.error}</span>
-      ) : a.loading && !shown.length ? (
-        // Same markup as a real one-limit row (invisible text), so the height can't change.
-        <span className="grid grid-cols-1 gap-x-3 gap-y-1 pl-3.5" aria-hidden>
-          <span className="min-w-0">
-            <span className="relative flex justify-between gap-1 text-[10px]">
-              <span className="invisible">Weekly</span>
-              <Skeleton className="absolute inset-y-[3px] left-0 w-1/4" />
-            </span>
-            <Skeleton className="mt-0.5 h-1 rounded-full" />
-          </span>
-        </span>
-      ) : (
-        <span
-          className={cn(
-            "grid gap-x-3 gap-y-1 pl-3.5 transition-opacity duration-300",
-            a.loading && "opacity-60",
-          )}
-          style={{ gridTemplateColumns: `repeat(${Math.max(1, shown.length)}, minmax(0, 1fr))` }}
-        >
-          {shown.map((w) => (
-            <span key={w.name} className="min-w-0">
-              <span className="flex justify-between gap-1 text-[10px]">
-                <span className="truncate text-text-muted">{shortName(w.name)}</span>
-                <span
-                  className={cn(
-                    "tabular-nums",
-                    w.remaining != null && w.remaining <= EXHAUSTED && "text-danger-text",
-                  )}
-                >
-                  {pctText(w)}
+        )
+      }
+      subtitle={
+        a.error ? (
+          <span className="text-danger-text">{a.error}</span>
+        ) : a.loading && !shown.length ? (
+          "Reading limits…"
+        ) : shown.length ? (
+          <span
+            className={cn(
+              "mt-1 grid gap-x-3 gap-y-1 transition-opacity duration-300",
+              a.loading && "opacity-60",
+            )}
+            style={{ gridTemplateColumns: `repeat(${shown.length}, minmax(0, 1fr))` }}
+          >
+            {shown.map((w) => (
+              <span key={w.name} className="min-w-0">
+                <span className="flex justify-between gap-1 text-[10px]">
+                  <span className="truncate">{shortName(w.name)}</span>
+                  <span
+                    className={cn(
+                      "tabular-nums text-text",
+                      w.remaining != null && w.remaining <= EXHAUSTED && "text-danger-text",
+                    )}
+                  >
+                    {pctText(w)}
+                  </span>
+                </span>
+                <span className="mt-0.5 block h-1 overflow-hidden rounded-full bg-surface-3">
+                  <span
+                    className={cn("block h-full rounded-full", barTone(w.remaining))}
+                    style={{
+                      width: w.remaining == null ? "100%" : `${Math.max(3, w.remaining)}%`,
+                      opacity: w.remaining == null ? 0.35 : 1,
+                    }}
+                  />
                 </span>
               </span>
-              <span className="mt-0.5 block h-1 overflow-hidden rounded-full bg-surface-3">
-                <span
-                  className={cn("block h-full rounded-full", barTone(w.remaining))}
-                  style={{
-                    width: w.remaining == null ? "100%" : `${Math.max(3, w.remaining)}%`,
-                    opacity: w.remaining == null ? 0.35 : 1,
-                  }}
-                />
-              </span>
-            </span>
-          ))}
-        </span>
-      )}
-    </button>
+            ))}
+          </span>
+        ) : (
+          "No limits reported"
+        )
+      }
+    />
   );
 }
 
@@ -632,9 +617,7 @@ function ProviderDetail({
       <div className="flex items-center gap-3">
         <ProviderLogo providerId={group.provider} name={providerName(group.provider)} size={40} />
         <div>
-          <h1 className="font-display text-2xl tracking-tight md:text-3xl">
-            {providerName(group.provider)}
-          </h1>
+          <h1 className="font-display text-3xl">{providerName(group.provider)}</h1>
           <p className="mt-1 text-sm text-text-muted">
             {group.accounts.length} account{group.accounts.length === 1 ? "" : "s"} ·{" "}
             {group.accounts.filter((a) => a.isActive).length} routing
@@ -720,9 +703,7 @@ function AccountDetail({
         <div className="flex items-center gap-3">
           <ProviderLogo providerId={a.provider} name={providerName(a.provider)} size={40} />
           <div>
-            <h1 className="break-all font-display text-2xl tracking-tight md:text-3xl">
-              {a.label}
-            </h1>
+            <h1 className="break-all font-display text-3xl">{a.label}</h1>
             <div className="mt-1 flex items-center gap-2 text-sm text-text-muted">
               {providerName(a.provider)}
               {a.plan && <span>· {a.plan}</span>}
@@ -749,9 +730,9 @@ function AccountDetail({
             (a.loading ? (
               [0, 1].map((i) => (
                 <div key={i} className="space-y-1.5">
-                  <Skeleton className="h-[18px] w-2/3" />
+                  <Skeleton className="h-4 w-2/3" />
                   <Skeleton className="h-1.5 rounded-full" />
-                  <Skeleton className="h-[15px] w-1/2" />
+                  <Skeleton className="h-3.5 w-1/2" />
                 </div>
               ))
             ) : (
@@ -919,26 +900,6 @@ function BulkMenu({ accounts, actions }: { accounts: QuotaAccount[]; actions: Ac
   );
 }
 
-function ListSkeleton() {
-  return (
-    <div className="space-y-1" aria-hidden>
-      <div className="flex items-center gap-2 py-2 pl-8">
-        <Skeleton className="size-5 rounded-md" />
-        <Skeleton className="h-3.5 w-24" />
-      </div>
-      {[0, 1, 2].map((i) => (
-        <div key={i} className="ml-7 space-y-1.5 px-2.5 py-2">
-          <Skeleton className="h-[18px] w-36" />
-          <div className="grid grid-cols-2 gap-x-3 pl-3.5">
-            <Skeleton className="h-[19px]" />
-            <Skeleton className="h-[19px]" />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 function CapacitySkeleton() {
   return (
     <Panel className="space-y-4 p-4" aria-hidden>
@@ -949,7 +910,7 @@ function CapacitySkeleton() {
       <div className="space-y-3">
         {[0, 1].map((i) => (
           <div key={i} className="space-y-1">
-            <Skeleton className="h-[15px] w-1/2" />
+            <Skeleton className="h-3.5 w-1/2" />
             <Skeleton className="h-2.5 rounded-[3px]" />
           </div>
         ))}
@@ -1009,7 +970,7 @@ function MobileSwitch({
         { value: "accounts", label: "Accounts" },
         { value: "overview", label: "Overview" },
       ]}
-      className="md:hidden"
+      className="w-full md:hidden"
     />
   );
 }
