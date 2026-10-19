@@ -80,7 +80,8 @@ export function CombosWorkbench() {
   return (
     <div className="flex min-h-0 flex-1">
       <WorkbenchList
-        selected={selId ?? (overview ? "overview" : null)}
+        selected={selId}
+        detailOpen={!!selId || overview}
         hints={[
           ["↑↓", "move"],
           ["/", "search"],
@@ -172,7 +173,7 @@ export function CombosWorkbench() {
       </WorkbenchList>
 
       <WorkbenchDetail
-        selected={!!selId || overview}
+        detailOpen={!!selId || overview}
         backLabel="All combos"
         onBack={() => select(null)}
       >

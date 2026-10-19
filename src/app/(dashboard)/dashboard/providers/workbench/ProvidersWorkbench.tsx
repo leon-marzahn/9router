@@ -152,7 +152,8 @@ export function ProvidersWorkbench() {
 
       <div className="flex min-h-0 flex-1">
         <WorkbenchList
-          selected={sel ?? (overview ? "overview" : null)}
+          selected={sel}
+          detailOpen={!!sel || overview}
           hints={[
             ["↑↓", "move"],
             ["↵", "open"],
@@ -249,7 +250,7 @@ export function ProvidersWorkbench() {
         </WorkbenchList>
 
         <WorkbenchDetail
-          selected={!!sel || overview}
+          detailOpen={!!sel || overview}
           backLabel="All providers"
           onBack={() => select(null)}
         >

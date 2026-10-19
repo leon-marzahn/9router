@@ -79,7 +79,8 @@ export function PipelinesWorkbench() {
         </TopBarActions>
       )}
       <WorkbenchList
-        selected={current?.name ?? (overview ? "overview" : null)}
+        selected={current?.name ?? null}
+        detailOpen={!!current || overview}
         hints={[
           ["↑↓", "move"],
           ["/", "search"],
@@ -146,7 +147,7 @@ export function PipelinesWorkbench() {
         )}
       </WorkbenchList>
       <WorkbenchDetail
-        selected={!!current || overview}
+        detailOpen={!!current || overview}
         backLabel="All pipelines"
         onBack={() => select(null)}
       >
