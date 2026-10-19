@@ -22,8 +22,8 @@ import {
   StatusDot,
   Tag,
   TopBarActions,
+  ConfirmDialog,
 } from "@/ui";
-import { ConfirmModal } from "@/shared/components";
 import { STATUS_ORDER } from "@/ui/status";
 import { cn } from "@/ui/cn";
 import { AccountActions, AccountStatus, WindowBar, statusWord, type Actions } from "./parts";
@@ -889,8 +889,8 @@ function BulkMenu({ accounts, actions }: { accounts: QuotaAccount[]; actions: Ac
           onClick={() => (setOpen(false), setConfirm("on"))}
         />
       </Popover>
-      <ConfirmModal
-        isOpen={confirm != null}
+      <ConfirmDialog
+        open={confirm != null}
         onClose={() => setConfirm(null)}
         loading={busy}
         variant={confirm === "off" ? "danger" : "primary"}

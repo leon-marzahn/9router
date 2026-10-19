@@ -2,9 +2,8 @@
 
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Button, Field, Icon, Input, SearchInput, Segmented, Skeleton } from "@/ui";
+import { Button, Dialog, Field, Icon, Input, SearchInput, Segmented, Skeleton } from "@/ui";
 import { cn } from "@/ui/cn";
-import { Modal } from "@/shared/components";
 import { ComboDetail } from "./ComboDetail";
 import { STEP_DOT } from "./steps";
 import { useCombos, type Combo, type CombosApi, type Strategy } from "./useCombos";
@@ -244,8 +243,8 @@ function NameDialog({
     }
   };
   return (
-    <Modal
-      isOpen
+    <Dialog
+      open
       onClose={onClose}
       title={title}
       size="sm"
@@ -279,6 +278,6 @@ function NameDialog({
           onKeyDown={(e) => e.key === "Enter" && void submit()}
         />
       </Field>
-    </Modal>
+    </Dialog>
   );
 }
