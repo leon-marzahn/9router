@@ -30,7 +30,8 @@ export function Switch({
         onChange(!checked);
       }}
       className={cn(
-        "relative inline-flex h-[18px] w-8 shrink-0 items-center rounded-full transition-colors",
+        // 18px to look at; the ::after stretches the tap target past 40px.
+        "relative inline-flex h-[18px] w-8 after:absolute after:-inset-x-1 after:-inset-y-3 shrink-0 items-center rounded-full transition-colors",
         "focus-visible:outline-none focus-visible:shadow-focus disabled:opacity-50",
         checked ? "bg-success" : "bg-surface-3",
         className,

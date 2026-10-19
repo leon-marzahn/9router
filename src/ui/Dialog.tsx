@@ -115,7 +115,7 @@ export function Dialog({
         aria-describedby={description ? descId : undefined}
         tabIndex={-1}
         className={cn(
-          "fade-in relative flex max-h-[88vh] w-full flex-col overflow-hidden border border-border bg-surface text-[13px] text-text shadow-elev outline-none",
+          "fade-in relative flex max-h-[88dvh] w-full flex-col overflow-hidden border border-border bg-surface text-[13px] text-text shadow-elev outline-none",
           "rounded-t-2xl border-b-0 pb-[env(safe-area-inset-bottom)] md:rounded-2xl md:border-b md:pb-0",
           SIZES[size],
           className,
@@ -137,7 +137,7 @@ export function Dialog({
             onClick={onClose}
             disabled={!dismissible}
             aria-label="Close"
-            className="-mr-1.5 -mt-1 grid size-8 shrink-0 place-items-center rounded-lg text-text-muted transition-colors hover:bg-surface-2 hover:text-text disabled:opacity-40"
+            className="-mr-1.5 -mt-1 grid size-8 shrink-0 place-items-center max-md:size-10 rounded-lg text-text-muted transition-colors hover:bg-surface-2 hover:text-text disabled:opacity-40"
           >
             <Icon name="close" size={20} />
           </button>

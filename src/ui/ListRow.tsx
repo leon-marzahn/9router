@@ -38,7 +38,7 @@ export function ListRow({
       onClick={onClick}
       aria-current={active || undefined}
       className={cn(
-        "flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left text-[13px] transition-colors",
+        "flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left max-md:min-h-11 text-[13px] transition-colors",
         active ? "bg-accent-soft ring-1 ring-accent-ring" : "hover:bg-surface-2",
         flash && !active && "animate-live-flash",
         className,

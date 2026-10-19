@@ -51,8 +51,9 @@ export function MobileNav({
       <nav
         aria-label="Main"
         className={cn(
-          "absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col overflow-y-auto border-r border-border bg-surface p-3 shadow-elev transition-transform duration-300",
-          open ? "translate-x-0" : "-translate-x-full",
+          "absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col overflow-y-auto overscroll-contain border-r border-border bg-surface p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pl-[max(0.75rem,env(safe-area-inset-left))] pt-[max(0.75rem,env(safe-area-inset-top))] shadow-elev transition-[transform,visibility] duration-300",
+          // invisible when closed: its shadow would otherwise tint the left screen edge, and its links stay out of the Tab order
+          open ? "visible translate-x-0" : "invisible -translate-x-full",
         )}
       >
         <div className="mb-3 flex items-center gap-2 px-2">
@@ -62,7 +63,7 @@ export function MobileNav({
             type="button"
             onClick={onClose}
             aria-label="Close menu"
-            className="ml-auto grid size-8 place-items-center rounded-lg text-text-muted hover:bg-bg/60"
+            className="ml-auto grid size-10 place-items-center rounded-lg text-text-muted hover:bg-bg/60"
           >
             <Icon name="close" size={20} />
           </button>
@@ -82,7 +83,7 @@ export function MobileNav({
           <button
             type="button"
             onClick={toggleTheme}
-            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-[13px] text-text-muted hover:bg-bg/60"
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-[14px] text-text-muted hover:bg-bg/60"
           >
             <Icon name={isDark ? "light_mode" : "dark_mode"} size={18} />{" "}
             {isDark ? "Light mode" : "Dark mode"}
@@ -90,7 +91,7 @@ export function MobileNav({
           <button
             type="button"
             onClick={logout}
-            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-[13px] text-danger-text hover:bg-danger-soft"
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-[14px] text-danger-text hover:bg-danger-soft"
           >
             <Icon name="logout" size={18} /> Log out
           </button>

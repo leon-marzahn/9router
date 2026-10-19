@@ -148,7 +148,7 @@ export function KeyCard({
               run: onDelete,
             })
           }
-          className="rounded-md px-2 py-1 text-[12px] text-text-muted hover:bg-danger-soft hover:text-danger-text"
+          className="rounded-md px-2 py-1 text-[12px] text-text-muted hover:bg-danger-soft hover:text-danger-text max-md:min-h-10 max-md:px-3"
         >
           Delete
         </button>

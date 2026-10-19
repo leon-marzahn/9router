@@ -24,7 +24,7 @@ export function AppFrame({ children }: { children: ReactNode }) {
 
   return (
     <FrameSlotsProvider>
-      <div className="flex h-dvh w-full overflow-hidden bg-bg text-[13px] text-text">
+      <div className="flex h-dvh w-full overflow-hidden bg-bg pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] text-[13px] text-text">
         <Rail flags={flags} auth={auth} />
         <MobileNav open={menuOpen} onClose={() => setMenuOpen(false)} flags={flags} />
         <div className="flex min-w-0 flex-1 flex-col">
@@ -38,7 +38,7 @@ export function AppFrame({ children }: { children: ReactNode }) {
             {fullBleed ? (
               children
             ) : (
-              <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
+              <div className="mx-auto w-full max-w-7xl px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-6 sm:px-6 lg:px-10 lg:py-8">
                 {children}
               </div>
             )}

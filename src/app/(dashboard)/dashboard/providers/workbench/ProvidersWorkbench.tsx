@@ -228,7 +228,7 @@ export function ProvidersWorkbench() {
                         type="button"
                         onClick={() => select(t.id)}
                         className={cn(
-                          "flex items-center justify-center gap-1.5 rounded-lg border py-2 text-[11px]",
+                          "flex items-center justify-center gap-1.5 rounded-lg border py-2 text-[11px] max-md:min-h-10",
                           sel === t.id
                             ? "border-accent-ring bg-accent-soft text-accent-text"
                             : "border-border text-text-muted hover:text-text",

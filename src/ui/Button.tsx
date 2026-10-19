@@ -18,8 +18,8 @@ const VARIANTS: Record<Variant, string> = {
 // Primary is a pill ending in an arrow chip: tighter right padding hugs the chip.
 const PRIMARY_SIZES: Record<Size, string> = { sm: "!pr-1", md: "!pr-1.5" };
 const SIZES: Record<Size, string> = {
-  sm: "h-8 gap-1.5 rounded-lg px-3 text-xs",
-  md: "h-9 gap-2 rounded-lg px-4 text-[13px]",
+  sm: "h-8 max-md:h-10 gap-1.5 rounded-lg px-3 text-xs",
+  md: "h-9 max-md:h-10 gap-2 rounded-lg px-4 text-[13px]",
 };
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -105,7 +105,7 @@ export const IconButton = forwardRef<
       size={size}
       aria-label={label}
       title={label}
-      className={cn(size === "sm" ? "w-8 px-0" : "w-9 px-0", className)}
+      className={cn(size === "sm" ? "w-8 px-0 max-md:w-10" : "w-9 px-0 max-md:w-10", className)}
       icon={icon}
       {...rest}
     />
