@@ -21,6 +21,13 @@
 // wait (ms). Saved as <label>-<name>-<desktop|mobile>-<light|dark>.png.
 // Set `"viewports": ["desktop"]` on an entry to skip mobile.
 //
+// The mobile context emulates a phone (isMobile, hasTouch, iPhone user agent),
+// so `(hover: hover)` is false and `(pointer: coarse)` true, like a real phone:
+// `hover:` styles never show. There, `click` taps the element (falling back to a
+// click if tapping fails) and `hover` has no visible effect. deviceScaleFactor
+// stays 1 so mobile PNGs remain 375 px wide (sharper 3x shots would triple the
+// file size and change image dimensions between runs).
+//
 // Browser requests can be answered without the server: scripts/pr-shots/mocks.json
 // always applies (it keeps the Quota page off real providers), and a shot may add
 // `"mocks": [{ "url": "**/api/x*", "status": 200, "json": {...} }]`; later entries win.
@@ -115,12 +122,22 @@ try {
   browser = await chromium.launch();
   const themes = args.dark ? ["light", "dark"] : ["light"];
   const viewports = /** @type {const} */ ([
-    ["desktop", { width: 1440, height: 900 }],
-    ["mobile", { width: 375, height: 812 }],
+    ["desktop", { width: 1440, height: 900 }, {}],
+    [
+      "mobile",
+      { width: 375, height: 812 },
+      {
+        isMobile: true,
+        hasTouch: true,
+        userAgent:
+          "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1",
+      },
+    ],
   ]);
   for (const theme of themes) {
-    for (const [vpName, viewport] of viewports) {
+    for (const [vpName, viewport, device] of viewports) {
       const context = await browser.newContext({
+        ...device,
         viewport,
         colorScheme: theme,
         deviceScaleFactor: 1,
@@ -163,7 +180,7 @@ try {
         if (shot.mocks) await applyMocks(context, shot.mocks);
         await page.goto(base + shot.route, { waitUntil: "load", timeout: 180_000 });
         await settle();
-        for (const step of shot.steps ?? []) await runStep(page, shot.name, step);
+        for (const step of shot.steps ?? []) await runStep(page, shot.name, step, vpName);
         await page.waitForTimeout(500);
         const file = fileFor(shot.name);
         if (shot.selector) await page.locator(shot.selector).first().screenshot({ path: file });
@@ -201,10 +218,13 @@ async function applyMocks(context, mocks) {
   }
 }
 
-async function runStep(page, name, step) {
+async function runStep(page, name, step, vpName) {
   const t = { timeout: 15_000 };
   try {
-    if (step.click) await page.locator(step.click).first().click(t);
+    if (step.click && vpName === "mobile") {
+      const el = page.locator(step.click).first();
+      await el.tap(t).catch(() => el.click(t));
+    } else if (step.click) await page.locator(step.click).first().click(t);
     else if (step.hover) await page.locator(step.hover).first().hover(t);
     else if (step.fill) await page.locator(step.fill[0]).first().fill(String(step.fill[1]), t);
     else if (step.press) await page.keyboard.press(step.press);
