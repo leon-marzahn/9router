@@ -132,7 +132,7 @@ Each pattern below names its canonical form. Where a page does something else, i
 - For a copyable command or URL line: `flex items-center gap-1 rounded-lg bg-bg-alt px-3 py-1.5 font-mono text-[12px]` with the value, then a `CopyButton`.
 
 ### Code blocks
-`<pre>` in a `Panel overflow-hidden`, with an optional header strip (`border-b px-4 py-1.5 text-[12px] text-text-muted`: language on the left, `CopyButton` on the right), and a body of `overflow-x-auto p-4 font-mono text-[12px] leading-relaxed`. Sunken code inside a panel uses `bg-bg-alt`, not `bg-surface-2`.
+Use `CodeBlock` (`<pre>` in a `Panel overflow-hidden`, `text` or `children` as the body, `copy` for the header `CopyButton`), with an optional header strip (`border-b px-4 py-1.5 text-[12px] text-text-muted`: language on the left, `CopyButton` on the right), and a body of `overflow-x-auto p-4 font-mono text-[12px] leading-relaxed`. Sunken code inside a panel uses `bg-bg-alt`, not `bg-surface-2`.
 
 ### Drawers & dialogs
 - **Drawer:** Usage's `RequestDrawer` is the reference: a right-side `aside role="dialog"`, `top-12` under the TopBar, `w-[min(560px,100vw)] border-l shadow-elev`, full-screen below `md`. Its header has prev (k) / next (j) / close (Esc) `IconButton`s.
@@ -161,6 +161,6 @@ Use the scale from *Type* above: 13px base, `text-xs`, and 11px meta. The `text-
 
 ## Components (`src/ui/index.ts`)
 
-`Button` / `IconButton` (primary · secondary · ghost · inverse · danger), `Switch`, `Field` / `Input` / `SearchInput` / `Kbd`, `Segmented`, `StatusDot` / `StatusLabel`, `Tag`, `Panel` / `SectionTitle` / `Eyebrow` / `EmptyState`, `SettingsSection` / `SettingRow` / `SettingRowSkeleton` / `Note`, `StatGrid` / `InlineStat`, `ListRow` / `ListGroup`, `Skeleton` / `ListSkeleton`, `CopyButton`, `Popover` / `MenuItem`, `ProviderLogo`, `LiveNumber`, `useFlashOnChange`, `cn` (tailwind-merge).
+`Button` / `IconButton` (primary · secondary · ghost · inverse · danger), `Switch`, `Field` / `Input` / `Select` / `SearchInput` / `Kbd`, `Segmented`, `StatusDot` / `StatusLabel`, `Tag`, `Panel` / `SectionTitle` / `Eyebrow` / `EmptyState`, `SettingsSection` / `SettingRow` / `SettingRowSkeleton` / `Note`, `StatGrid` / `InlineStat`, `ListRow` / `ListGroup`, `Skeleton` / `ListSkeleton`, `CopyButton`, `CodeBlock`, `Popover` / `MenuItem`, `ProviderLogo`, `LiveNumber`, `useFlashOnChange`, `cn` (tailwind-merge).
 
 Rules: icon-only buttons always get a `label`; switches always get a `label`; don't nest panels; one primary button per view.

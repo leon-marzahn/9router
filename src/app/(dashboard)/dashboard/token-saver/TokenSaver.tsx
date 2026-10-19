@@ -10,7 +10,7 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from "react";
-import { Button, Icon, Input, Segmented, Switch, Tag } from "@/ui";
+import { Button, CodeBlock, CopyButton, Icon, Input, Segmented, Switch, Tag } from "@/ui";
 import { ConfirmModal } from "@/shared/components";
 import { getCurrentLocale, onLocaleChange } from "@/i18n/runtime";
 import { Note, SettingRow, SettingRowSkeleton, SettingsSection } from "@/ui";
@@ -470,7 +470,10 @@ function Headroom({
             title="Install"
             hint="Run this in a terminal on this machine, then press Check again."
           >
-            <CopyCommand text={PIP_INSTALL} />
+            <div className="flex items-center gap-1 rounded-lg bg-bg-alt px-3 py-1.5 font-mono text-[12px]">
+              <code className="min-w-0 flex-1 break-all">{PIP_INSTALL}</code>
+              <CopyButton value={PIP_INSTALL} />
+            </div>
           </SettingRow>
         )}
 
@@ -585,9 +588,7 @@ function Headroom({
 
         {busy?.match(/^(install|remove)-/) && log && (
           <div className="py-3">
-            <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-surface-2 p-3 font-mono text-[11px] leading-4 text-text-muted">
-              {log}
-            </pre>
+            <CodeBlock text={log} wrap preClassName="max-h-40 text-[11px]" />
           </div>
         )}
         {status.installed && extras.version && (
@@ -612,25 +613,3 @@ function Headroom({
   );
 }
 
-function CopyCommand({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      notify().error("Couldn't copy to the clipboard");
-    }
-  };
-  return (
-    <div className="flex items-center gap-2">
-      <code className="min-w-0 break-all rounded-lg bg-surface-2 px-3 py-1.5 font-mono text-xs">
-        {text}
-      </code>
-      <Button icon={copied ? "check" : "content_copy"} onClick={copy}>
-        {copied ? "Copied" : "Copy"}
-      </Button>
-    </div>
-  );
-}
