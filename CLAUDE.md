@@ -43,7 +43,7 @@ DATA_DIR="$(mktemp -d)" PORT=20137 NEXT_PUBLIC_BASE_URL=http://localhost:20137 b
 Run it in the background, pick another port if 20137 is taken, open the changed pages in the browser tool (log in with the default password `123456`), click through the flows you touched at desktop and 375px width, and check the console for errors. The scratch data starts empty (no providers), so seed what the check needs through the dashboard or API; `scripts/pr-shots/seed.mjs` shows how to seed demo data. Usage/log files ignore `DATA_DIR` and still go to `~/.regent` (see Persistence), so don't send real model traffic. Stop the server when done.
 
 ### PR evidence (agents)
-Reviewing someone else's PR (or asked to review before the owner sees it)? Follow `REVIEW.md`.
+Reviewing a PR? Follow `REVIEW.md`.
 
 CI (`.github/workflows/pr.yml`) runs typecheck, `vp lint` on the files the PR changes (`scripts/ci/lint-changed.sh`; fix errors in files you touch), and `vp test run`, which must be green: any failure fails the job unless it is listed in `tests/__baseline__/known-fails.txt` (empty; `scripts/ci/compare-tests.mjs` also reports listed tests that pass again). For UI changes, attach screenshots of demo data only (the repo is public):
 ```bash

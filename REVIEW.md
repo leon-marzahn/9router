@@ -1,8 +1,8 @@
 # REVIEW.md
 
-How a PR in this repo gets reviewed before the owner sees it. Written for the **reviewer agent**: a fresh agent that did not write the change. CLAUDE.md covers how to build; this file covers how to check.
+How to review a PR in this repo. Written for a reviewer agent that did not write the change; CLAUDE.md covers how to build, this file covers how to check.
 
-The owner often reviews from a phone and can't run the app. Your hands-on checks are the only browser testing a PR gets, so do them, don't infer them from the code or the author's report.
+Assume nobody else will run the change in a browser. Do the hands-on checks yourself; don't infer them from the code or the author's report.
 
 ## Setup
 
