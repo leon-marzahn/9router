@@ -43,7 +43,9 @@ export function geminiToOpenAIRequest(model, body, stream) {
   if (body.contents && Array.isArray(body.contents)) {
     for (const content of body.contents) {
       const converted = convertGeminiContent(content);
-      if (converted) {
+      if (Array.isArray(converted)) {
+        result.messages.push(...converted);
+      } else if (converted) {
         result.messages.push(converted);
       }
     }
@@ -81,6 +83,7 @@ function convertGeminiContent(content) {
 
   const parts = [];
   const toolCalls = [];
+  const toolResults = [];
 
   for (const part of content.parts) {
     if (part.text !== undefined) {
@@ -109,15 +112,27 @@ function convertGeminiContent(content) {
       });
     }
 
+    // Collect every functionResponse: parallel tool results arrive in one content and
+    // each becomes its own tool message (same as the antigravity translator).
     if (part.functionResponse) {
-      return {
+      toolResults.push({
         role: ROLE.TOOL,
         tool_call_id: part.functionResponse.id || `call_${part.functionResponse.name}`,
         content: JSON.stringify(part.functionResponse.response?.result || part.functionResponse.response || {})
-      };
+      });
     }
   }
 
+  if (toolResults.length > 0) {
+    const rest = buildMessage(role, parts, toolCalls);
+    return rest ? [...toolResults, rest] : toolResults;
+  }
+
+  return buildMessage(role, parts, toolCalls);
+}
+
+// Message for the non-tool-result parts of a content (text/images and/or tool calls).
+function buildMessage(role, parts, toolCalls) {
   if (toolCalls.length > 0) {
     const result = { role: ROLE.ASSISTANT };
     if (parts.length > 0) {

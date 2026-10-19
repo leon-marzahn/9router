@@ -73,9 +73,7 @@ describe("geminiToOpenAIRequest", () => {
     expect(img.image_url.url).toBe(`data:image/png;base64,${B64}`);
   });
 
-  // BUG: convertGeminiContent returns on the first functionResponse part, so parallel tool
-  // results sent in one Gemini content (the normal shape) are silently dropped after the first.
-  it.skip("keeps every functionResponse in a single content (parallel tool results)", () => {
+  it("keeps every functionResponse in a single content (parallel tool results)", () => {
     const out = geminiToOpenAIRequest("m", {
       contents: [{ role: GEMINI_ROLE.USER, parts: [
         { functionResponse: { id: "a", name: "f", response: {} } },
@@ -83,6 +81,19 @@ describe("geminiToOpenAIRequest", () => {
       ] }],
     });
     expect(out.messages.map((m) => m.tool_call_id)).toEqual(["a", "b"]);
+  });
+
+  it("keeps text sent alongside functionResponses as a following message", () => {
+    const out = geminiToOpenAIRequest("m", {
+      contents: [{ role: GEMINI_ROLE.USER, parts: [
+        { functionResponse: { id: "a", name: "f", response: { result: 1 } } },
+        { text: "continue" },
+      ] }],
+    });
+    expect(out.messages).toEqual([
+      { role: "tool", tool_call_id: "a", content: "1" },
+      { role: "user", content: "continue" },
+    ]);
   });
 
   // BUG: with tool calls, a single non-text part is collapsed via parts[0].text, so a lone
