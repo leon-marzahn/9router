@@ -34,14 +34,12 @@ const VALID_NAME = /^[a-zA-Z0-9_-]{1,64}$/;
 export function PipelineDetail({
   pipeline: p,
   api,
-  onBack,
   onRename,
   onDelete,
   onDuplicate,
 }: {
   pipeline: Pipeline;
   api: PipelinesApi;
-  onBack: () => void;
   onRename: (name: string) => void;
   onDelete: () => void;
   onDuplicate: () => void;
@@ -78,37 +76,26 @@ export function PipelineDetail({
   return (
     <div className="mx-auto max-w-3xl space-y-7 px-4 py-6 [font-variant-ligatures:none] md:px-8 md:py-8">
       <header className="space-y-3">
-        <button
-          type="button"
-          onClick={onBack}
-          className="flex items-center gap-1 text-[12px] text-text-muted md:hidden"
-        >
-          <Icon name="arrow_back" size={14} /> Pipelines
-        </button>
-        <div className="flex items-start gap-3">
-          <div className="min-w-0 flex-1 space-y-1">
-            <Field label="Name" error={name !== p.name ? nameProblem : null} className="max-w-sm">
-              <Input
-                mono
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                onBlur={() => (name !== p.name && !nameProblem ? onRename(name) : setName(p.name))}
-                onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
-              />
-            </Field>
-            <p className="text-[12px] text-text-subtle">
-              {u
-                ? `${compact(u.requests)} requests · ${compact(u.charsRemoved)} characters removed · last used ${timeAgo(u.lastUsed)} (since restart)`
-                : "Not used since the server started"}
-            </p>
-          </div>
+        <div className="flex items-end gap-3">
+          <Field
+            label="Name"
+            error={name !== p.name ? nameProblem : null}
+            className="min-w-0 flex-1"
+          >
+            <Input
+              mono
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onBlur={() => (name !== p.name && !nameProblem ? onRename(name) : setName(p.name))}
+              onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+            />
+          </Field>
           <IconButton
             ref={menuRef}
             icon="more_horiz"
             label="More"
             variant="secondary"
             size="md"
-            className="mt-[22px]"
             onClick={() => setMenu(true)}
           />
           <Popover
@@ -140,6 +127,11 @@ export function PipelineDetail({
             </MenuItem>
           </Popover>
         </div>
+        <p className="text-[12px] text-text-subtle">
+          {u
+            ? `${compact(u.requests)} requests · ${compact(u.charsRemoved)} characters removed · last used ${timeAgo(u.lastUsed)} (since restart)`
+            : "Not used since the server started"}
+        </p>
         <Input
           value={p.description ?? ""}
           placeholder="What is this pipeline for? (optional)"
