@@ -34,6 +34,7 @@ import { prefetchRemoteImages } from "../translator/concerns/prefetch.js";
 import { defaultClaudeToolType, shouldDefaultClaudeToolType } from "../translator/concerns/toolCall.js";
 import { resolveSessionId, clientIpFromHeaders } from "../utils/sessionManager.js";
 import { normalizeTlsImpersonation } from "../config/tlsImpersonation.js";
+import { requestStreamUsage, clientRequestedStreamUsage } from "../translator/concerns/streamUsage.js";
 
 /**
  * Core chat handler - shared between SSE and Worker
@@ -233,7 +234,18 @@ export async function handleChatCore({ traceAttempt = null, body, modelInfo, cre
     stripContinuityFields(translatedBody);
   }
 
+  // Same-format translation can hand back the client body itself; the stream
+  // fields below are per-attempt, so never write them into the client body
+  // (the account/combo fallback loop re-sends it to other providers).
+  if (translatedBody === body) translatedBody = { ...body };
   syncUpstreamStreamFlag(translatedBody, passthrough ? sourceFormat : targetFormat, stream);
+
+  // Real streaming usage instead of an estimate (OpenAI-format upstreams).
+  const streamUsageInjected = requestStreamUsage(translatedBody, provider, passthrough ? sourceFormat : targetFormat, stream);
+  const streamUsage = {
+    awaitTrailer: stream && translatedBody?.stream_options?.include_usage === true,
+    dropTrailer: streamUsageInjected && !clientRequestedStreamUsage(body),
+  };
 
   // Tool normalization: MCP-equivalent built-in dedup (Claude clients) + same-name
   // dedup for DeepSeek models (upstream rejects duplicate tool names on all endpoints).
@@ -552,7 +564,7 @@ export async function handleChatCore({ traceAttempt = null, body, modelInfo, cre
 
   // Streaming response
   const { onStreamComplete, streamDetailId } = buildOnStreamComplete({ ...sharedCtx });
-  return handleStreamingResponse({ ...sharedCtx, providerResponse, sourceFormat, targetFormat: providerResponseFormat, userAgent, reqLogger, toolNameMap, customToolNames, streamController, onStreamComplete, streamDetailId, credentials });
+  return handleStreamingResponse({ ...sharedCtx, providerResponse, sourceFormat, targetFormat: providerResponseFormat, userAgent, reqLogger, toolNameMap, customToolNames, streamController, onStreamComplete, streamDetailId, credentials, streamUsage });
 }
 
 // Source formats whose clients choose streaming with a `stream` body field

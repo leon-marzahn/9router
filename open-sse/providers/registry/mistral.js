@@ -18,6 +18,9 @@ export default {
     validateUrl: "https://api.mistral.ai/v1/models",
     quirks: {
       dropClientMetadata: true,
+      // Strict request schema (422 extra_forbidden); its streams carry usage
+      // in the final chunk without stream_options.
+      noStreamUsageOption: true,
     },
   },
   models: [

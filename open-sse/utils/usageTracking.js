@@ -17,7 +17,11 @@ export const COLORS = {
   cyan: "\x1b[36m"
 };
 
-// Buffer tokens to prevent context errors
+// Context-window safety margin added to the prompt count we REPORT TO CLIENTS.
+// Agent CLIs (Claude Code, Codex, ...) decide when to compact from the usage we
+// return; a small over-report makes them compact before the upstream rejects
+// the context. It is client-facing only: recorded/billed usage (saveUsageStats)
+// is always the upstream's real (or plainly estimated) count, never buffered.
 const BUFFER_TOKENS = 2000;
 
 // Get HH:MM:SS timestamp
@@ -379,21 +383,23 @@ export function estimateOutputTokens(contentLength) {
  */
 export function formatUsage(inputTokens, outputTokens, targetFormat) {
   // Claude format uses input_tokens/output_tokens
+  // No context buffer here: estimates are recorded and billed. Callers that
+  // hand an estimate to a client add the buffer themselves (addBufferToUsage).
   if (targetFormat === FORMATS.CLAUDE) {
-    return addBufferToUsage({ 
-      input_tokens: inputTokens, 
-      output_tokens: outputTokens, 
-      estimated: true 
-    });
+    return {
+      input_tokens: inputTokens,
+      output_tokens: outputTokens,
+      estimated: true
+    };
   }
 
   // Default: OpenAI format (works for openai, gemini, responses, etc.)
-  return addBufferToUsage({
+  return {
     prompt_tokens: inputTokens,
     completion_tokens: outputTokens,
     total_tokens: inputTokens + outputTokens,
     estimated: true
-  });
+  };
 }
 
 /**

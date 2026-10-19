@@ -18,6 +18,9 @@ export default {
     validateUrl: "https://api.cerebras.ai/v1/models",
     quirks: {
       dropClientMetadata: true,
+      // Strict request validator; its streams carry usage in the final chunk
+      // without stream_options.
+      noStreamUsageOption: true,
     },
   },
   models: [
