@@ -25,7 +25,13 @@ export const metadata = {
 };
 
 export const viewport = {
-  themeColor: "#0a0a0a",
+  // iOS: draw under the notch / home bar; the frame pads itself with env(safe-area-inset-*).
+  viewportFit: "cover",
+  // Status-bar tint matches --color-bg of each theme (src/app/globals.css).
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#FBF8F4" },
+    { media: "(prefers-color-scheme: dark)", color: "#121110" },
+  ],
 };
 
 export default function RootLayout({ children }) {

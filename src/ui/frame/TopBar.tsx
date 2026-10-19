@@ -22,12 +22,12 @@ export function TopBar({ onMenu }: { onMenu: () => void }) {
   const { setCenter, setActions } = useFrameSlots();
 
   return (
-    <header className="flex h-12 shrink-0 items-center gap-4 border-b border-border px-3 md:px-4">
+    <header className="box-content flex h-12 shrink-0 items-center gap-2 border-b border-border px-3 pt-[env(safe-area-inset-top)] sm:gap-4 md:px-4">
       <button
         type="button"
         onClick={onMenu}
         aria-label="Open menu"
-        className="grid size-8 place-items-center rounded-lg text-text-muted hover:bg-surface-2 md:hidden"
+        className="-ml-1 grid size-10 shrink-0 place-items-center rounded-lg text-text-muted hover:bg-surface-2 md:hidden"
       >
         <Icon name="menu" size={20} />
       </button>

@@ -37,7 +37,7 @@ export function Field({
 }
 
 export const inputClass =
-  "h-9 w-full rounded-lg border border-border-strong bg-surface px-3 text-[13px] text-text outline-none transition-colors " +
+  "h-9 w-full rounded-lg border max-md:h-10 border-border-strong bg-surface px-3 text-[13px] text-text outline-none transition-colors " +
   "placeholder:text-text-subtle focus:border-accent focus:shadow-focus dark:border-border";
 
 export const Input = forwardRef<
@@ -64,7 +64,7 @@ export const SearchInput = forwardRef<
   return (
     <label
       className={cn(
-        "flex h-9 items-center gap-2 rounded-lg bg-surface px-3 ring-1 ring-border focus-within:ring-accent-ring",
+        "flex h-9 items-center gap-2 rounded-lg max-md:h-10 bg-surface px-3 ring-1 ring-border focus-within:ring-accent-ring",
         className,
       )}
     >

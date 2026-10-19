@@ -19,7 +19,7 @@ function Copy({ label, value }: { label: string; value: string }) {
     <div className="min-w-0">
       <div className="text-[11px] text-text-subtle">{label}</div>
       <div className="flex min-w-0 items-center gap-1">
-        <code className="min-w-0 flex-1 truncate font-mono text-[12px] text-text-muted">
+        <code className="min-w-0 flex-1 break-all font-mono md:truncate md:break-normal text-[12px] text-text-muted">
           {value}
         </code>
         <CopyButton value={value} label={`Copy ${label}`} />

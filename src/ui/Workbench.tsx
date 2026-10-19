@@ -49,7 +49,10 @@ export function WorkbenchList({
       )}
     >
       <div className="space-y-2 p-3">{header}</div>
-      <div ref={bodyRef} className="min-h-0 flex-1 overflow-y-auto px-2 pb-6">
+      <div
+        ref={bodyRef}
+        className="min-h-0 flex-1 overflow-y-auto px-2 pb-[calc(1.5rem+env(safe-area-inset-bottom))] md:pb-6"
+      >
         {children}
       </div>
       {hints && hints.length > 0 && (
@@ -84,12 +87,17 @@ export function WorkbenchDetail({
   children: ReactNode;
 }) {
   return (
-    <main className={cn("min-w-0 flex-1 overflow-y-auto", !detailOpen && "hidden md:block")}>
+    <main
+      className={cn(
+        "min-w-0 flex-1 overflow-y-auto pb-[env(safe-area-inset-bottom)]",
+        !detailOpen && "hidden md:block",
+      )}
+    >
       {detailOpen && (
         <button
           type="button"
           onClick={onBack}
-          className="flex items-center gap-1 px-4 pt-4 text-[13px] text-text-muted hover:text-text md:hidden"
+          className="flex min-h-10 items-center gap-1 px-4 pt-2 text-[13px] text-text-muted hover:text-text md:hidden"
         >
           <Icon name="arrow_back" size={16} /> {backLabel}
         </button>
