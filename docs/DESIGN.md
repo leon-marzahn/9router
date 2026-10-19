@@ -107,6 +107,29 @@ Each pattern below names its canonical form. Where a page does something else, i
 - **Detail header:** a logo tile (`ProviderLogo`, 56px) or icon, the name in `font-display text-3xl` (mono only for ids users type, e.g. combo names, at the same size), and a meta row (`StatusLabel`, kind, `Tag`s, mono id). Controls (routing `Switch`, `IconButton`s, More `Popover`) sit on the right. Headers scroll with the content; none are sticky.
 - **Nothing selected:** the page's **Overview** (below). If a page has no overview yet, show `EmptyState`, not a custom icon + sentence block.
 
+Build it from the shell rather than re-creating the panes and the key listener:
+
+```tsx
+useListKeyboard({ order, selected: sel, onSelect: select, searchRef, onEnter });
+
+<div className="flex min-h-0 flex-1">
+  <WorkbenchList
+    selected={sel}
+    header={<SearchInput ref={searchRef} shortcut="/" … />}
+    hints={[["↑↓", "move"], ["/", "search"], ["esc", "overview"]]}
+  >
+    {loading ? <ListSkeleton /> : groups.map((g) => <ListGroup …>{/* ListRows */}</ListGroup>)}
+  </WorkbenchList>
+  <WorkbenchDetail selected={!!sel} backLabel="All providers" onBack={() => select(null)}>
+    {current ? <Detail … /> : <Overview … />}
+  </WorkbenchDetail>
+</div>
+```
+
+- `WorkbenchList` is the 330px pane (header `space-y-2 p-3`, scrolling body, `Kbd` hint footer on md+); it hides itself on mobile while `selected` is set and scrolls the `ListRow` whose id equals `selected` into view.
+- `WorkbenchDetail` is the overview/detail pane with the mobile back button.
+- `useListKeyboard` takes row ids in display order. It ignores keys while a modal is open, and inside a field only Esc (blur) works. `onEnter` is optional (Providers opens the full page).
+
 ### Kind switch
 - Use `Segmented` when the options fit in one row (≤ 5 short labels).
 - Media Providers' `KindSwitch` (a 3-column grid of radio tiles, for 10 kinds) is the sanctioned exception for many kinds; it sits above the search in the list header.
@@ -163,6 +186,6 @@ Use the scale from *Type* above: 13px base, `text-xs`, and 11px meta. The `text-
 
 ## Components (`src/ui/index.ts`)
 
-`Button` / `IconButton` (primary · secondary · ghost · inverse · danger), `Switch`, `Field` / `Input` / `Select` / `SearchInput` / `Kbd`, `Segmented`, `StatusDot` / `StatusLabel`, `Tag`, `Panel` / `SectionTitle` / `Eyebrow` / `EmptyState`, `SettingsSection` / `SettingRow` / `SettingRowSkeleton` / `Note`, `StatGrid` / `InlineStat`, `ListRow` / `ListGroup`, `Skeleton` / `ListSkeleton`, `CopyButton`, `CodeBlock`, `Popover` / `MenuItem`, `ProviderLogo`, `LiveNumber`, `useFlashOnChange`, `cn` (tailwind-merge).
+`Button` / `IconButton` (primary · secondary · ghost · inverse · danger), `Switch`, `Field` / `Input` / `Select` / `SearchInput` / `Kbd`, `Segmented`, `StatusDot` / `StatusLabel`, `Tag`, `Panel` / `SectionTitle` / `Eyebrow` / `EmptyState`, `SettingsSection` / `SettingRow` / `SettingRowSkeleton` / `Note`, `StatGrid` / `InlineStat`, `ListRow` / `ListGroup`, `WorkbenchList` / `WorkbenchDetail` / `useListKeyboard`, `Skeleton` / `ListSkeleton`, `CopyButton`, `CodeBlock`, `Popover` / `MenuItem`, `ProviderLogo`, `LiveNumber`, `useFlashOnChange`, `cn` (tailwind-merge).
 
 Rules: icon-only buttons always get a `label`; switches always get a `label`; don't nest panels; one primary button per view.
