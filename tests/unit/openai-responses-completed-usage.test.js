@@ -44,6 +44,8 @@ function parseEvents(text) {
     .filter(Boolean);
 }
 
+// Client copy of response.completed usage carries the context buffer (stream.js).
+const BUF = 2000;
 const sse = (data) => [`data: ${JSON.stringify(data)}`, ""];
 const claudeSse = (data) => [`event: ${data.type}`, `data: ${JSON.stringify(data)}`, ""];
 
@@ -85,9 +87,9 @@ describe("Responses response.completed reports token usage", () => {
     const usage = completed[0].data.response.usage;
     expectCodexUsageShape(usage);
     expect(usage).toMatchObject({
-      input_tokens: 1200,
+      input_tokens: 1200 + BUF,
       output_tokens: 50,
-      total_tokens: 1250,
+      total_tokens: 1250 + BUF,
       input_tokens_details: { cached_tokens: 200 },
     });
   });
@@ -116,9 +118,9 @@ describe("Responses response.completed reports token usage", () => {
     const usage = completed[0].data.response.usage;
     expectCodexUsageShape(usage);
     expect(usage).toEqual({
-      input_tokens: 300,
+      input_tokens: 300 + BUF,
       output_tokens: 20,
-      total_tokens: 320,
+      total_tokens: 320 + BUF,
       input_tokens_details: { cached_tokens: 100 },
       output_tokens_details: { reasoning_tokens: 5 },
     });
@@ -136,7 +138,7 @@ describe("Responses response.completed reports token usage", () => {
 
     const completed = events.filter((e) => e.event === "response.completed");
     expect(completed).toHaveLength(1);
-    expect(completed[0].data.response.usage).toEqual({ input_tokens: 300, output_tokens: 20, total_tokens: 320 });
+    expect(completed[0].data.response.usage).toEqual({ input_tokens: 300 + BUF, output_tokens: 20, total_tokens: 320 + BUF });
   });
 
   it.each([0, 999])("derives the total when upstream reports inconsistent total_tokens=%i", async (totalTokens) => {
@@ -154,9 +156,9 @@ describe("Responses response.completed reports token usage", () => {
     const completed = events.filter((e) => e.event === "response.completed");
     expect(completed).toHaveLength(1);
     expect(completed[0].data.response.usage).toEqual({
-      input_tokens: 300,
+      input_tokens: 300 + BUF,
       output_tokens: 20,
-      total_tokens: 320,
+      total_tokens: 320 + BUF,
     });
   });
 

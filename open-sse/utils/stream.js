@@ -27,6 +27,15 @@ const STREAM_MODE = {
 // forever when the upstream stalls with no usage trailer and no [DONE].
 const PENDING_COMPLETION_FLUSH_MS = 3000;
 
+// The Chat→Responses translator puts the upstream's real usage on
+// response.completed. Like every other client format, the copy sent to the
+// client gets the context-window buffer (see BUFFER_TOKENS); recorded usage is
+// taken from the upstream chunks and stays real.
+function withClientUsageBuffer(item) {
+  if (item?.event !== "response.completed" || !item.data?.response?.usage) return item;
+  return { ...item, data: { ...item.data, response: { ...item.data.response, usage: addBufferToUsage(item.data.response.usage) } } };
+}
+
 /**
  * Create unified SSE transform stream
  * @param {object} options
@@ -70,6 +79,7 @@ export function createSSEStream(options = {}) {
   // upstream usage arriving later replaces it instead of max-merging with it.
   let usageEstimated = false;
   let heldFinish = null;
+  let heldFinishTimer = null;
   const awaitUsageTrailer = mode === STREAM_MODE.PASSTHROUGH && streamUsage?.awaitTrailer === true;
   const dropUsageTrailer = awaitUsageTrailer && streamUsage?.dropTrailer === true;
 
@@ -137,7 +147,7 @@ export function createSSEStream(options = {}) {
     const completed = translateResponse(targetFormat, sourceFormat, null, state);
     for (const item of completed || []) {
       if (item === null || item === undefined) continue;
-      const output = formatSSE(item, sourceFormat);
+      const output = formatSSE(withClientUsageBuffer(item), sourceFormat);
       reqLogger?.appendConvertedChunk?.(output);
       controller.enqueue(sharedEncoder.encode(output));
       sseEmittedCount++;
@@ -148,6 +158,7 @@ export function createSSEStream(options = {}) {
   // Passthrough: release a finish chunk held for the usage trailer, carrying
   // the real usage if it came, else an estimate (client copy gets the buffer).
   const emitHeldFinish = (controller) => {
+    if (heldFinishTimer) { clearTimeout(heldFinishTimer); heldFinishTimer = null; }
     if (!heldFinish) return;
     const parsed = heldFinish;
     heldFinish = null;
@@ -265,6 +276,12 @@ export function createSSEStream(options = {}) {
               const isFinishChunk = parsed.choices?.[0]?.finish_reason;
               if (isFinishChunk && !hasValidUsage(parsed.usage) && awaitUsageTrailer) {
                 heldFinish = parsed;
+                // Bounded wait: a stalled upstream must not delay finish_reason.
+                // A trailer arriving later still replaces the recorded estimate.
+                heldFinishTimer = setTimeout(() => {
+                  heldFinishTimer = null;
+                  try { emitHeldFinish(controller); } catch { /* controller already closed */ }
+                }, PENDING_COMPLETION_FLUSH_MS);
                 continue;
               } else if (isFinishChunk && !hasValidUsage(parsed.usage)) {
                 const estimated = estimateUsage(body, totalContentLength, FORMATS.OPENAI);
@@ -291,8 +308,11 @@ export function createSSEStream(options = {}) {
           }
 
           // [DONE] without a usage trailer: release the held finish chunk first.
-          if (heldFinish && trimmed.startsWith("data:") && trimmed.slice(5).trim() === "[DONE]") {
+          const isDoneLine = trimmed.startsWith("data:") && trimmed.slice(5).trim() === "[DONE]";
+          if (isDoneLine) {
             emitHeldFinish(controller);
+            // The upstream's own [DONE] goes out below; flush() must not add a second.
+            streamDoneSent = true;
           }
 
           if (!injectedUsage) {
@@ -448,7 +468,7 @@ export function createSSEStream(options = {}) {
               item.usage = filterUsageForFormat(buffered, sourceFormat);
             }
 
-            const output = formatSSE(item, sourceFormat);
+            const output = formatSSE(withClientUsageBuffer(item), sourceFormat);
             reqLogger?.appendConvertedChunk?.(output);
             controller.enqueue(sharedEncoder.encode(output));
             sseEmittedCount++;
@@ -547,7 +567,7 @@ export function createSSEStream(options = {}) {
             if (translated?.length > 0) {
               for (const item of translated) {
                 if (item === null || item === undefined) continue;
-                const output = formatSSE(item, sourceFormat);
+                const output = formatSSE(withClientUsageBuffer(item), sourceFormat);
                 reqLogger?.appendConvertedChunk?.(output);
                 controller.enqueue(sharedEncoder.encode(output));
               }
@@ -567,7 +587,7 @@ export function createSSEStream(options = {}) {
         if (flushed?.length > 0) {
           for (const item of flushed) {
             if (item === null || item === undefined) continue;
-            const output = formatSSE(item, sourceFormat);
+            const output = formatSSE(withClientUsageBuffer(item), sourceFormat);
             reqLogger?.appendConvertedChunk?.(output);
             controller.enqueue(sharedEncoder.encode(output));
           }

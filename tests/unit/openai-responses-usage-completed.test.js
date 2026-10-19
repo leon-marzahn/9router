@@ -94,10 +94,11 @@ const USAGE_ONLY_CHUNK = {
   },
 };
 
+// input/total include the 2000-token client context buffer (stream.js).
 const EXPECTED_USAGE = {
-  input_tokens: 884,
+  input_tokens: 884 + 2000,
   output_tokens: 37,
-  total_tokens: 921,
+  total_tokens: 921 + 2000,
   input_tokens_details: { cached_tokens: 256 },
 };
 
