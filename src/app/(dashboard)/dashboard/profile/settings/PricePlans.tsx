@@ -41,6 +41,7 @@ export function PricePlans() {
               key={JSON.stringify(list.plans[DEFAULT_PLAN_ID])}
               initial={list.plans[DEFAULT_PLAN_ID] ?? null}
               fixedName="Default"
+              resolved={list.resolved}
               saveLabel="Save default plan"
               onSave={async (p) => {
                 await save(DEFAULT_PLAN_ID, p);
@@ -106,6 +107,7 @@ export function PricePlans() {
         <PlanDialog
           title={editing.id ? `Plan "${editing.plan?.name ?? ""}"` : "New plan"}
           initial={editing.plan}
+          resolved={list?.resolved}
           onClose={() => setEditing(null)}
           onSave={async (p) => {
             await save(editing.id, p);

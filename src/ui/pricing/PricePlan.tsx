@@ -5,7 +5,10 @@ import { Button, IconButton } from "../Button";
 import { Dialog } from "../Dialog";
 import { Field, Input } from "../Field";
 
-/** One custom rate, USD per 1M tokens. `model` is "provider/model" or a bare model id. */
+/**
+ * One custom rate, USD per 1M tokens. `model` is written the way clients route:
+ * "prefix/model" (provider id, alias like "cc", or a compatible node's prefix) or a bare model id.
+ */
 export interface PlanRate {
   model: string;
   input: number;
@@ -21,6 +24,8 @@ export interface PricePlan {
 interface PlanList {
   plans: Record<string, PricePlan>;
   keyPlans: Record<string, string>;
+  /** Saved rate model text -> provider name it routes to, or null for a bare model id. */
+  resolved?: Record<string, string | null>;
 }
 
 export const DEFAULT_PLAN_ID = "default";
@@ -43,7 +48,7 @@ export function usePricePlans() {
     try {
       setList(await json("/api/pricing/plans"));
     } catch {
-      setList({ plans: {}, keyPlans: {} });
+      setList({ plans: {}, keyPlans: {}, resolved: {} });
     }
   }, []);
   useEffect(() => {
@@ -110,6 +115,7 @@ interface RateDraft {
 export function PlanEditor({
   initial,
   fixedName,
+  resolved = {},
   onSave,
   onRemove,
   onCancel,
@@ -119,6 +125,7 @@ export function PlanEditor({
   initial: PricePlan | null;
   /** The default plan keeps its name. */
   fixedName?: string;
+  resolved?: Record<string, string | null>;
   onSave: (p: PricePlan) => Promise<void>;
   onRemove?: () => Promise<void>;
   onCancel?: () => void;
@@ -200,8 +207,10 @@ export function PlanEditor({
         <div>
           <div className="text-xs font-medium">Custom rates</div>
           <div className="text-[11px] text-text-muted">
-            USD per 1M tokens. Replaces cost + markup for that model;{" "}
-            <span className="font-mono">provider/model</span> wins over a bare model id.
+            USD per 1M tokens, replacing cost + markup for that model. Write the model the way
+            clients call it: <span className="font-mono">prefix/model</span> (provider, alias such
+            as <span className="font-mono">cc</span>, or your node&apos;s prefix) for one provider,
+            or a bare model id for any provider. A prefixed rate wins over a bare one.
           </div>
         </div>
         {rates.map((r, i) => (
@@ -213,7 +222,7 @@ export function PlanEditor({
               mono
               aria-label="Model"
               value={r.model}
-              placeholder="openai/gpt-5"
+              placeholder="prefix/model or model"
               onChange={(e) => setRate(i, { model: e.target.value })}
             />
             <IconButton
@@ -234,6 +243,15 @@ export function PlanEditor({
                 />
               ))}
             </div>
+            {r.model.trim() && (
+              <div className="col-span-2 text-[11px] text-text-subtle sm:col-span-5">
+                {r.model in resolved
+                  ? resolved[r.model]
+                    ? `Only via ${resolved[r.model]}`
+                    : "Bare model id: any provider"
+                  : "Checked when saved"}
+              </div>
+            )}
           </div>
         ))}
         <button
@@ -290,6 +308,7 @@ export function PlanDialog({
   description,
   initial,
   fixedName,
+  resolved,
   onClose,
   onSave,
   onRemove,
@@ -298,6 +317,7 @@ export function PlanDialog({
   description?: string;
   initial: PricePlan | null;
   fixedName?: string;
+  resolved?: Record<string, string | null>;
   onClose: () => void;
   onSave: (p: PricePlan) => Promise<void>;
   onRemove?: () => Promise<void>;
@@ -313,6 +333,7 @@ export function PlanDialog({
       <PlanEditor
         initial={initial}
         fixedName={fixedName}
+        resolved={resolved}
         onCancel={onClose}
         onSave={async (p) => {
           await onSave(p);

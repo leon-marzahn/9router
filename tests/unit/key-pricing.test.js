@@ -110,11 +110,11 @@ describe("computeCharge", () => {
       markupPercent: 100,
       rates: [
         { model: "m1", input: 9, output: 9, cached: null },
-        { model: `${P}/M1`, input: 3, output: 6, cached: 1 },
+        { model: `OpenAI/M1`, input: 3, output: 6, cached: 1 },
       ],
     };
     // 1M input at $3, nothing else. Cost is irrelevant once a rate matches.
-    close(billing.computeCharge({ cost: 1, provider: P, model: "m1", tokens: TOK_1M_IN }, p), 3);
+    close(billing.computeCharge({ cost: 1, provider: "openai", model: "m1", tokens: TOK_1M_IN }, p), 3);
     // Same model via another provider: the bare-model rate.
     close(
       billing.computeCharge({ cost: 1, provider: "other", model: "m1", tokens: TOK_1M_IN }, p),
@@ -122,7 +122,7 @@ describe("computeCharge", () => {
     );
     // Cached input at the cached rate (falls back to input when unset).
     const cached = { prompt_tokens: 1_000_000, cached_tokens: 1_000_000 };
-    close(billing.computeCharge({ cost: 0, provider: P, model: "m1", tokens: cached }, p), 1);
+    close(billing.computeCharge({ cost: 0, provider: "openai", model: "m1", tokens: cached }, p), 1);
     close(billing.computeCharge({ cost: 0, provider: "x", model: "m1", tokens: cached }, p), 9);
   });
 
@@ -137,6 +137,76 @@ describe("computeCharge", () => {
     close(billing.computeCharge(unpriced, { markupPercent: 300, minFee: 0.05, rates: [] }), 0.05);
     const rated = { markupPercent: 0, rates: [{ model: "nopricing", input: 2, output: 2 }] };
     close(billing.computeCharge(unpriced, rated), 2);
+  });
+});
+
+describe("rate prefixes resolve the way clients route", () => {
+  const NODE = "openai-compatible-chat-1234";
+  const nodes = { real: NODE };
+  const req = (provider, model) => ({ cost: 1, provider, model, tokens: TOK_1M_IN });
+
+  it("matches a compatible node by its prefix, not its internal id", () => {
+    const p = { markupPercent: 0, rates: [{ model: "real/fake-1", input: 7, output: 7 }] };
+    close(billing.computeCharge(req(NODE, "fake-1"), p, nodes), 7);
+    // Without the node map (or for another provider) the prefixed rate doesn't apply.
+    close(billing.computeCharge(req(NODE, "fake-1"), p, {}), 1);
+    close(billing.computeCharge(req("openai", "fake-1"), p, nodes), 1);
+  });
+
+  it("matches a provider alias (cc -> claude) and a plain provider id", () => {
+    expect(billing.resolveRatePrefix("cc")).toBe("claude");
+    expect(billing.resolveRatePrefix("openai")).toBe("openai");
+    const p = {
+      markupPercent: 0,
+      rates: [
+        { model: "cc/sonnet", input: 4, output: 4 },
+        { model: "openai/gpt-x", input: 5, output: 5 },
+      ],
+    };
+    close(billing.computeCharge(req("claude", "sonnet"), p), 4);
+    close(billing.computeCharge(req("openai", "gpt-x"), p), 5);
+  });
+
+  it("treats an unknown prefix as a bare model id (OpenRouter style), and prefixed beats bare", () => {
+    expect(billing.resolveRatePrefix("nosuchprefix")).toBeNull();
+    const p = {
+      markupPercent: 0,
+      rates: [
+        { model: "nosuchprefix/m", input: 3, output: 3 },
+        { model: "fake-1", input: 2, output: 2 },
+        { model: "real/fake-1", input: 9, output: 9 },
+      ],
+    };
+    close(billing.computeCharge(req("openrouter", "nosuchprefix/m"), p, nodes), 3);
+    close(billing.computeCharge(req(NODE, "fake-1"), p, nodes), 9); // prefixed wins, though listed later
+    close(billing.computeCharge(req("other", "fake-1"), p, nodes), 2); // bare for any other provider
+  });
+
+  it("records the node-prefixed rate end to end and lists how rates resolve", async () => {
+    const node = await db.createProviderNode({
+      type: "openai-compatible",
+      name: "Real upstream",
+      prefix: "real",
+      apiType: "chat",
+      baseUrl: "http://127.0.0.1:1/v1",
+    });
+    await plan("plan_node", {
+      rates: [
+        { model: "real/fake-1", input: 3, output: 0 },
+        { model: "fake-2", input: 1, output: 1 },
+      ],
+    });
+    await assign(keyA, "plan_node");
+    await db.saveRequestUsage({
+      provider: node.id,
+      model: "fake-1",
+      apiKey: keyA.key,
+      tokens: TOK_1M_IN,
+    });
+    close(rows()[0].charge, 3);
+    const { resolved } = await billing.listPlans();
+    expect(resolved["real/fake-1"]).toBe("Real upstream");
+    expect(resolved["fake-2"]).toBeNull();
   });
 });
 
@@ -373,6 +443,10 @@ describe("dashboard routes", () => {
     await db.importDb(dump);
     expect(Object.keys(await plansRepo.getPricePlans())).toEqual(["plan_a"]);
     expect(await plansRepo.getKeyPlanIds()).toEqual({ [k.id]: "plan_a", [keyB.id]: "plan_a" });
+
+    // Assignments for keys missing from the backup are dropped.
+    await db.importDb({ ...dump, keyPlans: [...dump.keyPlans, { keyId: "ghost", planId: "plan_a" }] });
+    expect(Object.keys(await plansRepo.getKeyPlanIds())).not.toContain("ghost");
 
     await db.importDb({ ...dump, pricePlans: [{ id: "bad id", name: "x" }] }).then(
       () => {

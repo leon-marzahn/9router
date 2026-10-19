@@ -241,6 +241,7 @@ export function Gatehouse() {
                     onBudgetSave={(b) => budgets.save(k.id, b)}
                     onBudgetRemove={() => budgets.remove(k.id)}
                     plans={pricing.list?.plans ?? null}
+                    resolved={pricing.list?.resolved}
                     planId={pricing.list?.keyPlans[k.id] ?? DEFAULT_PLAN_ID}
                     onPlanAssign={(id) => pricing.assign(k.id, id)}
                     onPlanSave={pricing.save}

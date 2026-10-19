@@ -15,7 +15,10 @@
 //                       history. Never throws: on error the charge falls back to cost.
 //   getKeySpend(keyId, {from, to}) → totals + per-model breakdown for one key.
 import { calculateCostFromTokens } from "open-sse/providers/pricing.js";
+import { resolveProviderAlias } from "open-sse/services/model.js";
 import { getApiKeyById, getApiKeyByKey } from "@/lib/db/repos/apiKeysRepo.js";
+import { getProviderNodes } from "@/lib/db/repos/nodesRepo.js";
+import { AI_PROVIDERS } from "@/shared/constants/providers.js";
 import {
   DEFAULT_PLAN_ID,
   getKeyPlanIds,
@@ -49,8 +52,18 @@ export function invalidateBillingCache() {
 
 async function loadConfig(now = Date.now()) {
   if (state.config && now - state.configAt < CONFIG_TTL_MS) return state.config;
-  const [plans, keyPlans] = await Promise.all([getPricePlans(), getKeyPlanIds()]);
-  state.config = { plans, keyPlans };
+  const [plans, keyPlans, nodes] = await Promise.all([
+    getPricePlans(),
+    getKeyPlanIds(),
+    getProviderNodes(),
+  ]);
+  const nodePrefixes = {};
+  const nodeNames = {};
+  for (const n of nodes) {
+    if (n?.prefix) nodePrefixes[String(n.prefix).toLowerCase()] = n.id;
+    if (n?.id) nodeNames[n.id] = n.name || n.prefix || n.id;
+  }
+  state.config = { plans, keyPlans, nodePrefixes, nodeNames };
   state.configAt = now;
   return state.config;
 }
@@ -100,16 +113,43 @@ export function validatePlan(input) {
 
 // ---------- charge ----------
 
-/** The custom rate for provider/model: "provider/model" first, then the bare model id. */
-export function findRate(plan, provider, model) {
+/**
+ * Provider id a rate's prefix routes to, written the way clients address models:
+ * a provider id ("openai"), an alias ("cc" -> "claude") or a compatible-node prefix
+ * ("real" -> "openai-compatible-chat-<uuid>"). Null when the text before the first "/"
+ * isn't a known prefix: then the whole string is a bare model id (OpenRouter's
+ * "openai/gpt-4o" style ids).
+ * @param {string} prefix
+ * @param {Record<string, string>} [nodePrefixes] lower-cased node prefix -> node id
+ */
+export function resolveRatePrefix(prefix, nodePrefixes = {}) {
+  const p = String(prefix || "").toLowerCase();
+  if (!p) return null;
+  if (nodePrefixes[p]) return nodePrefixes[p];
+  const id = resolveProviderAlias(p);
+  if (id !== p) return id;
+  return AI_PROVIDERS[p] ? p : null;
+}
+
+/**
+ * The custom rate for a request. A rate whose prefix routes to `provider` with the rest
+ * equal to `model` wins; otherwise a rate equal to the bare model id. Case-insensitive.
+ */
+export function findRate(plan, provider, model, nodePrefixes = {}) {
   if (!plan?.rates?.length || !model) return null;
   const m = String(model).toLowerCase();
-  const full = provider ? `${String(provider).toLowerCase()}/${m}` : null;
-  return (
-    (full && plan.rates.find((r) => r.model.toLowerCase() === full)) ||
-    plan.rates.find((r) => r.model.toLowerCase() === m) ||
-    null
-  );
+  const prov = provider ? String(provider).toLowerCase() : null;
+  let bare = null;
+  for (const r of plan.rates) {
+    const id = r.model.toLowerCase();
+    const slash = id.indexOf("/");
+    if (prov && slash > 0 && id.slice(slash + 1) === m) {
+      const target = resolveRatePrefix(id.slice(0, slash), nodePrefixes);
+      if (target && target.toLowerCase() === prov) return r;
+    }
+    if (!bare && id === m) bare = r;
+  }
+  return bare;
 }
 
 const usedTokens = (t = {}) =>
@@ -119,10 +159,10 @@ const usedTokens = (t = {}) =>
  * Pure: what `plan` charges for one request.
  * @param {{ cost?: number, provider?: string, model?: string, tokens?: object }} entry
  */
-export function computeCharge(entry, plan = PASS_THROUGH_PLAN) {
+export function computeCharge(entry, plan = PASS_THROUGH_PLAN, nodePrefixes = {}) {
   const cost = Number(entry.cost) || 0;
   const p = plan || PASS_THROUGH_PLAN;
-  const rate = findRate(p, entry.provider, entry.model);
+  const rate = findRate(p, entry.provider, entry.model, nodePrefixes);
   let charge = rate
     ? calculateCostFromTokens(entry.tokens || {}, {
         input: rate.input,
@@ -147,6 +187,12 @@ export async function planForApiKey(apiKey) {
   return planFor(config, rec?.id);
 }
 
+async function billingContext(apiKey) {
+  const config = await loadConfig();
+  const rec = apiKey ? await getApiKeyByKey(apiKey) : null;
+  return { plan: planFor(config, rec?.id), nodePrefixes: config.nodePrefixes };
+}
+
 /**
  * Charge for a usage entry whose `cost` is already set. Requests without an API key
  * (local use) aren't billed to anyone: charge = cost. Never throws.
@@ -156,7 +202,8 @@ export async function chargeFor(entry) {
   try {
     const apiKey = typeof entry.apiKey === "string" && entry.apiKey ? entry.apiKey : null;
     if (!apiKey) return cost;
-    return computeCharge(entry, await planForApiKey(apiKey));
+    const { plan, nodePrefixes } = await billingContext(apiKey);
+    return computeCharge(entry, plan, nodePrefixes);
   } catch (e) {
     console.warn(`[billing] charge fell back to cost: ${e?.message || e}`);
     return cost;
@@ -208,12 +255,29 @@ export async function getKeySpend(keyId, { from, to } = {}) {
   return out;
 }
 
+/** A routed prefix's provider name ("Fake", "Claude Code"); null for a bare model id. */
+function describeRateModel(model, nodePrefixes, nodeNames) {
+  const slash = model.indexOf("/");
+  if (slash <= 0) return null;
+  const id = resolveRatePrefix(model.slice(0, slash), nodePrefixes);
+  if (!id) return null;
+  return nodeNames[id] || AI_PROVIDERS[id]?.name || id;
+}
+
 /** Plans for the dashboard: { plans: {id: plan}, keyPlans: {keyId: planId} }, default always present. */
 export async function listPlans() {
   invalidateBillingCache();
-  const { plans, keyPlans } = await loadConfig();
+  const { plans, keyPlans, nodePrefixes, nodeNames } = await loadConfig();
+  const all = { [DEFAULT_PLAN_ID]: PASS_THROUGH_PLAN, ...plans };
+  // How each rate's model text resolves, for the editor: a provider name, or null (bare model id).
+  const resolved = {};
+  for (const p of Object.values(all)) {
+    for (const r of p.rates || [])
+      resolved[r.model] = describeRateModel(r.model, nodePrefixes, nodeNames);
+  }
   return {
-    plans: { [DEFAULT_PLAN_ID]: PASS_THROUGH_PLAN, ...plans },
+    resolved,
+    plans: all,
     keyPlans,
   };
 }

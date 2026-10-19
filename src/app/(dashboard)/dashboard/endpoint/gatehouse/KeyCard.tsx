@@ -21,6 +21,7 @@ export function KeyCard({
   onBudgetSave,
   onBudgetRemove,
   plans,
+  resolved,
   planId,
   onPlanAssign,
   onPlanSave,
@@ -34,6 +35,7 @@ export function KeyCard({
   onBudgetRemove: () => Promise<void>;
   /** Every plan by id ("default" included); null while loading. */
   plans: Record<string, PricePlan> | null;
+  resolved?: Record<string, string | null>;
   planId: string;
   onPlanAssign: (planId: string) => Promise<void>;
   /** `id` null creates a plan and returns its id. */
@@ -254,6 +256,7 @@ export function KeyCard({
               : undefined
           }
           initial={editPlan === "new" ? null : plan}
+          resolved={resolved}
           fixedName={editPlan === "current" && planId === DEFAULT_PLAN_ID ? "Default" : undefined}
           onClose={() => setEditPlan(null)}
           onSave={async (p) => {

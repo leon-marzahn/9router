@@ -127,8 +127,10 @@ export async function importDb(payload) {
       return [id, checked.value];
     });
     const ids = new Set(pricePlans.map(([id]) => id));
+    // Only assignments for keys in this backup and plans that exist; the rest are dropped.
+    const keyIds = new Set((payload.apiKeys || []).map((k) => k?.id).filter((id) => typeof id === "string"));
     keyPlans = (Array.isArray(payload.keyPlans) ? payload.keyPlans : []).filter(
-      (k) => typeof k?.keyId === "string" && ids.has(k.planId),
+      (k) => typeof k?.keyId === "string" && keyIds.has(k.keyId) && ids.has(k.planId),
     );
   }
 
