@@ -81,6 +81,31 @@ Everything is stored locally in `~/.regent` (`%APPDATA%\regent` on Windows), or 
 
 The toolchain is [Vite+](https://viteplus.dev) (`vp`); see [`CLAUDE.md`](CLAUDE.md) for commands, tests and conventions, and [`docs/DESIGN.md`](docs/DESIGN.md) for the dashboard design system.
 
+## Compared to similar projects
+
+All four route coding tools through one endpoint; they differ in scope and in who they're built for. Facts below come from each project's README (October 2026).
+
+| | Elizabeth's Proxy | [9Router](https://github.com/decolua/9router) | [OmniRoute](https://github.com/diegosouzapw/OmniRoute) | [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) | [LiteLLM](https://github.com/BerriAI/litellm) |
+| --- | --- | --- | --- | --- | --- |
+| Relationship | fork of 9Router | the original (JS port inspired by CLIProxyAPI) | fork of 9Router, TypeScript port | Go project 9Router was inspired by | independent |
+| Stack | Next.js, JS + TS | Node.js | Next.js, TypeScript | Go | Python |
+| Providers | 40+ | 40+ | 375 | built-in list + OpenAI-compatible | 100+ |
+| Subscription logins (Claude Code, Codex…) | yes | yes | yes | yes | no |
+| Fallback combos | yes | yes | yes, 20 strategies + auto-combo | no, account round-robin | retries/fallbacks across deployments |
+| Dashboard | yes | yes | yes | no (management API, third-party UIs) | admin UI |
+| Token compression | RTK, Caveman | RTK, Caveman | 12-engine pipeline | no | no |
+| MCP / A2A gateway | no | no | yes | no | yes |
+| Storage | SQLite | SQLite | SQLite | config files | Postgres + Redis |
+| Distribution | Docker (GHCR) | npm, Docker | npm, Docker, Electron, PWA | Go binary, desktop clients | pip, Docker |
+
+When to pick which:
+
+- **9Router**: the upstream, with cloud sync across devices and an npm install.
+- **OmniRoute**: the most features in one box (hundreds of providers, routing strategies, memory, MCP/A2A, desktop app).
+- **CLIProxyAPI**: a lean headless proxy for CLI subscriptions, with a large ecosystem of third-party clients.
+- **LiteLLM**: an API-key gateway for teams and apps, with virtual keys, spend tracking and guardrails.
+- **Elizabeth's Proxy**: 9Router's routing with fewer moving parts and a dashboard redesigned around live health, plus request pipelines, per-conversation account affinity for prompt-cache reuse, and Docker images with floating epoch-semver tags and an optional redeploy webhook.
+
 ## Origins
 
 Elizabeth's Proxy started as a fork of [9Router](https://github.com/decolua/9router) by decolua and contributors, and is now developed independently. It builds on [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI), [RTK](https://github.com/rtk-ai/rtk), [Caveman](https://github.com/JuliusBrussee/caveman) and [Ponytail](https://github.com/DietrichGebert/ponytail).
