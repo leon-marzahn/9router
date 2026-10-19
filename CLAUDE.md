@@ -30,19 +30,21 @@ bun run build && PORT=20128 HOSTNAME=0.0.0.0 bun run start           # productio
 - Formatting (`vp fmt`) is scoped by an allow-list in `vite.config.ts` `fmt.ignorePatterns` to fork-owned files only, so upstream files keep their style and merges stay clean. Add new fork-owned files/dirs there.
 
 ### Working in a fresh worktree (agents)
-**The tools are installed — don't conclude otherwise.** Bun is at `~/.bun/bin`; Vite+ is at `~/.local/share/vite-plus/bin/vp` (the user's shell defines `vp` as a function, so a non-interactive shell may say `vp: command not found`). The `SessionStart` hook (`.claude/hooks/ensure-deps.sh`) adds both to `PATH` and installs `node_modules` in a fresh worktree. Subagents and worktrees created by tools may not run that hook, so **run `bun install --frozen-lockfile` once before your first typecheck/lint/test** (a ~1s no-op when already complete; it fixes a missing or half-installed `node_modules`). If a command is still missing:
+**The tools are installed — don't conclude otherwise.** Bun usually lives in `~/.bun/bin` and Vite+ in `~/.local/share/vite-plus/bin/vp`; some setups only define `vp` as an interactive-shell function, so a non-interactive shell may say `vp: command not found`. The `SessionStart` hook (`.claude/hooks/ensure-deps.sh`) adds both to `PATH` and installs `node_modules` in a fresh worktree. Subagents and worktrees created by tools may not run that hook, so **run `bun install --frozen-lockfile` once before your first typecheck/lint/test** (a ~1s no-op when already complete; it fixes a missing or half-installed `node_modules`). If a command is still missing:
 - `vp …` → `~/.local/share/vite-plus/bin/vp …`, or `bunx vp …`, or the `bun run` script (`bun run test`, `bun run lint`, `bun run typecheck`).
 - no `node_modules` → `bun install --frozen-lockfile`.
 - Chromium for screenshots → `bunx playwright@1.63.0 install chromium`.
-Never skip a check or tell the user a tool "isn't installed" before trying these.
+Never skip a check or report a tool as "not installed" before trying these.
 
-**Try every UI change in a running dev server before opening the PR.** Typecheck and tests don't catch a broken page. Start your own instance (never `bun run dev`: it binds port 20127, likely the user's own server, and reads the real `~/.regent` data):
+**Try every UI change in a running dev server before opening the PR.** Typecheck and tests don't catch a broken page. Start your own instance (never `bun run dev`: it binds port 20127, likely a developer's own running server, and reads the real `~/.regent` data):
 ```bash
 DATA_DIR="$(mktemp -d)" PORT=20137 NEXT_PUBLIC_BASE_URL=http://localhost:20137 bunx next dev --webpack --port 20137
 ```
 Run it in the background, pick another port if 20137 is taken, open the changed pages in the browser tool (log in with the default password `123456`), click through the flows you touched at desktop and 375px width, and check the console for errors. The scratch data starts empty (no providers), so seed what the check needs through the dashboard or API; `scripts/pr-shots/seed.mjs` shows how to seed demo data. Usage/log files ignore `DATA_DIR` and still go to `~/.regent` (see Persistence), so don't send real model traffic. Stop the server when done.
 
 ### PR evidence (agents)
+Reviewing a PR? Follow `REVIEW.md`.
+
 CI (`.github/workflows/pr.yml`) runs typecheck, `vp lint` on the files the PR changes (`scripts/ci/lint-changed.sh`; fix errors in files you touch), and `vp test run`, which must be green: any failure fails the job unless it is listed in `tests/__baseline__/known-fails.txt` (empty; `scripts/ci/compare-tests.mjs` also reports listed tests that pass again). For UI changes, attach screenshots of demo data only (the repo is public):
 ```bash
 node scripts/pr-shots.mjs --routes /dashboard/usage,/dashboard/providers --label after [--dark]
@@ -113,5 +115,5 @@ Pre-translate hooks that compress `tool_result` content in-place to cut tokens. 
 - `custom-server.js` wraps the Next standalone server to derive client IP from the TCP socket and strip attacker-controlled `X-Forwarded-For` — trusting forwarding headers only from a loopback reverse proxy. Preserve this when touching request/IP/rate-limit code.
 - Security-sensitive env: `JWT_SECRET` (session cookie), `INITIAL_PASSWORD` (default `123456` — must override), `API_KEY_SECRET`, `MACHINE_ID_SALT`. Full env contract in `.env.example` and ARCHITECTURE.md's env matrix.
 - Binary/protobuf upstreams (kiro EventStream, cursor protobuf, commandcode NDJSON) don't round-trip through OpenAI — they're handled inside their own executor, not the translator.
-- **Security-first on PRs**: Security is the top priority when reviewing or creating PRs. Audit authentication, credential/token storage & leaks, header manipulation (`X-Forwarded-For`), and SSRF risks before functional logic. Always include explicit security warnings/notes when reporting PR reviews or changes to the user.
+- **Security-first on PRs**: Security is the top priority when reviewing or creating PRs. Audit authentication, credential/token storage & leaks, header manipulation (`X-Forwarded-For`), and SSRF risks before functional logic. Always include explicit security warnings/notes when reporting PR reviews or changes.
 - Versioning: [epoch semver](https://antfu.me/posts/epoch-semver), `{epoch*100+major}.minor.patch`, starting at 100.0.0. Root and `cli/` share a version (the Docker workflow checks both against the `vX.Y.Z` tag). An upstream sync is a minor bump (major if it breaks things); update `forkedFrom` in `package.json` (9router version + commit) when syncing. Fetch `decolua` with `--no-tags` so upstream `v0.5.x` tags don't mix with ours. Changes are logged in `CHANGELOG.md`. Release with `vp run release <x.y.z>` (bumps root + cli, prepends the git-cliff entry from `cliff.toml`, commits and tags), then `git push && git push origin v<x.y.z>` — push the tag on its own: pushed together with the branch via `--follow-tags`, GitHub didn't start the tag workflows. The tag builds the Docker image and changelogithub writes the GitHub release notes. Name upstream sync merges `chore(sync): 9router <version>`. Do not title other commits `chore(release)`: the changelog tools skip that prefix (use `ci(release)`). Commit style is Conventional Commits (`fix(translator): …`, `feat(...)`).

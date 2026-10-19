@@ -65,6 +65,9 @@ const DEFAULT_SETTINGS = {
   requestPipelines: [],
   // Per-provider user header overrides applied at dispatch: { [providerId]: { headers: {..} } }
   providerOverrides: {},
+  // Customer view (/customer, /api/customer/*): off by default; key ids excluded from it.
+  customerViewEnabled: false,
+  customerViewBlockedKeys: [],
 };
 
 async function readRaw() {

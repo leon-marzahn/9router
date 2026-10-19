@@ -43,7 +43,7 @@ export default defineConfig({
       provider: "v8",
       include: ["src/**", "open-sse/**", "cli/**"],
       exclude: ["**/node_modules/**", "**/*.d.ts", "cli/dist/**"],
-      reporter: ["text-summary", "json-summary", "html"],
+      reporter: ["text-summary", "json-summary", "lcov"],
       reportsDirectory: "coverage",
     },
   },
@@ -89,11 +89,13 @@ export default defineConfig({
       "!/src/lib/updates",
       "!/src/lib/notify",
       "!/src/lib/budgets",
+      "!/src/lib/customerView",
       "!/src/lib/tunnel",
       "/src/lib/tunnel/*",
       "!/src/lib/tunnel/exposureGuard.js",
       "!/src/app",
       "/src/app/*",
+      "!/src/app/customer",
       "!/src/app/dashboard",
       "/src/app/dashboard/*",
       "!/src/app/dashboard/settings",
@@ -108,6 +110,7 @@ export default defineConfig({
       "!/src/app/api/settings/updates",
       "!/src/app/api/settings/notifications",
       "!/src/app/api/budgets",
+      "!/src/app/api/customer",
       "!/src/app/api/providers",
       "/src/app/api/providers/*",
       "!/src/app/api/providers/stream",
@@ -290,6 +293,51 @@ export default defineConfig({
           browser: true,
           node: true,
         },
+      },
+      // Design system (docs/DESIGN.md "Lint rules"): redesigned UI uses src/ui,
+      // never the legacy shared components. Raw controls and raw colors are
+      // checked by scripts/ci/design-lint.mjs.
+      {
+        files: ["src/ui/**/*.{ts,tsx}", "src/app/**/*.{ts,tsx}"],
+        rules: {
+          "no-restricted-imports": [
+            "error",
+            {
+              patterns: [
+                {
+                  group: [
+                    "@/shared/components",
+                    "@/shared/components/**",
+                    "**/shared/components",
+                    "**/shared/components/**",
+                  ],
+                  message: "Redesigned UI uses src/ui (@/ui) components; see docs/DESIGN.md.",
+                },
+              ],
+            },
+          ],
+        },
+      },
+      // Baseline: files that imported legacy components before the rule existed.
+      // Remove an entry once the file is migrated; never add one.
+      {
+        files: [
+          "src/ui/ProviderLogo.tsx",
+          "src/ui/frame/AccountMenu.tsx",
+          "src/app/(dashboard)/dashboard/combos/workbench/VisionAdapter.tsx",
+          "src/app/(dashboard)/dashboard/combos/workbench/ComboDetail.tsx",
+          "src/app/(dashboard)/dashboard/cli-tools/connect/extras.tsx",
+          "src/app/(dashboard)/dashboard/cli-tools/connect/ConnectAll.tsx",
+          "src/app/(dashboard)/dashboard/cli-tools/connect/dialogs.tsx",
+          "src/app/(dashboard)/dashboard/cli-tools/connect/ConnectPanel.tsx",
+          "src/app/(dashboard)/dashboard/cli-tools/connect/PastePanel.tsx",
+          "src/app/(dashboard)/dashboard/profile/settings/General.tsx",
+          "src/app/(dashboard)/dashboard/media-providers/workbench/MediaComboDetail.tsx",
+          "src/app/(dashboard)/dashboard/media-providers/workbench/MediaWorkbench.tsx",
+          "src/app/(dashboard)/dashboard/media-providers/workbench/MediaDetail.tsx",
+          "src/app/(dashboard)/dashboard/endpoint/gatehouse/KeyCard.tsx",
+        ],
+        rules: { "no-restricted-imports": "off" },
       },
     ],
     options: {
