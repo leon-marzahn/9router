@@ -8,17 +8,24 @@ import { ListRow } from "./ListRow";
 
 /**
  * The workbench list pane: 330px beside the detail on md+, full width below
- * (and hidden while something is selected, so mobile shows list *or* detail).
+ * (and hidden while the detail pane is open, so mobile shows list *or* detail).
  * Scrolls the row with `data-id === selected` into view.
  */
 export function WorkbenchList({
   selected,
+  detailOpen = !!selected,
   header,
   hints,
   children,
 }: {
-  /** Selected row id; null shows the list on mobile. */
+  /** Selected row id, highlighted and scrolled into view. */
   selected: string | null;
+  /**
+   * Whether the detail pane is showing on mobile, which hides the list there.
+   * Defaults to `!!selected`; pass it when the detail can open with no
+   * row selected (the mobile overview screen).
+   */
+  detailOpen?: boolean;
   /** Search, scope, kind switch… (padded `space-y-2 p-3`). */
   header: ReactNode;
   /** Keyboard hints for the footer, e.g. `[["↑↓", "move"], ["esc", "overview"]]`. */
@@ -38,7 +45,7 @@ export function WorkbenchList({
     <section
       className={cn(
         "flex w-full shrink-0 flex-col border-r border-border bg-pane md:w-[330px]",
-        selected && "hidden md:flex",
+        detailOpen && "hidden md:flex",
       )}
     >
       <div className="space-y-2 p-3">{header}</div>
@@ -59,25 +66,26 @@ export function WorkbenchList({
 }
 
 /**
- * The detail / overview pane next to `WorkbenchList`. While something is
- * selected it starts with a ghost `← {backLabel}` button on mobile; with
- * nothing selected it is hidden on mobile (the list shows instead).
+ * The detail / overview pane next to `WorkbenchList`. While `detailOpen` it
+ * starts with a ghost `← {backLabel}` button on mobile; otherwise it is hidden
+ * on mobile (the list shows instead).
  */
 export function WorkbenchDetail({
-  selected,
+  detailOpen,
   backLabel,
   onBack,
   children,
 }: {
-  selected: boolean;
+  /** Something is selected, or the mobile overview screen is open. */
+  detailOpen: boolean;
   /** e.g. "All providers". */
   backLabel: string;
   onBack: () => void;
   children: ReactNode;
 }) {
   return (
-    <main className={cn("min-w-0 flex-1 overflow-y-auto", !selected && "hidden md:block")}>
-      {selected && (
+    <main className={cn("min-w-0 flex-1 overflow-y-auto", !detailOpen && "hidden md:block")}>
+      {detailOpen && (
         <button
           type="button"
           onClick={onBack}
@@ -94,8 +102,8 @@ export function WorkbenchDetail({
 /**
  * Mobile-only first row of a `WorkbenchList` that opens the page's overview
  * as its own screen (desktop already shows it with nothing selected). The
- * page keeps that screen in the URL as `?view=overview` and counts it as
- * `selected` for `WorkbenchList` / `WorkbenchDetail`.
+ * page keeps that screen in the URL as `?view=overview` and passes
+ * `detailOpen={!!sel || overview}` to `WorkbenchList` and `WorkbenchDetail`.
  */
 export function WorkbenchOverviewRow({
   icon,

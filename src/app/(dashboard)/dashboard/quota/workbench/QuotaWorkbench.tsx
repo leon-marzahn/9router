@@ -190,7 +190,8 @@ export function QuotaWorkbench({
       </TopBarActions>
 
       <WorkbenchList
-        selected={selRow ?? (overview ? "overview" : null)}
+        selected={selRow}
+        detailOpen={!!sel || overview}
         hints={[
           ["↑↓", "move"],
           ["/", "search"],
@@ -267,7 +268,7 @@ export function QuotaWorkbench({
       </WorkbenchList>
 
       <WorkbenchDetail
-        selected={!!sel || overview}
+        detailOpen={!!sel || overview}
         backLabel={
           sel?.kind === "account" && selProvider ? providerName(selProvider) : "All accounts"
         }

@@ -227,7 +227,8 @@ export function MediaWorkbench() {
 
       <div className="flex min-h-0 flex-1">
         <WorkbenchList
-          selected={selId ?? (selProvider || selCombo || (overview ? "overview" : null))}
+          selected={selId ?? (selProvider || selCombo || null)}
+          detailOpen={hasSelection || overview}
           hints={[
             ["↑↓", "move"],
             ["/", "search"],
@@ -301,7 +302,7 @@ export function MediaWorkbench() {
         </WorkbenchList>
 
         <WorkbenchDetail
-          selected={hasSelection || overview}
+          detailOpen={hasSelection || overview}
           backLabel={`All ${kind.short.toLowerCase()} providers`}
           onBack={() => selectItem(null)}
         >

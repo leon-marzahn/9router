@@ -206,7 +206,7 @@ export function CliToolsWorkbench() {
         )}
       </WorkbenchList>
 
-      <WorkbenchDetail selected={!!tool} backLabel="All CLI tools" onBack={() => select(null)}>
+      <WorkbenchDetail detailOpen={!!tool} backLabel="All CLI tools" onBack={() => select(null)}>
         {tool && state ? (
           <div className="mx-auto max-w-4xl space-y-6 px-4 py-6 md:px-8 md:py-8">
             <header className="flex items-start gap-4">
