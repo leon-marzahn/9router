@@ -137,7 +137,7 @@ const recentItemOf = (r: Raw, i: number): FeedItem => ({
 });
 
 /** byApiKey buckets are per key + model: fold them per key. Local (no key) is left out. */
-function keyRows(byApiKey: Raw): KeyRow[] {
+export function keyRows(byApiKey: Raw): KeyRow[] {
   const out = new Map<string, KeyRow>();
   for (const [k, v] of Object.entries(byApiKey)) {
     if (k === "local-no-key") continue;

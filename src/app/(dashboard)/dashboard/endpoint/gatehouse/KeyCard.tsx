@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CopyButton, IconButton, Panel, Select, Switch, Tag } from "@/ui";
+import { Button, CopyButton, IconButton, Panel, Select, Switch, Tag } from "@/ui";
 import { cn } from "@/ui/cn";
 import { ModelSelectModal } from "@/shared/components";
 import { BudgetDialog, BudgetMeter, type Budget, type BudgetEntry } from "@/ui/budget/Budget";
@@ -162,14 +162,9 @@ export function KeyCard({
       <div className="space-y-2">
         <div className="flex items-center justify-between gap-2 text-[12px]">
           <span className="text-text-muted">Price plan</span>
-          <button
-            type="button"
-            disabled={!plan}
-            onClick={() => setEditPlan("current")}
-            className="rounded-md px-2 py-1 text-[12px] text-text-muted hover:bg-surface-2 hover:text-text max-md:min-h-10 max-md:px-3"
-          >
+          <Button variant="ghost" size="sm" disabled={!plan} onClick={() => setEditPlan("current")}>
             Edit plan
-          </button>
+          </Button>
         </div>
         <Select
           aria-label={`Price plan for ${k.name}`}

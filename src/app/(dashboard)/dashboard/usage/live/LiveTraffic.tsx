@@ -567,7 +567,7 @@ function MobileFeedRow({ r, now, failed }: { r: FeedItem; now: number; failed: b
 const signedCost = (n: number) => (n < 0 ? `−${fmtCost(-n)}` : fmtCost(n));
 
 /** Per customer key: charged, upstream cost, and the margin between them. */
-function ByKey({ rows }: { rows: Usage["byKey"] }) {
+export function ByKey({ rows }: { rows: Usage["byKey"] }) {
   const [all, setAll] = useState(false);
   const shown = all ? rows : rows.slice(0, 5);
   const total = rows.reduce((t, r) => ({ cost: t.cost + r.cost, charge: t.charge + r.charge }), {
@@ -609,13 +609,9 @@ function ByKey({ rows }: { rows: Usage["byKey"] }) {
         })}
       </div>
       {rows.length > 5 && (
-        <button
-          type="button"
-          onClick={() => setAll(!all)}
-          className="mt-3 text-[12px] text-text-muted hover:text-text hover:underline max-md:min-h-10"
-        >
+        <Button variant="ghost" size="sm" className="mt-3" onClick={() => setAll(!all)}>
           {all ? "Show less" : `All ${rows.length} keys`}
-        </button>
+        </Button>
       )}
     </Panel>
   );
