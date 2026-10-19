@@ -17,6 +17,7 @@ import {
   StatusDot,
   WorkbenchDetail,
   WorkbenchList,
+  WorkbenchOverviewRow,
   useListKeyboard,
   type Status,
 } from "@/ui";
@@ -120,12 +121,10 @@ export function CombosWorkbench() {
           </>
         }
       >
-        <ListRow
-          className="mt-2 md:hidden"
+        <WorkbenchOverviewRow
+          icon="layers"
+          subtitle="How many combos, which need attention"
           onClick={openOverview}
-          leading={<Icon name="dashboard" size={18} className="text-text-muted" />}
-          title="Overview"
-          trailing={<Icon name="chevron_right" size={16} className="text-text-subtle" />}
         />
         {!api.combos ? (
           <ListSkeleton rows={4} />

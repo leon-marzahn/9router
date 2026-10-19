@@ -28,6 +28,7 @@ import {
   ConfirmDialog,
   WorkbenchDetail,
   WorkbenchList,
+  WorkbenchOverviewRow,
   useListKeyboard,
 } from "@/ui";
 import { STATUS_ORDER } from "@/ui/status";
@@ -106,7 +107,6 @@ export function QuotaWorkbench({
       ? { kind: "provider", id: urlProvider }
       : null;
   const span: Span = RANGE_TO_SPAN[searchParams.get("range") ?? ""] ?? 24;
-  const mobileView = searchParams.get("view") === "overview" ? "overview" : "accounts";
   const update = (edit: (p: URLSearchParams) => void) => {
     const params = new URLSearchParams(qs);
     edit(params);
@@ -127,9 +127,9 @@ export function QuotaWorkbench({
       if (next === 24) p.delete("range");
       else p.set("range", SPAN_TO_RANGE[next]);
     });
-  const setMobileView = (v: "accounts" | "overview") =>
+  const setOverview = (on: boolean) =>
     update((p) => {
-      if (v === "overview") p.set("view", "overview");
+      if (on) p.set("view", "overview");
       else p.delete("view");
     });
   const restored = useRef(false);
@@ -168,7 +168,8 @@ export function QuotaWorkbench({
   const selAccount =
     sel?.kind === "account" ? (accounts.find((a) => a.id === sel.id) ?? null) : null;
   const selProvider = sel?.kind === "provider" ? sel.id : (selAccount?.provider ?? null);
-  const overview = !sel && mobileView === "overview";
+  // Mobile only: the overview as its own screen (desktop shows it with nothing selected)
+  const overview = !sel && searchParams.get("view") === "overview";
 
   // List rows: each provider group starts with its summary row, then its accounts.
   const rowId = (s: NonNullable<Sel>) => `${s.kind === "provider" ? "p" : "a"}:${s.id}`;
@@ -189,7 +190,6 @@ export function QuotaWorkbench({
       </TopBarActions>
 
       <WorkbenchList
-        // The mobile overview counts as a selection so the list steps aside for it.
         selected={selRow ?? (overview ? "overview" : null)}
         hints={[
           ["↑↓", "move"],
@@ -198,7 +198,6 @@ export function QuotaWorkbench({
         ]}
         header={
           <>
-            <MobileSwitch value={mobileView} onChange={setMobileView} />
             <SearchInput
               ref={searchRef}
               placeholder="Search accounts or providers"
@@ -223,50 +222,61 @@ export function QuotaWorkbench({
         ) : !groups.length ? (
           <p className="px-2.5 py-6 text-[13px] text-text-muted">No accounts match.</p>
         ) : (
-          groups.map((g) => (
-            <ListGroup key={g.provider} title={providerName(g.provider)} count={g.accounts.length}>
-              <ListRow
-                id={rowId({ kind: "provider", id: g.provider })}
-                active={sel?.kind === "provider" && sel.id === g.provider}
-                onClick={() => setSel({ kind: "provider", id: g.provider })}
-                leading={
-                  <ProviderLogo providerId={g.provider} name={providerName(g.provider)} size={22} />
-                }
-                title="Capacity and resets"
-                subtitle={`${g.accounts.filter((a) => a.isActive).length} of ${g.accounts.length} routing`}
-                trailing={<StatusDot status={g.status} />}
-              />
-              {g.accounts.map((a) => (
-                <AccountRow
-                  key={a.id}
-                  id={rowId({ kind: "account", id: a.id })}
-                  a={a}
-                  now={now}
-                  active={sel?.kind === "account" && sel.id === a.id}
-                  hovered={hover === a.id}
-                  onClick={() => setSel({ kind: "account", id: a.id })}
+          <>
+            <WorkbenchOverviewRow
+              icon="data_usage"
+              subtitle="Capacity left and when limits come back"
+              onClick={() => setOverview(true)}
+            />
+            {groups.map((g) => (
+              <ListGroup
+                key={g.provider}
+                title={providerName(g.provider)}
+                count={g.accounts.length}
+              >
+                <ListRow
+                  id={rowId({ kind: "provider", id: g.provider })}
+                  active={sel?.kind === "provider" && sel.id === g.provider}
+                  onClick={() => setSel({ kind: "provider", id: g.provider })}
+                  leading={
+                    <ProviderLogo
+                      providerId={g.provider}
+                      name={providerName(g.provider)}
+                      size={22}
+                    />
+                  }
+                  title="Capacity and resets"
+                  subtitle={`${g.accounts.filter((a) => a.isActive).length} of ${g.accounts.length} routing`}
+                  trailing={<StatusDot status={g.status} />}
                 />
-              ))}
-            </ListGroup>
-          ))
+                {g.accounts.map((a) => (
+                  <AccountRow
+                    key={a.id}
+                    id={rowId({ kind: "account", id: a.id })}
+                    a={a}
+                    now={now}
+                    active={sel?.kind === "account" && sel.id === a.id}
+                    hovered={hover === a.id}
+                    onClick={() => setSel({ kind: "account", id: a.id })}
+                  />
+                ))}
+              </ListGroup>
+            ))}
+          </>
         )}
       </WorkbenchList>
 
       <WorkbenchDetail
         selected={!!sel || overview}
         backLabel={
-          sel?.kind === "account" && selProvider
-            ? providerName(selProvider)
-            : sel
-              ? "All accounts"
-              : "Accounts"
+          sel?.kind === "account" && selProvider ? providerName(selProvider) : "All accounts"
         }
         onBack={() =>
           sel?.kind === "account" && selProvider
             ? setSel({ kind: "provider", id: selProvider })
             : sel
               ? setSel(null)
-              : setMobileView("accounts")
+              : setOverview(false)
         }
       >
         <div className="mx-auto max-w-4xl space-y-8 px-4 py-6 md:space-y-10 md:px-8 md:py-8">
@@ -951,26 +961,5 @@ function BulkItem({
         {count}
       </span>
     </button>
-  );
-}
-
-/** Small screens show one pane at a time; this switches between them. */
-function MobileSwitch({
-  value,
-  onChange,
-}: {
-  value: "accounts" | "overview";
-  onChange: (v: "accounts" | "overview") => void;
-}) {
-  return (
-    <Segmented<"accounts" | "overview">
-      value={value}
-      onChange={onChange}
-      options={[
-        { value: "accounts", label: "Accounts" },
-        { value: "overview", label: "Overview" },
-      ]}
-      className="w-full md:hidden"
-    />
   );
 }
