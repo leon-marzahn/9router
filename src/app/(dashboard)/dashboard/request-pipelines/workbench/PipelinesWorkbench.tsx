@@ -12,6 +12,7 @@ import {
   TopBarActions,
   WorkbenchDetail,
   WorkbenchList,
+  WorkbenchOverviewRow,
   useListKeyboard,
 } from "@/ui";
 import { Overview } from "./Overview";
@@ -98,13 +99,10 @@ export function PipelinesWorkbench() {
           <ListSkeleton rows={3} />
         ) : (
           <>
-            <ListRow
-              className="md:hidden"
-              onClick={openOverview}
-              leading={<Icon name="alt_route" size={16} className="text-text-muted" />}
-              title="Overview"
+            <WorkbenchOverviewRow
+              icon="alt_route"
               subtitle="What pipelines do, where they run, templates"
-              trailing={<Icon name="chevron_right" size={16} className="text-text-subtle" />}
+              onClick={openOverview}
             />
             <ListGroup title="Pipelines" count={shown.length}>
               {shown.map((p) => {

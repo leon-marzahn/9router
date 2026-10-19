@@ -20,6 +20,7 @@ import {
   ListSkeleton,
   WorkbenchDetail,
   WorkbenchList,
+  WorkbenchOverviewRow,
   useListKeyboard,
 } from "@/ui";
 import { KIND_LABEL, cooldownsOf, versionOf, type ProviderEntry } from "../model";
@@ -54,6 +55,7 @@ export function ProvidersWorkbench() {
   const select = useCallback(
     (id: string | null) => {
       const next = new URLSearchParams(params.toString());
+      next.delete("view");
       if (id) next.set("p", id);
       else next.delete("p");
       const qs = next.toString();
@@ -61,6 +63,14 @@ export function ProvidersWorkbench() {
     },
     [params, pathname, router],
   );
+
+  // Mobile only: the overview as its own screen (desktop shows it with nothing selected)
+  const overview = !sel && params.get("view") === "overview";
+  const openOverview = () => {
+    const next = new URLSearchParams(params.toString());
+    next.set("view", "overview");
+    router.replace(`${pathname}?${next}`, { scroll: false });
+  };
 
   const totals = useMemo(() => totalsOf(providers), [providers]);
   const attention = providers.filter((p) => needsAttention(p.status));
@@ -142,7 +152,7 @@ export function ProvidersWorkbench() {
 
       <div className="flex min-h-0 flex-1">
         <WorkbenchList
-          selected={sel}
+          selected={sel ?? (overview ? "overview" : null)}
           hints={[
             ["↑↓", "move"],
             ["↵", "open"],
@@ -173,6 +183,11 @@ export function ProvidersWorkbench() {
             <ListSkeleton />
           ) : (
             <>
+              <WorkbenchOverviewRow
+                icon="dns"
+                subtitle="Health, providers needing attention, what's live"
+                onClick={openOverview}
+              />
               {groups.map((g) => (
                 <ListGroup key={g.title} title={g.title} count={g.items.length} tone={g.tone}>
                   {g.title === "Add custom endpoint"
@@ -233,7 +248,11 @@ export function ProvidersWorkbench() {
           )}
         </WorkbenchList>
 
-        <WorkbenchDetail selected={!!sel} backLabel="All providers" onBack={() => select(null)}>
+        <WorkbenchDetail
+          selected={!!sel || overview}
+          backLabel="All providers"
+          onBack={() => select(null)}
+        >
           {template ? (
             <CustomEndpointForm
               key={template.id}
