@@ -104,7 +104,6 @@ export async function GET() {
         const config = parseToml(toml);
         return NextResponse.json({
             installed: true,
-            settings: config,
             hasRegent: hasRegentConfig(config),
             current: deepseekTuiCurrent(toml),
             configPath: getDeepSeekConfigPath(),

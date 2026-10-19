@@ -113,7 +113,7 @@ describe("CLI connect writers", () => {
     write(f, JSON.stringify(LEGACY_OPENCODE));
 
     expect(await tool("opencode").show()).toMatchObject({ baseUrl: "http://old.test/v1", apiKey: "sk-old", active: true });
-    expect(tool("opencode").serverModel({ config: { model: "9router/cc/old" } })).toBe("cc/old");
+    expect(tool("opencode").serverModel({ current: { models: { active: "cc/old" } } })).toBe("cc/old");
 
     await tool("opencode").apply(CTX);
     const cfg = readJson(f);

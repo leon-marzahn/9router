@@ -6,9 +6,9 @@ import { RESET_ENV_KEYS } from "../../src/app/api/cli-tools/claude-settings/clau
 const read = (rel) => fs.readFileSync(path.join(import.meta.dirname, "../..", rel), "utf-8");
 
 describe("Claude Code reset", () => {
-  it("removes every env key the card or tool catalog can write", () => {
+  it("removes every env key the connect panel or tool catalog can write", () => {
     const sources =
-      read("src/app/(dashboard)/dashboard/cli-tools/components/ClaudeToolCard.js") +
+      read("src/app/(dashboard)/dashboard/cli-tools/connect/specs.ts") +
       read("src/shared/constants/cliTools.js");
     const written = new Set(
       sources.match(/\b(?:ANTHROPIC_[A-Z_]+|CLAUDE_CODE_AUTO_COMPACT_WINDOW|API_TIMEOUT_MS)\b/g),

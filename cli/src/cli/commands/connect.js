@@ -214,9 +214,9 @@ async function fetchServerModels(server, cookie, tools) {
   };
 
   if (tools.some((t) => t.id === "claude")) {
-    const env = (await get("claude-settings"))?.settings?.env;
+    const models = (await get("claude-settings"))?.current?.models;
     for (const m of CLAUDE_MODELS) {
-      if (typeof env?.[m.envKey] === "string" && env[m.envKey]) out.claude[m.flag] = env[m.envKey];
+      if (typeof models?.[m.flag] === "string" && models[m.flag]) out.claude[m.flag] = models[m.flag];
     }
   }
 

@@ -21,7 +21,6 @@ const {
   pickProvider,
   deleteProviderKeys,
   hasProviderPrefix,
-  stripProviderPrefix,
   prefixModel,
 } = require("../utils/brand");
 
@@ -148,12 +147,10 @@ const codex = {
   name: "OpenAI Codex CLI",
   paths: () => [codexPath()],
   route: "codex-settings",
-  // GET returns raw TOML text; only trust `model` when the provider is ours (current or legacy key).
-  async serverModel(data) {
-    if (!isStr(data?.config)) return null;
-    const { parseTOML } = await toml();
-    const cfg = parseTOML(data.config) || {};
-    return PROVIDER_KEYS.includes(cfg.model_provider) && isStr(cfg.model) ? cfg.model : null;
+  // GET's `current` summary only names the model when the active provider is ours.
+  serverModel(data) {
+    const m = data?.current?.models?.model;
+    return isStr(m) ? m : null;
   },
   async apply({ baseUrl, apiKey, model }) {
     const { parseTOML, stringifyTOML } = await toml();
@@ -224,8 +221,8 @@ const opencode = {
   paths: () => [opencodePath()],
   route: "opencode-settings",
   serverModel(data) {
-    const m = data?.config?.model;
-    return isStr(m) && hasProviderPrefix(m) ? stripProviderPrefix(m) : null;
+    const m = data?.current?.models?.active;
+    return isStr(m) ? m : null;
   },
   async apply({ baseUrl, apiKey, model }) {
     const file = opencodePath();
@@ -286,7 +283,7 @@ const droid = {
   paths: () => [droidPath()],
   route: "droid-settings",
   serverModel(data) {
-    const m = (data?.settings?.customModels || []).find(isDroid9r)?.model;
+    const m = data?.current?.models?.active;
     return isStr(m) ? m : null;
   },
   async apply({ baseUrl, apiKey, model }) {
@@ -341,7 +338,7 @@ const crush = {
   paths: () => [crushPath()],
   route: "crush-settings",
   serverModel(data) {
-    const m = pickProvider(data?.config?.providers)?.models?.[0]?.id;
+    const m = data?.current?.models?.model;
     return isStr(m) ? m : null;
   },
   async apply({ baseUrl, apiKey, model }) {
@@ -416,8 +413,8 @@ const cline = {
   paths: () => [clineState(), clineSecrets()],
   route: "cline-settings",
   serverModel(data) {
-    const st = data?.settings;
-    return st?.actModeApiProvider === "openai" && isStr(st.openAiModelId) ? st.openAiModelId : null;
+    const m = data?.current?.models?.model;
+    return isStr(m) ? m : null;
   },
   async apply({ baseUrl, apiKey, model }) {
     const state = readJson(clineState()) || {};
@@ -480,8 +477,7 @@ const pi = {
   paths: () => [piPath()],
   route: "pi-settings",
   serverModel(data) {
-    const m = pickProvider(data?.config?.providers)?.models?.[0];
-    const id = typeof m === "string" ? m : m?.id;
+    const id = data?.current?.models?.models?.[0];
     return isStr(id) ? id : null;
   },
   async apply({ baseUrl, apiKey, model }) {

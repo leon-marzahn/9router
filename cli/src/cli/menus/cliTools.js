@@ -6,11 +6,7 @@ const { showMenuWithBack } = require("../utils/menuHelper");
 const { getEndpoint } = require("../utils/endpoint");
 const {
   DISPLAY_NAME,
-  LEGACY_DISPLAY_NAME,
   PROVIDER_KEY,
-  pickProvider,
-  hasProviderPrefix,
-  stripProviderPrefix,
 } = require("../utils/brand");
 
 const COLORS = {
@@ -50,16 +46,16 @@ async function buildClaudeHeader() {
   const result = await api.getCliToolSettings("claude");
   if (!result.success) return `  ${COLORS.red}Failed to load settings${COLORS.reset}`;
 
-  const settings = result.data.settings;
-  const currentUrl = settings?.env?.ANTHROPIC_BASE_URL;
-  const currentKey = settings?.env?.ANTHROPIC_AUTH_TOKEN;
+  // The server never returns the key itself, only whether one is written.
+  const current = result.data.current;
+  const currentUrl = current?.baseUrl;
   const lines = [];
 
   if (currentUrl) {
     lines.push(`Status:   ${COLORS.green}✓ Configured${COLORS.reset}`);
     lines.push(`Endpoint: ${COLORS.cyan}${currentUrl}${COLORS.reset}`);
-    if (currentKey) {
-      lines.push(`API Key:  ${COLORS.dim}${currentKey.substring(0, 10)}...${COLORS.reset}`);
+    if (current.hasKey) {
+      lines.push(`API Key:  ${COLORS.dim}set${COLORS.reset}`);
     }
   } else {
     lines.push(`Status:   ${COLORS.red}✗ Not configured${COLORS.reset}`);
@@ -76,7 +72,9 @@ async function buildClaudeHeader() {
  */
 async function getClaudeModel(envKey) {
   const result = await api.getCliToolSettings("claude");
-  return result.success ? (result.data.settings?.env?.[envKey] || "Not set") : "Not set";
+  // envKey is ANTHROPIC_DEFAULT_<SLOT>_MODEL; `current.models` is keyed by slot.
+  const slot = envKey.replace(/^ANTHROPIC_DEFAULT_(\w+)_MODEL$/, "$1").toLowerCase();
+  return result.success ? (result.data.current?.models?.[slot] || "Not set") : "Not set";
 }
 
 /**
@@ -115,7 +113,7 @@ async function claudeSelectModel(modelType, port) {
 
   // Also set base URL if not configured yet
   const settingsResult = await api.getCliToolSettings("claude");
-  if (!settingsResult.data?.settings?.env?.ANTHROPIC_BASE_URL) {
+  if (!settingsResult.data?.current?.baseUrl) {
     const { endpoint } = await getEndpoint(port);
     const apiKey = await getFirstApiKey();
     env.ANTHROPIC_BASE_URL = endpoint;
@@ -187,7 +185,7 @@ async function buildCodexHeader() {
   const result = await api.getCliToolSettings("codex");
   if (!result.success) return `  ${COLORS.red}Failed to load settings${COLORS.reset}`;
 
-  const { installed, hasRegent, config } = result.data;
+  const { installed, hasRegent, current } = result.data;
   if (!installed) return `Status:   ${COLORS.red}✗ Codex CLI not installed${COLORS.reset}`;
 
   if (!hasRegent) {
@@ -197,11 +195,8 @@ async function buildCodexHeader() {
     ].join("\n");
   }
 
-  // Parse base_url and model from raw TOML string
-  const baseUrlMatch = config && config.match(/base_url\s*=\s*"([^"]+)"/);
-  const modelMatch = config && config.match(/^model\s*=\s*"([^"]+)"/m);
-  const baseUrl = baseUrlMatch ? baseUrlMatch[1] : "";
-  const model = modelMatch ? modelMatch[1] : "";
+  const baseUrl = current?.baseUrl || "";
+  const model = current?.models?.model || "";
 
   const lines = [`Status:   ${COLORS.green}✓ Configured${COLORS.reset}`];
   if (baseUrl) lines.push(`Endpoint: ${COLORS.cyan}${baseUrl}${COLORS.reset}`);
@@ -275,7 +270,7 @@ async function buildDroidHeader() {
   const result = await api.getCliToolSettings("droid");
   if (!result.success) return `  ${COLORS.red}Failed to load settings${COLORS.reset}`;
 
-  const { installed, hasRegent, settings } = result.data;
+  const { installed, hasRegent, current } = result.data;
   if (!installed) return `Status:   ${COLORS.red}✗ Factory Droid not installed${COLORS.reset}`;
 
   if (!hasRegent) {
@@ -285,13 +280,9 @@ async function buildDroidHeader() {
     ].join("\n");
   }
 
-  // Extract our custom model config (current `custom:regent-0`, legacy `custom:9Router-0`)
-  const custom =
-    settings?.customModels?.find((m) => m.id === `custom:${PROVIDER_KEY}-0`) ||
-    settings?.customModels?.find((m) => m.id === `custom:${LEGACY_DISPLAY_NAME}-0`);
   const lines = [`Status:   ${COLORS.green}✓ Configured${COLORS.reset}`];
-  if (custom?.baseUrl) lines.push(`Endpoint: ${COLORS.cyan}${custom.baseUrl}${COLORS.reset}`);
-  if (custom?.model)   lines.push(`Model:    ${COLORS.dim}${custom.model}${COLORS.reset}`);
+  if (current?.baseUrl)        lines.push(`Endpoint: ${COLORS.cyan}${current.baseUrl}${COLORS.reset}`);
+  if (current?.models?.active) lines.push(`Model:    ${COLORS.dim}${current.models.active}${COLORS.reset}`);
   return lines.join("\n");
 }
 
@@ -360,7 +351,7 @@ async function buildOpenClawHeader() {
   const result = await api.getCliToolSettings("openclaw");
   if (!result.success) return `  ${COLORS.red}Failed to load settings${COLORS.reset}`;
 
-  const { installed, hasRegent, settings } = result.data;
+  const { installed, hasRegent, current } = result.data;
   if (!installed) return `Status:   ${COLORS.red}✗ Open Claw not installed${COLORS.reset}`;
 
   if (!hasRegent) {
@@ -370,12 +361,9 @@ async function buildOpenClawHeader() {
     ].join("\n");
   }
 
-  // Extract our provider config (current `regent` key first, then legacy `9router`)
-  const provider = pickProvider(settings?.models?.providers);
-  const primary = settings?.agents?.defaults?.model?.primary || "";
-  const model = hasProviderPrefix(primary) ? stripProviderPrefix(primary) : (provider?.models?.[0]?.id || "");
+  const model = current?.models?.model || "";
   const lines = [`Status:   ${COLORS.green}✓ Configured${COLORS.reset}`];
-  if (provider?.baseUrl) lines.push(`Endpoint: ${COLORS.cyan}${provider.baseUrl}${COLORS.reset}`);
+  if (current?.baseUrl) lines.push(`Endpoint: ${COLORS.cyan}${current.baseUrl}${COLORS.reset}`);
   if (model)             lines.push(`Model:    ${COLORS.dim}${model}${COLORS.reset}`);
   return lines.join("\n");
 }
@@ -551,7 +539,7 @@ async function buildHermesHeader(profiles) {
   const result = await api.getCliToolSettings("hermes", hermesActiveProfile);
   if (!result.success) return `  ${COLORS.red}Failed to load settings${COLORS.reset}`;
 
-  const { installed, hasRegent, settings, profile } = result.data;
+  const { installed, hasRegent, current, profile } = result.data;
   if (!installed) return `Status:   ${COLORS.red}✗ Hermes Agent not installed${COLORS.reset}`;
 
   const name = profile?.name || hermesActiveProfile;
@@ -563,9 +551,8 @@ async function buildHermesHeader(profiles) {
     lines.push(`${COLORS.dim}Run "Quick Setup" to configure${COLORS.reset}`);
   }
 
-  const model = settings?.model || {};
-  if (model.base_url) lines.push(`Endpoint: ${COLORS.cyan}${model.base_url}${COLORS.reset}`);
-  if (model.default)  lines.push(`Model:    ${COLORS.dim}${model.default}${COLORS.reset}`);
+  if (current?.baseUrl)       lines.push(`Endpoint: ${COLORS.cyan}${current.baseUrl}${COLORS.reset}`);
+  if (current?.models?.model) lines.push(`Model:    ${COLORS.dim}${current.models.model}${COLORS.reset}`);
 
   if (list.length > 1) {
     const summary = list

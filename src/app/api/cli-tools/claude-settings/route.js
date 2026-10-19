@@ -112,10 +112,10 @@ export async function GET() {
 
     return NextResponse.json({
       installed: true,
-      settings: settings,
       hasRegent: hasRegent,
       current: claudeCurrent(settings),
       exaMcpEnabled: !!claudeJson?.mcpServers?.exa,
+      autoCompactWindow: settings?.env?.CLAUDE_CODE_AUTO_COMPACT_WINDOW || "",
       settingsPath: getClaudeSettingsPath(),
     });
   } catch (error) {

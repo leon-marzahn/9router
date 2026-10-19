@@ -66,7 +66,6 @@ export async function GET() {
 
     return NextResponse.json({
       installed: true,
-      config,
       hasRegent: hasRegentConfig(config),
       current: smeltCurrent(config, hasRegentConfig(config)),
       configPath: getSmeltConfigPath(),

@@ -141,7 +141,6 @@ export async function GET() {
 
   return NextResponse.json({
     installed: true,
-    config,
     hasRegent,
     current: jcodeCurrent(config, Boolean((await readProviderEnv())[envVarName()])),
     configPath: getConfigPath(),

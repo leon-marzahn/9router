@@ -19,17 +19,10 @@ import {
   type Status as UiStatus,
 } from "@/ui";
 import { CLI_TOOLS, MITM_TOOLS } from "@/shared/constants/cliTools.js";
-import ToolDetailClientJs from "../[toolId]/ToolDetailClient";
 import { ConnectPanel } from "../connect/ConnectPanel";
 import { PastePanel } from "../connect/PastePanel";
 import { SPECS } from "../connect/specs";
 import { ConnectAll } from "../connect/ConnectAll";
-
-const ToolDetailClient = ToolDetailClientJs as unknown as React.ComponentType<{
-  toolId: string;
-  embedded?: boolean;
-  onWrite?: () => void;
-}>;
 
 type State = "connected" | "installed" | "missing" | "guide" | "unknown";
 interface Tool {
@@ -118,9 +111,9 @@ export function CliToolsWorkbench() {
   const selId = tool ? tool.id : null;
   const state = tool ? stateOf(tool, statuses?.[tool.id]) : null;
   const filter = (t: Tool) => !q || t.name.toLowerCase().includes(q.toLowerCase());
-  // Installed, not connected, and simple enough for the shared panel to configure.
+  // Installed, not connected, and set up fully by one model.
   const connectable = statuses
-    ? TOOLS.filter((t) => SPECS[t.id] && stateOf(t, statuses[t.id]) === "installed")
+    ? TOOLS.filter((t) => SPECS[t.id] && !SPECS[t.id].noBulk && stateOf(t, statuses[t.id]) === "installed")
     : [];
   const groups = statuses
     ? GROUPS.map((g) => ({
@@ -235,12 +228,9 @@ export function CliToolsWorkbench() {
                 onChanged={() => void load()}
               />
             ) : (
-              <ToolDetailClient
-                key={tool.id}
-                toolId={tool.id}
-                embedded
-                onWrite={() => void load()}
-              />
+              <EmptyState icon="terminal">
+                regent can&rsquo;t write {tool.name}&rsquo;s settings from here yet.
+              </EmptyState>
             )}
           </div>
         ) : (

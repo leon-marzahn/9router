@@ -7,24 +7,15 @@ const readSource = (relativePath) =>
 
 describe("Codex settings refresh", () => {
   it("bypasses cached status after applying a selected endpoint", async () => {
-    const [routeSource, cardSource] = await Promise.all([
+    const [routeSource, panelSource] = await Promise.all([
       readSource("../../src/app/api/cli-tools/codex-settings/route.js"),
-      readSource("../../src/app/(dashboard)/dashboard/cli-tools/components/CodexToolCard.js"),
+      readSource("../../src/app/(dashboard)/dashboard/cli-tools/connect/ConnectPanel.tsx"),
     ]);
 
     // Route Handlers already run on the server; a Server Action directive would reject this export.
     expect(routeSource).not.toContain('"use server";');
     expect(routeSource).toContain('export const dynamic = "force-dynamic";');
-    expect(cardSource).toContain('fetch("/api/cli-tools/codex-settings", { cache: "no-store" })');
-    expect(cardSource).toContain("setSelectedApiKey(apiKey);");
-    expect(cardSource).toContain("setCustomBaseUrl(baseUrl);");
-  });
-
-  it("keeps an unmatched active URL in the custom endpoint slot", async () => {
-    const selectorSource = await readSource("../../src/app/(dashboard)/dashboard/cli-tools/components/BaseUrlSelect.js");
-
-    expect(selectorSource).toContain("if (current) {");
-    expect(selectorSource).toContain("setCustomInput(current);");
-    expect(selectorSource).toContain("onChange(current);");
+    // The shared panel re-reads the settings uncached after every write.
+    expect(panelSource).toContain('fetch(settingsUrl(toolId, scope), { cache: "no-store" })');
   });
 });
