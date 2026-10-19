@@ -3,87 +3,126 @@
 
   # Elizabeth's Proxy
 
-  A self-hosted AI routing gateway with a live dashboard. One OpenAI-compatible endpoint in front of 40+ providers and all your accounts.
-
-  <sub>The command, package, data folder and Docker image are called <code>regent</code>.</sub>
+  One local, OpenAI-compatible endpoint that routes your AI tools across 40+ providers and all your accounts, with fallback when one runs dry.
 </div>
 
----
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/readme/hero-dark.webp">
+  <img alt="Providers overview: live providers, healthy accounts and failures at a glance" src="docs/images/readme/hero-light.webp">
+</picture>
 
-Point Claude Code, Codex, Cursor, Cline, OpenCode or any OpenAI-compatible client at `http://localhost:20128/v1`. Elizabeth's Proxy picks a provider and account for every request, translates between API formats, falls back when one fails, and shows you what's healthy in real time.
+Point Claude Code, Codex, Cursor, Cline, OpenCode or any OpenAI-compatible client at `http://localhost:20128/v1`. For every request, Elizabeth's Proxy picks a provider and account, translates between API formats, falls back when something fails, and shows you live what's healthy.
 
-- **Multi-provider, multi-account routing** with combos and automatic fallback (subscription → cheap → free).
-- **Format translation** between OpenAI, Anthropic, Gemini, Responses and provider-specific APIs.
-- **OAuth and API-key accounts** with token refresh, quota tracking and per-model cooldowns.
-- **Token saver** that compresses tool output before it reaches the model.
-- **Live dashboard** ("warm workbench" design): health first, problems pinned to the top, everything updates without reloading.
+The command, package, data folder and Docker image are called `regent`.
 
 ## Quick start
 
-Needs Node (version in `.node-version`) to run and [Bun](https://bun.sh) 1.3+ to install dependencies.
+### Docker
 
 ```bash
-cp .env.example .env
-bun install
-bun run dev                      # dashboard on http://localhost:20127/dashboard
+docker run -d --name regent -p 20128:20128 \
+  -e INITIAL_PASSWORD='pick-a-real-password' \
+  -e JWT_SECRET="$(openssl rand -hex 32)" \
+  -v regent-data:/app/data \
+  ghcr.io/leon-marzahn/regent:100
 ```
 
-Production:
+Open <http://localhost:20128/dashboard>, sign in, add a provider. The API is at `http://localhost:20128/v1`.
 
-```bash
-bun run build
-PORT=20128 HOSTNAME=0.0.0.0 bun run start
-```
-
-Change `INITIAL_PASSWORD` and `JWT_SECRET` in `.env` before exposing the server to a network. The full environment reference is in `.env.example` and `docs/ARCHITECTURE.md`.
-
-The CLI launcher (tray icon, auto-start, `regent connect` / `regent show` for configuring local tools) lives in [`cli/`](cli/). It isn't published to npm yet.
-
-## Updating
-
-The dashboard checks GitHub for a newer release about once a day and shows a quiet "vX available" line in the account menu and in **Settings → About**. Only the version list is fetched; nothing about your install is sent. Set `REGENT_UPDATE_CHECK=false` to turn the check (and the redeploy hook below) off.
-
-### Docker image tags
-
-Images are published to `ghcr.io/leon-marzahn/regent` (amd64 + arm64). Versions use [epoch semver](https://antfu.me/posts/epoch-semver), so the major is a number like `100`.
+Images are multi-arch (amd64, arm64). Tags follow [epoch semver](https://antfu.me/posts/epoch-semver):
 
 | Tag | Tracks |
 | --- | --- |
-| `100.2.3` | exactly that release, never moves |
-| `100.2` | the newest patch of 100.2 |
-| `100` | the newest release within major 100: new features, no breaking changes (recommended) |
-| `latest` | the newest stable release, including new majors that may need manual steps |
+| `100.2.3` | exactly that release |
+| `100.2` | newest patch of 100.2 |
+| `100` | newest release in major 100, no breaking changes (recommended) |
+| `latest` | newest stable release, including new majors |
 
-Prereleases (`100.3.0-rc.1`) get only their own tag.
+### From source
 
-To update automatically, pin a floating tag (`:100`) and let a watcher pull it:
+Needs Node (version in `.node-version`) to run and [Bun](https://bun.sh) 1.3+ to install.
 
-- [Watchtower](https://containrrr.dev/watchtower/) pulls and restarts the container when the tag moves.
-- [Diun](https://crazymax.dev/diun/) only notifies you, if you'd rather update by hand.
+```bash
+cp .env.example .env          # set INITIAL_PASSWORD and JWT_SECRET
+bun install
+bun run build
+PORT=20128 bun run start      # dashboard: http://localhost:20128/dashboard
+```
 
-### Redeploy webhook
+For development: `PORT=20128 NEXT_PUBLIC_BASE_URL=http://localhost:20128 bun run dev`.
 
-If your platform redeploys from a webhook (Coolify, Portainer, CapRover, Dokploy…), paste its deploy-hook URL in **Settings → Updates**. When the daily check finds a newer release on the channel you follow ("same major" or "any newer"), the dashboard sends one `POST` to the hook with a small JSON body (`{"event":"regent.update","version":"…","current":"…"}`), then shows the result. It calls the hook at most once per version and never for a version older than or equal to the one running. "Send test" calls it with `"event":"regent.test"`.
+> [!IMPORTANT]
+> The default `INITIAL_PASSWORD` is `123456`. Change it before the server is reachable from anywhere but your own machine.
 
-Example with Coolify: open the application → **Webhooks** and copy the deploy webhook (`https://<coolify>/api/v1/deploy?uuid=…&force=false`), create an API token with deploy permission under **Keys & Tokens**, and paste both into **Settings → Updates** (the token goes in the optional token field and is sent as `Authorization: Bearer …`). Deploy the image with a floating tag such as `:100`, so the redeploy pulls the new release.
+The `regent` CLI launcher (tray icon, auto-start) lives in [`cli/`](cli/) and isn't on npm yet.
 
-The hook URL and token are stored as secrets: they're never shown in the dashboard again, never returned by the API (only its host), and left out of backups. It must be `https`; plain `http` is accepted only for local network addresses (private IPs, `localhost`, `*.local`, `*.lan`, `*.internal`, single-label hostnames). Redirects are not followed.
+## Connect your tools
 
-### CLI and tray
+Open **CLI Tools** in the dashboard, pick a tool, choose an endpoint, API key and models, and click **Apply**. It writes the tool's own config file and keeps a backup, so **Reset** puts it back. Tools it can't write to get a paste-ready **Manual Config**.
 
-The `regent` CLI launcher and tray don't update themselves yet; reinstall the new version by hand.
+<img alt="CLI Tools: Claude Code connect panel" src="docs/images/readme/cli-tools.webp" width="720">
 
-## Data
+Anything else: use base URL `http://localhost:20128/v1` and a key from **Endpoint**. Models are addressed as `provider/model` (for example `anthropic/claude-sonnet-4-5`) or by a combo name.
 
-Everything is stored locally in `~/.regent` (`%APPDATA%\regent` on Windows), or in `DATA_DIR` if set. Installs from before the rename are moved over from `~/.9router` automatically on first start.
+## What it does
 
-## Development
+**Routing**
 
-The toolchain is [Vite+](https://viteplus.dev) (`vp`); see [`CLAUDE.md`](CLAUDE.md) for commands, tests and conventions, and [`docs/DESIGN.md`](docs/DESIGN.md) for the dashboard design system.
+- **Combos.** Name a list of models and send that name as the model. Steps run in order, take turns, run per chat, or are all asked at once. After a fallback a combo can stay on the step that worked or go back up. Each step shows whether it's ready, and resting steps are skipped without a request.
 
-## Origins
+  <img alt="Combo with two steps and its routing options" src="docs/images/readme/combos.webp" width="720">
 
-Elizabeth's Proxy started as a fork of [9Router](https://github.com/decolua/9router) by decolua and contributors, and is now developed independently. It builds on [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI), [RTK](https://github.com/rtk-ai/rtk), [Caveman](https://github.com/JuliusBrussee/caveman) and [Ponytail](https://github.com/DietrichGebert/ponytail).
+- **Multi-account fallback.** Several accounts per provider rotate; one that hits a limit cools down per model and the next takes over. A conversation sticks to the same account while it can, so the provider's prompt cache keeps getting hits.
+- **Format translation.** Clients speak OpenAI Chat, OpenAI Responses, Anthropic Messages or Gemini; the proxy translates to whatever the upstream speaks (including Kiro, Cursor, Vertex, Ollama and others), streaming included.
+
+**Accounts and providers**
+
+- **OAuth and API keys.** Sign in with subscription accounts via OAuth or paste API keys; tokens refresh on their own. Free, no-auth providers work out of the box.
+- **Media providers.** Speech, transcription, embeddings, image, video and music generation, web search and fetch, each with its own providers and combos.
+- **TLS fingerprint impersonation (opt-in).** Per connection, upstream calls can present a Chrome, Edge, Firefox, Safari or OkHttp TLS/HTTP2 fingerprint (via the optional `wreq-js` package).
+
+**Seeing what happens**
+
+- **Usage.** Every request live: model, provider, tokens in/out, cache hits, cost, latency, errors, with a drawer for the full request. Totals and trends by day, week or month.
+
+  <img alt="Live traffic and usage totals" src="docs/images/readme/usage.webp" width="720">
+
+- **Quota.** Remaining subscription quota per account, where the provider exposes it.
+
+**Shaping requests**
+
+- **Request pipelines.** Steps that clean requests before they reach a provider: strip tags or sections, redact keys and tokens, custom regex. Attach a pipeline to an API key or combo, or pick one per request with the `X-Regent-Pipeline` header; a live preview shows what changes.
+
+  <img alt="Request pipeline with a redact-secrets step" src="docs/images/readme/request-pipelines.webp" width="720">
+
+- **Token saver.** Compresses tool output (command logs, file listings, diffs) before the model sees it. If anything goes wrong it leaves the request untouched.
+
+**Reaching it**
+
+- **Endpoint.** API keys for your clients, an optional "every request needs a key" switch, and optional Cloudflare or Tailscale tunnels. Tunnels stay locked until login, a changed password and API keys are all on.
+
+  <img alt="Endpoint page with access checks and API keys" src="docs/images/readme/endpoint.webp" width="720">
+
+- **Update notices.** About once a day the dashboard checks GitHub for a newer release and shows a quiet notice. Only the version list is fetched. Optionally it can call a redeploy webhook (Coolify, Portainer, Dokploy…) when a new version lands; set it up in **Settings → Updates**. `REGENT_UPDATE_CHECK=false` turns both off.
+
+## Security
+
+- **Local by default.** Data stays on your machine in `~/.regent` (`%APPDATA%\regent` on Windows), or `DATA_DIR`. Nothing is reachable from the internet unless you start a tunnel or expose the port yourself.
+- **Change the password.** Set `INITIAL_PASSWORD`, and set `JWT_SECRET` to a long random value. Also set `API_KEY_SECRET` and `MACHINE_ID_SALT` for a deployment you keep. The full list is in [`.env.example`](.env.example).
+- **Require API keys** (the switch on the Endpoint page) whenever anything other than your own machine can reach the port.
+- Behind a reverse proxy, `X-Forwarded-For` is trusted only from a loopback proxy.
+- Secrets such as the redeploy webhook token are never shown again or returned by the API, and are left out of backups.
+
+## Docs
+
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md): request lifecycle, fallback, OAuth and token refresh, data model.
+- [`docs/DESIGN.md`](docs/DESIGN.md): the dashboard's design system.
+- [`CHANGELOG.md`](CHANGELOG.md): what changed in each release.
+- [`CLAUDE.md`](CLAUDE.md): commands, tests and conventions for contributors.
+
+## Credits
+
+Elizabeth's Proxy started as a fork of [9Router](https://github.com/decolua/9router) by decolua and contributors, and is now developed independently. Installs from before the rename are moved over from `~/.9router` on first start. It builds on [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI), [RTK](https://github.com/rtk-ai/rtk), [Caveman](https://github.com/JuliusBrussee/caveman) and [Ponytail](https://github.com/DietrichGebert/ponytail).
 
 ## License
 
