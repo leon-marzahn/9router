@@ -1,8 +1,19 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { Button, Icon, Skeleton, TopBarActions } from "@/ui";
-import { cn } from "@/ui/cn";
+import { useRef, useState } from "react";
+import {
+  Button,
+  Icon,
+  ListGroup,
+  ListRow,
+  ListSkeleton,
+  SearchInput,
+  TopBarActions,
+  WorkbenchDetail,
+  WorkbenchList,
+  useListKeyboard,
+} from "@/ui";
 import { Overview } from "./Overview";
 import { PipelineDetail } from "./PipelineDetail";
 import { compact, timeAgo, type Pipeline } from "./steps";
@@ -23,6 +34,10 @@ export function PipelinesWorkbench() {
   const sel = params.get("pipeline");
   const list = api.pipelines ?? [];
   const current = list.find((p) => p.name === sel);
+  const [q, setQ] = useState("");
+  const searchRef = useRef<HTMLInputElement>(null);
+  const needle = q.trim().toLowerCase();
+  const shown = needle ? list.filter((p) => p.name.toLowerCase().includes(needle)) : list;
 
   const select = (name: string | null) =>
     router.replace(name ? `${PATH}?pipeline=${encodeURIComponent(name)}` : PATH, { scroll: false });
@@ -33,8 +48,15 @@ export function PipelinesWorkbench() {
     select(name);
   };
 
+  useListKeyboard({
+    order: shown.map((p) => p.name),
+    selected: current?.name ?? null,
+    onSelect: select,
+    searchRef,
+  });
+
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto md:flex-row md:overflow-hidden">
+    <div className="flex min-h-0 flex-1">
       {api.dirty && (
         <TopBarActions>
           <span className="hidden text-[12px] text-text-muted sm:inline">Unsaved changes</span>
@@ -52,72 +74,53 @@ export function PipelinesWorkbench() {
           </Button>
         </TopBarActions>
       )}
-      <aside
-        className={cn(
-          "flex w-full flex-none flex-col border-b border-border bg-pane md:min-h-0 md:w-[300px] md:border-b-0 md:border-r",
-          current && "hidden md:flex",
-        )}
+      <WorkbenchList
+        selected={current?.name ?? null}
+        hints={[
+          ["↑↓", "move"],
+          ["/", "search"],
+          ["esc", "overview"],
+        ]}
+        header={
+          <SearchInput
+            ref={searchRef}
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search pipelines"
+            shortcut="/"
+          />
+        }
       >
-        <div className="space-y-1 p-2 md:min-h-0 md:flex-1 md:overflow-y-auto">
-          <button
-            type="button"
-            onClick={() => select(null)}
-            className={cn(
-              "hidden w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[13px] transition-colors md:flex",
-              !sel
-                ? "bg-accent-soft font-medium text-accent-text ring-1 ring-accent-ring"
-                : "text-text-muted hover:bg-surface-2",
-            )}
-          >
-            <Icon name="alt_route" size={16} />
-            Overview
-          </button>
-          <div className="px-2.5 pb-1 pt-3 text-[11px] font-medium uppercase tracking-wider text-text-muted">
-            Pipelines {api.pipelines && <span className="text-text-subtle">{list.length}</span>}
-          </div>
-          {!api.pipelines
-            ? [0, 1].map((i) => (
-                <div key={i} className="space-y-1.5 px-2.5 py-2">
-                  <Skeleton className="h-4 w-28" />
-                  <Skeleton className="h-3 w-20" />
-                </div>
-              ))
-            : list.map((p) => {
-                const active = p.name === sel;
+        {!api.pipelines ? (
+          <ListSkeleton rows={3} />
+        ) : (
+          <>
+            <ListGroup title="Pipelines" count={shown.length}>
+              {shown.map((p) => {
                 const u = api.usage[p.name];
+                const active = p.name === sel;
                 return (
-                  <button
+                  <ListRow
                     key={p.name}
-                    type="button"
+                    id={p.name}
+                    active={active}
                     onClick={() => select(p.name)}
-                    className={cn(
-                      "flex w-full flex-col gap-0.5 rounded-lg px-2.5 py-2 text-left transition-colors",
-                      active ? "bg-accent-soft ring-1 ring-accent-ring" : "hover:bg-surface-2",
-                    )}
-                  >
-                    <span className="flex items-center gap-2">
+                    leading={
                       <Icon
                         name="filter_alt"
                         size={16}
                         className={active ? "text-accent" : "text-text-muted"}
                       />
-                      <span
-                        className={cn(
-                          "min-w-0 truncate font-mono text-[13px]",
-                          active && "font-medium text-accent-text",
-                        )}
-                      >
-                        {p.name}
-                      </span>
-                    </span>
-                    <span className="pl-6 text-[11px] text-text-subtle">
-                      {p.rules.length} step{p.rules.length === 1 ? "" : "s"}
-                      {u ? ` · ${compact(u.requests)} req · ${timeAgo(u.lastUsed)}` : ""}
-                    </span>
-                  </button>
+                    }
+                    title={<span className="font-mono">{p.name}</span>}
+                    subtitle={`${p.rules.length} step${p.rules.length === 1 ? "" : "s"}${
+                      u ? ` · ${compact(u.requests)} req · ${timeAgo(u.lastUsed)}` : ""
+                    }`}
+                    version={u?.requests}
+                  />
                 );
               })}
-          {api.pipelines && (
+            </ListGroup>
             <Button
               size="sm"
               variant="ghost"
@@ -130,16 +133,15 @@ export function PipelinesWorkbench() {
             >
               New pipeline
             </Button>
-          )}
-        </div>
-      </aside>
-      <section className="md:min-h-0 md:flex-1 md:overflow-y-auto">
+          </>
+        )}
+      </WorkbenchList>
+      <WorkbenchDetail selected={!!current} backLabel="All pipelines" onBack={() => select(null)}>
         {current ? (
           <PipelineDetail
             key={current.name}
             pipeline={current}
             api={api}
-            onBack={() => select(null)}
             onRename={(name) => {
               api.update(current.name, { ...current, name });
               select(name);
@@ -155,7 +157,7 @@ export function PipelinesWorkbench() {
         ) : (
           <Overview api={api} onOpen={select} onCreate={create} />
         )}
-      </section>
+      </WorkbenchDetail>
     </div>
   );
 }

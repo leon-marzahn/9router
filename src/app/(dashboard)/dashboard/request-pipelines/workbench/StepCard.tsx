@@ -1,25 +1,8 @@
 "use client";
 
-import { Icon, IconButton, Input, Switch, Tag } from "@/ui";
+import { Field, Icon, IconButton, Input, Switch, Tag } from "@/ui";
 import { cn } from "@/ui/cn";
 import { KIND, describe, kindOf, type Step, type StepStat } from "./steps";
-
-function Param({
-  label,
-  children,
-  className,
-}: {
-  label: string;
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <label className={cn("flex min-w-0 flex-col gap-1 text-[11px] text-text-muted", className)}>
-      {label}
-      {children}
-    </label>
-  );
-}
 
 export function StepCard({
   index,
@@ -92,47 +75,47 @@ export function StepCard({
       </div>
       <div className="flex flex-wrap items-end gap-3">
         {kind === "tag" && (
-          <Param label="Tag name" className="w-48">
+          <Field label="Tag name" className="w-48">
             <Input
               mono
               value={s.tag ?? ""}
               placeholder="internal_states"
               onChange={(e) => set({ tag: e.target.value })}
             />
-          </Param>
+          </Field>
         )}
         {kind === "markers" && (
           <>
-            <Param label="Start marker" className="w-56 flex-1">
+            <Field label="Start marker" className="w-56 flex-1">
               <Input
                 mono
                 value={s.start ?? ""}
                 placeholder="<!-- GFX_START -->"
                 onChange={(e) => set({ start: e.target.value })}
               />
-            </Param>
-            <Param label="End marker" className="w-56 flex-1">
+            </Field>
+            <Field label="End marker" className="w-56 flex-1">
               <Input
                 mono
                 value={s.end ?? ""}
                 placeholder="<!-- GFX_END -->"
                 onChange={(e) => set({ end: e.target.value })}
               />
-            </Param>
+            </Field>
           </>
         )}
         {kind === "details" && (
-          <Param label="Summary title contains" className="w-64">
+          <Field label="Summary title contains" className="w-64">
             <Input
               value={s.title ?? ""}
               placeholder="Scene Plan"
               onChange={(e) => set({ title: e.target.value })}
             />
-          </Param>
+          </Field>
         )}
         {kind === "regex" && (
           <>
-            <Param label="Find (regex or /regex/flags)" className="w-full">
+            <Field label="Find (regex or /regex/flags)" className="w-full">
               <textarea
                 rows={2}
                 spellCheck={false}
@@ -140,15 +123,15 @@ export function StepCard({
                 onChange={(e) => set({ regex: e.target.value })}
                 className="w-full rounded-lg border border-border-strong bg-surface px-3 py-2 font-mono text-xs text-text outline-none focus:border-accent dark:border-border"
               />
-            </Param>
-            <Param label="Replace with" className="min-w-48 flex-1">
+            </Field>
+            <Field label="Replace with" className="min-w-48 flex-1">
               <Input
                 mono
                 value={s.replacement}
                 placeholder="nothing (remove)"
                 onChange={(e) => set({ replacement: e.target.value })}
               />
-            </Param>
+            </Field>
           </>
         )}
         {kind === "redact" && (
@@ -158,14 +141,14 @@ export function StepCard({
           </p>
         )}
         {canKeep && (
-          <Param label="Keep the latest" className="w-28">
+          <Field label="Keep the latest" className="w-28">
             <Input
               type="number"
               min={0}
               value={s.depth}
               onChange={(e) => set({ depth: Math.max(0, Math.floor(Number(e.target.value) || 0)) })}
             />
-          </Param>
+          </Field>
         )}
         {canUnclosed && (
           <label className="flex h-9 items-center gap-2 text-[12px] text-text-muted">
