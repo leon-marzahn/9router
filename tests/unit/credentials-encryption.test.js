@@ -602,6 +602,9 @@ describe.each([
     delete global._dbAdapter;
     delete global._credentialsKeyring;
     vi.resetModules();
+    const oldBackup = path.join(tempDir, "db", "backups", "schema-3-to-4-old");
+    fs.mkdirSync(oldBackup, { recursive: true });
+    fs.copyFileSync(path.join(tempDir, "db", "data.sqlite"), path.join(oldBackup, "data.sqlite"));
     const mod = await import(`@/lib/db/adapters/${file}`);
     const adapter = await mod[factory](path.join(tempDir, "db", "data.sqlite"));
     expect(adapter.driver).toBe(driver);
@@ -616,6 +619,9 @@ describe.each([
     );
     adapter.close();
     expect(plaintextHits()).toBe(0);
+    const bak = fs.readFileSync(path.join(oldBackup, "data.sqlite"));
+    expect(Object.values(SECRETS).filter((s) => bak.includes(s))).toEqual([]);
+    expect(bak.includes("enc:v1:")).toBe(true);
   });
 });
 
