@@ -8,10 +8,12 @@
 import { getKeyring } from "@/lib/credentials/keyring.js";
 import { sealAllCredentials } from "../helpers/credentialsSeal.js";
 
-export default {
+const encryptCredentials = {
   version: 6,
   name: "encrypt-credentials",
   up(db) {
     sealAllCredentials(db, getKeyring());
   },
 };
+
+export default encryptCredentials;
