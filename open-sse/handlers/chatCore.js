@@ -35,6 +35,7 @@ import { prefetchRemoteImages } from "../translator/concerns/prefetch.js";
 import { defaultClaudeToolType, shouldDefaultClaudeToolType } from "../translator/concerns/toolCall.js";
 import { resolveSessionId, clientIpFromHeaders } from "../utils/sessionManager.js";
 import { normalizeTlsImpersonation } from "../config/tlsImpersonation.js";
+import { knownSecrets, redactValues, maskString } from "../utils/maskSecrets.cjs";
 import { requestStreamUsage, clientRequestedStreamUsage, isStreamUsageRejection, rememberStreamUsageRejected } from "../translator/concerns/streamUsage.js";
 
 /**
@@ -174,7 +175,12 @@ export async function handleChatCore({ traceAttempt = null, body, modelInfo, cre
     stream = false;
   }
 
-  const reqLogger = await createRequestLogger(sourceFormat, targetFormat, model);
+  // Credentials this request carries (read live: a token refresh mutates `credentials`).
+  // Redacted by value from logs, error messages and stored errors, since some upstreams
+  // echo the key back in their error body.
+  const requestSecrets = () => knownSecrets(credentials, apiKey);
+  const redact = (text) => maskString(redactValues(text, requestSecrets()));
+  const reqLogger = await createRequestLogger(sourceFormat, targetFormat, model, requestSecrets);
   if (clientRawRequest) reqLogger.logClientRawRequest(clientRawRequest.endpoint, clientRawRequest.body, clientRawRequest.headers);
   reqLogger.logRawRequest(body);
   log?.debug?.("FORMAT", `${sourceFormat} → ${targetFormat} | stream=${stream}`);
@@ -431,6 +437,8 @@ export async function handleChatCore({ traceAttempt = null, body, modelInfo, cre
     }
     reqLogger.logTargetRequest(providerUrl, providerHeaders, finalBody);
   } catch (error) {
+    if (typeof error?.message === "string") error.message = redact(error.message);
+    if (typeof error?.stack === "string") error.stack = redact(error.stack);
     trackPendingRequest(model, provider, connectionId, false, true);
     appendRequestLog({ model, provider, connectionId, status: `FAILED ${error.name === "AbortError" ? 499 : HTTP_STATUS.BAD_GATEWAY}` }).catch(() => { });
     recordRequestDetail(traceAttempt, buildRequestDetail({
@@ -520,6 +528,7 @@ export async function handleChatCore({ traceAttempt = null, body, modelInfo, cre
       finalBody = retry.transformedBody;
       providerResponseFormat = retry.responseFormat || targetFormat;
     } catch (error) {
+      if (typeof error?.message === "string") error.message = redact(error.message);
       trackPendingRequest(model, provider, connectionId, false, true);
       if (error.name === "AbortError") { streamController.handleError(error); return createErrorResult(499, "Request aborted"); }
       return createErrorResult(HTTP_STATUS.BAD_GATEWAY, formatProviderError(error, provider, model, HTTP_STATUS.BAD_GATEWAY));
@@ -539,7 +548,9 @@ export async function handleChatCore({ traceAttempt = null, body, modelInfo, cre
   // Provider returned error
   if (!providerResponse.ok) {
     trackPendingRequest(model, provider, connectionId, false, true);
-    const { statusCode, message, resetsAtMs } = await parseUpstreamError(providerResponse, executor);
+    const parsed = await parseUpstreamError(providerResponse, executor);
+    const { statusCode, resetsAtMs } = parsed;
+    const message = redact(parsed.message);
     appendRequestLog({ model, provider, connectionId, status: `FAILED ${statusCode}` }).catch(() => { });
     recordRequestDetail(traceAttempt, buildRequestDetail({
       provider, model, connectionId,
@@ -554,7 +565,7 @@ export async function handleChatCore({ traceAttempt = null, body, modelInfo, cre
 
     const errMsg = formatProviderError(new Error(message), provider, model, statusCode);
     if (log?.errorLine) {
-      const urlStr = providerUrl ? `\n    URL: ${providerUrl}` : "";
+      const urlStr = providerUrl ? `\n    URL: ${redact(providerUrl)}` : "";
       log.errorLine(reqTag, "✗", `ERROR ${statusCode} · ${provider}/${model} · ${Date.now() - requestStartTime}ms${urlStr}\n    ${errMsg}`);
     }
     reqLogger.logError(new Error(message), finalBody || translatedBody);

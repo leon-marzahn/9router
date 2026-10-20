@@ -3,6 +3,7 @@ const path = require("path");
 const zlib = require("zlib");
 const { DATA_DIR } = require("./paths");
 const { LOG_BLACKLIST_URL_PARTS } = require("./config");
+const { maskHeaders, maskBody, maskString } = require("../../open-sse/utils/maskSecrets.cjs");
 
 function time() {
   return new Date().toLocaleTimeString("en-US", { hour12: false });
@@ -27,7 +28,7 @@ function clearDumpDir() {
 const EMPTY_BODY_RE = /^\s*(\{\s*\}|\[\s*\]|null)?\s*$/;
 
 function slugify(s, max = 80) {
-  return String(s).replace(/[^a-zA-Z0-9]/g, "_").substring(0, max);
+  return maskString(String(s)).replace(/[^a-zA-Z0-9]/g, "_").substring(0, max);
 }
 
 function isBlacklisted(url) {
@@ -47,6 +48,15 @@ function decodeBody(buf, encoding) {
   return buf;
 }
 
+// JSON bodies get field-aware masking; anything else falls back to text patterns.
+function maskDumpBody(text) {
+  try {
+    return JSON.stringify(maskBody(JSON.parse(text)), null, 2);
+  } catch {
+    return maskString(text);
+  }
+}
+
 // Save raw request: method + url + headers + body
 function dumpRequest(req, bodyBuffer, tag = "raw") {
   if (isBlacklisted(req.url)) return null;
@@ -58,10 +68,10 @@ function dumpRequest(req, bodyBuffer, tag = "raw") {
     try { parsed = JSON.parse(bodyBuffer.toString()); } catch { /* not JSON */ }
     fs.writeFileSync(file, JSON.stringify({
       method: req.method,
-      url: req.url,
+      url: maskString(req.url),
       host: req.headers.host,
-      headers: req.headers,
-      body: parsed ?? bodyBuffer.toString("utf8")
+      headers: maskHeaders(req.headers),
+      body: parsed ? maskBody(parsed) : maskString(bodyBuffer.toString("utf8"))
     }, null, 2));
     return file;
   } catch { return null; }
@@ -95,7 +105,7 @@ function createResponseDumper(req, tag = "raw") {
         const cleanHeaders = { ...headers };
         delete cleanHeaders["content-encoding"];
         delete cleanHeaders["Content-Encoding"];
-        const out = `STATUS: ${status}\nHEADERS: ${JSON.stringify(cleanHeaders, null, 2)}\n---BODY---\n${text}`;
+        const out = `STATUS: ${status}\nHEADERS: ${JSON.stringify(maskHeaders(cleanHeaders), null, 2)}\n---BODY---\n${maskDumpBody(text)}`;
         fs.writeFileSync(file, out);
       } catch { /* ignore */ }
     },

@@ -1,6 +1,6 @@
 import { Readable } from "stream";
 import { MEMORY_CONFIG } from "../config/runtimeConfig.js";
-import { dbg } from "./debugLog.js";
+import { maskString } from "./maskSecrets.cjs";
 import { wreqFetch } from "./tlsImpersonation.js";
 
 const originalFetch = globalThis.fetch;
@@ -267,7 +267,7 @@ async function fetchWithTlsFallback(url, options, proxyUrl, impersonation = null
         throw err;
       }
       // ponytail: in-memory insecure agent fallback for self-signed MITM corporate/antivirus certs
-      console.warn(`[ProxyFetch] TLS cert verification failed (${err.cause?.code || err.code}), retrying with insecure TLS: ${url}`);
+      console.warn(`[ProxyFetch] TLS cert verification failed (${err.cause?.code || err.code}), retrying with insecure TLS: ${maskString(String(url))}`);
       const insecureDispatcher = await getDispatcher(proxyUrl, true);
       return await originalFetch(url, { ...options, dispatcher: insecureDispatcher });
     }

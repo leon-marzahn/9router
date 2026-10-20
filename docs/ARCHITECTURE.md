@@ -534,7 +534,7 @@ Runtime visibility sources:
 - console logs from `src/sse/utils/logger.js`
 - per-request usage aggregates in `usage.json`
 - textual request status log in `log.txt`
-- optional deep request/translation logs under `logs/` when `ENABLE_REQUEST_LOGS=true`
+- optional deep request/translation logs under `logs/` when `ENABLE_REQUEST_LOGS=true` (override the folder with `REQUEST_LOGS_DIR`); keys, tokens, cookies and `?key=` query values are redacted by `open-sse/utils/maskSecrets.cjs`. Clients should still send the key in a header (`Authorization` / `x-api-key` / `x-goog-api-key`) rather than `?key=`, since URLs show up in access logs such as `next dev`'s.
 - dashboard usage endpoints (`/api/usage/*`) for UI consumption
 
 ## Security-Sensitive Boundaries
