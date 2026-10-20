@@ -19,6 +19,9 @@
 // their "cherry picked from" trailer) are skipped, and a finished branch only reprints the
 // next steps. On a conflict it stops and says how to continue or abort.
 //
+// Guards are detected by file presence only. A later fix on master to the guard scripts or to
+// the release workflows is not picked automatically: backport that commit explicitly.
+//
 // After the tag push: Docker moves only the floating tags this version is the highest in
 // (`:{major}`, `:{major}.{minor}`), never `latest`; the GitHub release body is the tag's
 // CHANGELOG.md entry, published with --latest=false. If a backport still moved `latest`, dispatch
@@ -28,7 +31,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { compareVersions, parseVersion } from "./ci/floating-tags.mjs";
-import { VERSION_RE, missingGuards, release } from "./release.mjs";
+import { VERSION_RE, missingGuards, release, releaseErrors } from "./release.mjs";
 
 /** Files whose adding commit on master is cherry-picked when the branch lacks a guard. */
 export const GUARD_FILES = ["scripts/ci/floating-tags.mjs", "scripts/ci/changelog-section.mjs"];
@@ -59,7 +62,16 @@ export function prNumber(ref) {
 
 /** The commit on `masterRef` whose subject ends in "(#n)". */
 export function resolvePr(git, masterRef, n) {
-  const out = git.run(["log", masterRef, "--format=%H%x09%s", "-F", "--grep", `(#${n})`]);
+  // First parent only: merged upstream history carries its own, colliding PR numbers.
+  const out = git.run([
+    "log",
+    "--first-parent",
+    masterRef,
+    "--format=%H%x09%s",
+    "-F",
+    "--grep",
+    `(#${n})`,
+  ]);
   const hits = out
     .split("\n")
     .filter(Boolean)
@@ -85,13 +97,21 @@ function resolveCommit(git, masterRef, ref) {
   }
 }
 
-/** Already on HEAD, either itself or as a `cherry-pick -x` copy. */
+/** Already on HEAD: itself, a `cherry-pick -x` copy, or a patch-equivalent commit. */
 function isApplied(git, sha) {
   if (git.ok(["merge-base", "--is-ancestor", sha, "HEAD"])) return true;
-  return (
-    git.run(["log", "HEAD", "--format=%H", "-F", "--grep", `cherry picked from commit ${sha}`]) !==
-    ""
-  );
+  const trailer = git.run([
+    "log",
+    "HEAD",
+    "--format=%H",
+    "-F",
+    "--grep",
+    `cherry picked from commit ${sha}`,
+  ]);
+  if (trailer) return true;
+  // `git cherry` prints "- <sha>" when HEAD already has a commit with the same patch-id.
+  if (!git.ok(["rev-parse", "--verify", `${sha}^`])) return false;
+  return git.run(["cherry", "HEAD", sha, `${sha}^`]).startsWith("-");
 }
 
 function guardCommits(git, masterRef, cwd) {
@@ -120,7 +140,10 @@ function cherryPick(git, sha, { version, args }) {
         conflicted ? `Conflicted files:\n${conflicted.replace(/^/gm, "  ")}` : "",
         "Resolve it, then:",
         "  git add <files> && git cherry-pick --continue",
-        `  vp run backport ${version} ${args.join(" ")}   # re-run: picks the rest, then releases`,
+        `  node scripts/backport.mjs ${version} ${args.join(" ")}   # re-run: picks the rest, then releases`,
+        "Re-run with node, not vp: a vp/node shim can fail to parse package.json while it still",
+        "has conflict markers. If the pick came out empty and you ran `git cherry-pick --skip`,",
+        "re-run without that commit.",
         "Or give up on this backport:",
         "  git cherry-pick --abort",
       ]
@@ -138,6 +161,16 @@ function highestTagOfMajor(git, major) {
     .filter((v) => v && v.major === major && v.prerelease.length === 0);
   if (!tags.length) throw new BackportError(`No v${major}.* release tag to branch from`);
   return tags.reduce((a, b) => (compareVersions(a, b) >= 0 ? a : b)).raw;
+}
+
+/** The ref `support/v<major>` is (or will be) created from, without creating anything. */
+function supportBase(git, major) {
+  const support = `support/v${major}`;
+  if (git.ok(["rev-parse", "--verify", `refs/heads/${support}`])) return support;
+  if (git.ok(["rev-parse", "--verify", `refs/remotes/origin/${support}`])) {
+    return `origin/${support}`;
+  }
+  return highestTagOfMajor(git, major);
 }
 
 function prepareSupport(git, major) {
@@ -196,6 +229,17 @@ export function backport(version, refs, { cwd = process.cwd() } = {}) {
   // Resolve everything before switching branches, so a typo changes nothing.
   const commits = [...new Set(refs.map((ref) => resolveCommit(git, masterRef, ref)))];
 
+  // Version and major rules against the support branch's tags, before any side effect.
+  const base = supportBase(git, major);
+  const lines = (s) => s.split("\n").filter(Boolean);
+  const errors = releaseErrors({
+    version,
+    branch: `support/v${major}`,
+    branchTags: lines(git.run(["tag", "--merged", base, "-l", "v*"])),
+    allTags: lines(git.run(["tag", "-l", "v*"])),
+  });
+  if (errors.length) throw new BackportError(errors.join("\n"));
+
   const { support, pushNeeded } = prepareSupport(git, major);
   if (git.ok(["rev-parse", "--verify", `refs/heads/${branch}`])) {
     git.run(["checkout", "-q", branch]);
@@ -243,8 +287,9 @@ export function nextSteps({ tag, branch, support, pushNeeded }) {
     `2. Open the PR into ${support}:`,
     `   gh pr create --base ${support} --head ${branch} --title "chore(release): ${tag}" --body "Backport release ${tag}."`,
     "",
-    `3. After it is merged, tag the merge result on ${support} and push the tag on its own:`,
-    `   git fetch origin && git tag -a ${tag} -m ${tag} origin/${support} && git push origin ${tag}`,
+    `3. After it is merged, check the version on ${support}, then tag it and push the tag on its own:`,
+    `   git fetch origin && git show origin/${support}:package.json | grep '"version"'   # must show ${tag.slice(1)}`,
+    `   git tag -a ${tag} -m ${tag} origin/${support} && git push origin ${tag}`,
     "",
     "Release the highest version first; backports come after it.",
   ].join("\n");

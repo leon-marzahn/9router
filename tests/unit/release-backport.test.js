@@ -224,6 +224,41 @@ describe("backport.mjs", () => {
     ]);
   });
 
+  it("resolves a PR number on master's first-parent line, not in merged upstream history", () => {
+    const ours = git("rev-parse", "master~2");
+    git("checkout", "-q", "-b", "upstream", "v100.0.0");
+    commit("fix: upstream change (#8)", { "upstream.txt": "u\n" });
+    git("checkout", "-q", "master");
+    git("merge", "-q", "--no-ff", "-m", "chore(sync): 9router 0.0.1", "upstream");
+    backport("100.0.1", ["#8"], { cwd: repo });
+    expect(git("log", "-1", "--format=%b", "HEAD~1")).toContain(
+      `cherry picked from commit ${ours}`,
+    );
+    expect(fs.existsSync(path.join(repo, "upstream.txt"))).toBe(false);
+  });
+
+  it("treats a patch-equivalent commit without a trailer as applied", () => {
+    git("branch", "support/v100", "v100.0.0");
+    git("checkout", "-q", "support/v100");
+    commit("fix(b): applied by hand", { "b.txt": "b\n" });
+    git("checkout", "-q", "master");
+    backport("100.0.1", ["#8"], { cwd: repo });
+    expect(git("log", "--format=%s", "support/v100..HEAD").split("\n")).toEqual([
+      "chore(release): v100.0.1",
+      "ci(release): notes from CHANGELOG (#7)",
+      "ci(release): floating-tag guard (#6)",
+    ]);
+  });
+
+  it("checks the version against the support branch's tags before creating anything", () => {
+    git("tag", "-a", "v100.0.5", "-m", "v100.0.5", "v100.0.0");
+    expect(() => backport("100.0.3", ["#8"], { cwd: repo })).toThrow(
+      /greater than every tag.*v100\.0\.5/,
+    );
+    expect(git("branch", "-l", "support/*", "backport/*")).toBe("");
+    expect(git("rev-parse", "--abbrev-ref", "HEAD")).toBe("master");
+  });
+
   it("is idempotent: a re-run adds nothing", () => {
     backport("100.0.1", ["#8"], { cwd: repo });
     const head = git("rev-parse", "HEAD");
@@ -242,7 +277,7 @@ describe("backport.mjs", () => {
 
   it("stops on a conflict with instructions, and refuses to run mid-cherry-pick", () => {
     expect(() => backport("100.0.1", ["#11"], { cwd: repo })).toThrow(
-      /stopped on a conflict[\s\S]*conflict\.txt[\s\S]*cherry-pick --continue[\s\S]*cherry-pick --abort/,
+      /stopped on a conflict[\s\S]*conflict\.txt[\s\S]*cherry-pick --continue[\s\S]*node scripts\/backport\.mjs[\s\S]*conflict markers[\s\S]*re-run without that commit[\s\S]*cherry-pick --abort/,
     );
     expect(version()).toBe("100.0.0");
     expect(() => backport("100.0.1", ["#11"], { cwd: repo })).toThrow(/cherry-pick is in progress/);
@@ -270,6 +305,8 @@ describe("backport.mjs", () => {
     expect(steps).toContain("git push -u origin support/v100");
     expect(steps).toContain("git push -u origin backport/v100.0.1");
     expect(steps).toContain("gh pr create --base support/v100 --head backport/v100.0.1");
+    expect(steps).toContain("git show origin/support/v100:package.json | grep '\"version\"'");
+    expect(steps.indexOf("grep")).toBeLessThan(steps.indexOf("git tag -a v100.0.1"));
     expect(steps).toContain("git push origin v100.0.1");
     expect(git("remote")).toBe("");
   });

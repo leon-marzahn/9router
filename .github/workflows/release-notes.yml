@@ -43,10 +43,15 @@ jobs:
             backport=true
           fi
           # A tag that is not on the default branch was cut from a support branch.
+          # Exit 1 means "not an ancestor"; any other failure (bad ref) stops the job.
           support=false
-          if ! git merge-base --is-ancestor "$TAG" "origin/${DEFAULT_BRANCH}"; then
-            support=true
-          fi
+          status=0
+          git merge-base --is-ancestor "$TAG" "origin/${DEFAULT_BRANCH}" || status=$?
+          case "$status" in
+            0) ;;
+            1) support=true ;;
+            *) echo "::error::merge-base failed (exit ${status})"; exit "$status" ;;
+          esac
           {
             echo "previous=${previous}"
             echo "highest=${highest}"
