@@ -347,6 +347,17 @@ describe("dashboard guard request detail access", () => {
     mocks.verifyDashboardAuthToken.mockResolvedValue(true);
     expect(await proxy(request("/api/usage/request-details"))).toBe(mocks.nextResponse);
   });
+
+  it("does not let a valid API key in x-goog-api-key or ?key= open dashboard routes", async () => {
+    mocks.validateApiKey.mockResolvedValue(true);
+    for (const r of [
+      request("/api/usage/request-details", { host: "router.example.com", "x-goog-api-key": "sk-valid" }),
+      request("/api/settings?key=sk-valid", { host: "router.example.com" }),
+      localRequest("/api/settings", { host: "localhost:20128", "x-goog-api-key": "sk-valid" }),
+    ]) {
+      expect((await proxy(r)).status).toBe(401);
+    }
+  });
 });
 
 describe("dashboard guard helpers", () => {

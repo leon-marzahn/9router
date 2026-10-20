@@ -84,9 +84,8 @@ async function handleChatTraced(request, clientRawRequest) {
   // Request summary is emitted as the unified "▶" line in chatCore (has fmt/thinking/account)
 
   // Log API key (masked)
-  const authHeader = request.headers.get("Authorization");
   const apiKey = extractApiKey(request);
-  if (authHeader && apiKey) {
+  if (apiKey) {
     const masked = log.maskKey(apiKey);
     log.debug("AUTH", `API Key: ${masked}`);
   } else {
