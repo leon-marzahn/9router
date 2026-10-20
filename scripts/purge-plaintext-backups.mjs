@@ -16,9 +16,10 @@ const { defaultDataDir } = require("../src/lib/appDir.cjs");
 
 // Label prefix → the versions that backup restores to.
 const RESTORES = {
-  "pre-usage-key-refs-": "v100.x (before usage rows stored key references, migration 005)",
+  "pre-usage-key-refs-":
+    "v100.7.x, e.g. v100.7.2 (before usage rows stored key references, migration 005)",
   "pre-encrypt-credentials-":
-    "v101.x and older (before credential encryption, migration 006), or this version from before a downgrade heal",
+    "v101.0.x, e.g. v101.0.2 (before credential encryption, migration 006), or this version from before a downgrade heal",
 };
 const describe = (name) =>
   Object.entries(RESTORES).find(([p]) => name.startsWith(p))?.[1] ?? "an older version";

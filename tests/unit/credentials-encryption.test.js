@@ -188,6 +188,59 @@ describe("envelope", () => {
 });
 
 describe("field coverage", () => {
+  it("encrypts at rest every key the API redacts (one shared name rule)", async () => {
+    const { isSecretField, AT_REST_ONLY_FIELDS } = await import("@/lib/credentials/fields.js");
+    const { isSecretKey, redactSecrets } = await import("@/lib/secretRedaction.js");
+    const names = [
+      "apiKey",
+      "apiKeys",
+      "accessToken",
+      "refreshToken",
+      "idToken",
+      "sessionToken",
+      "copilotToken",
+      "mimoPassToken",
+      "clientSecret",
+      "oidcClientSecret",
+      "password",
+      "cookie",
+      "cookies",
+      "secretAccessKey",
+      "privateKey",
+      "Authorization",
+      "Proxy-Authorization",
+      "x-api-key",
+      "x-goog-api-key",
+      "api-key",
+      "key",
+      "sessionKey",
+      "notifyResendKey",
+      "notifySmtpPassword",
+      "updateWebhookToken",
+      "x-auth-token",
+      "jwt",
+      "credentials",
+      // not secrets on either side
+      "name",
+      "email",
+      "baseUrl",
+      "region",
+      "expiresAt",
+      "tokenType",
+      "modelKey",
+      "prefix",
+      "testStatus",
+      ...AT_REST_ONLY_FIELDS,
+    ];
+    for (const n of names) {
+      if (isSecretKey(n)) expect(isSecretField(n), n).toBe(true);
+      if (isSecretField(n) && !isSecretKey(n)) expect(AT_REST_ONLY_FIELDS.has(n), n).toBe(true);
+      if (!isSecretField(n)) expect(isSecretKey(n), n).toBe(false);
+    }
+    // The at-rest-only URL fields still leave responses masked.
+    expect(redactSecrets({ proxyUrl: "http://u:pw@h:1" }).proxyUrl).toBe("http://u:***@h:1");
+  });
+
   const where = { table: "settings", column: "data", id: "1" };
   async function ring() {
     vi.resetModules();
@@ -508,8 +561,8 @@ describe("migration 006", () => {
     const env = { ...process.env, DATA_DIR: tempDir };
     const listing = execFileSync(process.execPath, [script], { env }).toString();
     expect(listing).toContain(pinned);
-    expect(listing).toMatch(/restore point for v100\.x/);
-    expect(listing).toMatch(/restore point for v101\.x and older/);
+    expect(listing).toMatch(/restore point for v100\.7\.x/);
+    expect(listing).toMatch(/restore point for v101\.0\.x/);
     expect(fs.existsSync(pinned)).toBe(true);
     execFileSync(process.execPath, [script, "--yes"], { env });
     expect(list(pinnedDir())).toEqual([]);

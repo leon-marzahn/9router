@@ -4,36 +4,27 @@
 // keep provider secrets in providerSpecificData). Only non-empty strings are encrypted;
 // booleans like requireApiKey and numbers like expiresAt are left alone.
 import { decryptValue, encryptValue, envelopeKeyId, isEnvelope } from "./envelope.js";
+import { isSecretKey } from "@/lib/secretRedaction.js";
 import { getKeyring } from "./keyring.js";
 
-// Names ending like a secret: apiKey(s), accessToken, refreshToken, idToken, sessionToken,
-// copilotToken, mimoPassToken, clientSecret, oidcClientSecret, password, cookie(s), ...
-const SECRET_SUFFIX =
-  /(token|secret|password|passwd|cookies?|apikeys?|privatekey|secretaccesskey)$/i;
-// Credential header names, so header maps (providerOverrides, requestPipelines) are sealed.
-const SECRET_HEADERS = new Set([
-  "authorization",
-  "proxy-authorization",
-  "x-api-key",
-  "x-goog-api-key",
-  "api-key",
-]);
-// Secrets whose name doesn't say so: AWS access key ids and URLs that can embed user:pass
-// or a deploy token.
-const SECRET_NAMES = new Set([
-  "accessKeyId",
-  "notifyResendKey",
+// One name rule for both sides: every key the dashboard API redacts (isSecretKey in
+// src/lib/secretRedaction.js: apiKey(s), *Token, *Secret, password, cookie(s),
+// authorization / x-api-key / x-goog-api-key headers, ...) is also encrypted at rest.
+// On top of it, fields whose value is a URL that can embed user:pass or a deploy token
+// (responses mask the userinfo instead of hiding the field), the already-encrypted
+// MITM sudo password (the settings route strips it explicitly), and the AWS access key id
+// (shown in the provider form so it can be edited; half of the AWS credential pair).
+export const AT_REST_ONLY_FIELDS = new Set([
   "proxyUrl",
   "connectionProxyUrl",
   "outboundProxyUrl",
   "updateWebhookUrl",
   "mitmSudoEncrypted",
+  "accessKeyId",
 ]);
 
 export function isSecretField(name) {
-  return (
-    SECRET_NAMES.has(name) || SECRET_HEADERS.has(name.toLowerCase()) || SECRET_SUFFIX.test(name)
-  );
+  return AT_REST_ONLY_FIELDS.has(name) || isSecretKey(name);
 }
 
 const isPlainObject = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
