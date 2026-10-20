@@ -369,9 +369,13 @@ export async function budgetStatus(scope, budget, apiKey, { now = new Date() } =
 async function unpricedModels(apiKey, start, basis) {
   try {
     const { getPricingForModel } = await import("@/lib/db/repos/pricingRepo.js");
+    const { providerName } = await import("@/lib/providerName.js");
     const out = [];
+    const names = new Map();
     for (const r of await zeroCostModelsSince(apiKey, start.toISOString(), { basis })) {
-      if (!(await getPricingForModel(r.provider, r.model))) out.push(`${r.provider}/${r.model}`);
+      if (await getPricingForModel(r.provider, r.model)) continue;
+      // Custom nodes show their prefix (or name), never the internal openai-compatible-…-<uuid> id.
+      out.push(`${await providerName(r.provider, names, { prefix: true })}/${r.model}`);
     }
     return out;
   } catch {

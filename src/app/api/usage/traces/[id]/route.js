@@ -1,33 +1,9 @@
 import { NextResponse } from "next/server";
 import { loadTrace } from "@/lib/requestTrace.js";
 import { calculateCost } from "@/lib/db/repos/usageRepo.js";
-import { getProviderNodeById } from "@/lib/db/repos/nodesRepo.js";
-import REGISTRY from "open-sse/providers/registry/index.js";
+import { providerName } from "@/lib/providerName.js";
 
 const ID_RE = /^tr_[a-z0-9]{6,40}$/;
-
-/**
- * Display name for a provider id, resolved at read time so renames show up:
- * custom nodes use the node's name, built-ins the registry display name, and
- * anything unknown (e.g. a deleted node) falls back to the id.
- */
-async function providerName(id, cache) {
-  if (!id) return undefined;
-  if (cache.has(id)) return cache.get(id);
-  let name = id;
-  try {
-    const entry = REGISTRY.find((p) => p.id === id || p.alias === id);
-    if (entry?.display?.name) name = entry.display.name;
-    else {
-      const node = await getProviderNodeById(id);
-      if (node?.name) name = node.name;
-    }
-  } catch {
-    /* keep the id */
-  }
-  cache.set(id, name);
-  return name;
-}
 
 /**
  * GET /api/usage/traces/:id — how one /v1 request was routed: combo expansion

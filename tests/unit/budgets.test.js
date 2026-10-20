@@ -261,6 +261,23 @@ describe("unpriced models", () => {
     const other = await budgets.budgetStatus(repo.keyScope(keyB.id), spend, keyB.key, { now: NOW });
     expect(other.unpricedModels).toEqual([]);
   });
+
+  it("names a custom provider by its prefix (or name), not its internal node id", async () => {
+    const { createProviderNode } = await import("@/lib/db/repos/nodesRepo.js");
+    const withPrefix = "openai-compatible-chat-11111111-1111-4111-8111-111111111111";
+    const nameOnly = "openai-compatible-chat-22222222-2222-4222-8222-222222222222";
+    await createProviderNode({ id: withPrefix, type: "openai-compatible", name: "My Proxy", prefix: "mine", apiType: "chat", baseUrl: "https://example.test/v1" });
+    await createProviderNode({ id: nameOnly, type: "openai-compatible", name: "Unprefixed", apiType: "chat", baseUrl: "https://example.test/v1" });
+    for (const provider of [withPrefix, nameOnly]) {
+      adapter.run(
+        "INSERT INTO usageHistory(timestamp, provider, model, apiKey, promptTokens, completionTokens, cost, status) VALUES(?, ?, 'local-model', ?, 500, 0, 0, 'ok')",
+        [NOW.toISOString(), provider, keyA.key],
+      );
+    }
+    const spend = budgets.validateBudget({ spendLimit: 5 }).value;
+    const st = await budgets.budgetStatus(repo.keyScope(keyA.id), spend, keyA.key, { now: NOW });
+    expect(st.unpricedModels.toSorted()).toEqual(["Unprefixed/local-model", "mine/local-model"].toSorted());
+  });
 });
 
 describe("429 response", () => {

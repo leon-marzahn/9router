@@ -1,5 +1,6 @@
 import { register } from "../index.js";
 import { FORMATS } from "../formats.js";
+import { toGeminiUsageMetadata } from "../concerns/usage.js";
 import { GEMINI_ROLE, OPENAI_FINISH, GEMINI_FINISH } from "../schema/index.js";
 
 // Convert OpenAI SSE chunk to Antigravity SSE format
@@ -103,17 +104,7 @@ export function openaiToAntigravityResponse(chunk, state) {
   // Usage metadata
   const usage = chunk.usage || state._usage;
   if (usage) {
-    response.usageMetadata = {
-      promptTokenCount: usage.prompt_tokens || 0,
-      candidatesTokenCount: usage.completion_tokens || 0,
-      totalTokenCount: usage.total_tokens || 0
-    };
-    if (usage.completion_tokens_details?.reasoning_tokens) {
-      response.usageMetadata.thoughtsTokenCount = usage.completion_tokens_details.reasoning_tokens;
-    }
-    if (usage.prompt_tokens_details?.cached_tokens) {
-      response.usageMetadata.cachedContentTokenCount = usage.prompt_tokens_details.cached_tokens;
-    }
+    response.usageMetadata = toGeminiUsageMetadata(usage);
   }
 
   return { response };

@@ -65,6 +65,24 @@ const USAGE_EXTRACTORS = {
   },
 };
 
+// OpenAI usage → Gemini usageMetadata for Gemini-format clients. OpenAI
+// completion_tokens includes reasoning; Gemini reports thoughts separately from
+// candidates, so candidates + thoughts = completion (no double count).
+export function toGeminiUsageMetadata(usage) {
+  if (!usage || typeof usage !== "object") return null;
+  const completion = n(usage.completion_tokens);
+  const reasoning = n(usage.completion_tokens_details?.reasoning_tokens);
+  const meta = {
+    promptTokenCount: n(usage.prompt_tokens),
+    candidatesTokenCount: Math.max(0, completion - reasoning),
+    totalTokenCount: n(usage.total_tokens),
+  };
+  if (reasoning > 0) meta.thoughtsTokenCount = reasoning;
+  const cached = n(usage.prompt_tokens_details?.cached_tokens);
+  if (cached > 0) meta.cachedContentTokenCount = cached;
+  return meta;
+}
+
 // Convert provider-native usage object → OpenAI usage. Returns null if no extractor/raw.
 export function toOpenAIUsage(raw, kind) {
   const extract = USAGE_EXTRACTORS[kind];
