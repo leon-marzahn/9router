@@ -86,10 +86,15 @@ export function pruneOldBackups() {
   }
 }
 
-/** Every backup directory, pinned and unpinned (full paths). */
-export function listBackupDirs() {
+/**
+ * Backup directories (full paths). `pinned`: true = db/pinned-backups only (the restore
+ * points for older versions, which stay as taken: plaintext), false = db/backups only,
+ * undefined = both.
+ */
+export function listBackupDirs({ pinned } = {}) {
+  const roots = pinned === undefined ? [BACKUPS_DIR, PINNED_BACKUPS_DIR] : [pinned ? PINNED_BACKUPS_DIR : BACKUPS_DIR];
   const out = [];
-  for (const root of [BACKUPS_DIR, PINNED_BACKUPS_DIR]) {
+  for (const root of roots) {
     if (!fs.existsSync(root)) continue;
     for (const e of fs.readdirSync(root, { withFileTypes: true })) {
       if (e.isDirectory()) out.push(path.join(root, e.name));
@@ -97,9 +102,6 @@ export function listBackupDirs() {
   }
   return out;
 }
-
-/** True for a pre-encrypt-credentials backup: the plaintext restore point, never sealed. */
-export const isPlaintextRestorePoint = (name) => name.startsWith(`${PRE_ENCRYPT_CREDENTIALS}-`);
 
 /** Owner-only permissions on a backup: the directory 0700, every file 0600 (they hold credentials). */
 export function lockDownBackup(dir) {

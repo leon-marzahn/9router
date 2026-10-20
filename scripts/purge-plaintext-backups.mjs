@@ -1,13 +1,12 @@
 #!/usr/bin/env node
-// Delete the backups that still hold provider credentials in plaintext:
-// DATA_DIR/db/pinned-backups/pre-encrypt-credentials-* (the restore points taken right
-// before credentials were encrypted, see src/lib/db/backup.js).
+// List, or delete, the pinned backups in DATA_DIR/db/pinned-backups. They are the restore
+// points for older versions and hold provider credentials in plaintext (an older version
+// can't read encrypted ones), see src/lib/db/backup.js and docs/ARCHITECTURE.md.
 //
-//   vp run purge-plaintext-backups          list them
+//   vp run purge-plaintext-backups          list them and what each one restores
 //   vp run purge-plaintext-backups --yes    delete them
 //
-// Run it once the encrypted install is known good: afterwards a downgrade to a version
-// without credential encryption can no longer restore from these backups.
+// Deleting one removes the way back to the version it was taken for.
 import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
@@ -15,29 +14,38 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const { defaultDataDir } = require("../src/lib/appDir.cjs");
 
+// Label prefix → the versions that backup restores to.
+const RESTORES = {
+  "pre-usage-key-refs-": "v100.x (before usage rows stored key references, migration 005)",
+  "pre-encrypt-credentials-":
+    "v101.x and older (before credential encryption, migration 006), or this version from before a downgrade heal",
+};
+const describe = (name) =>
+  Object.entries(RESTORES).find(([p]) => name.startsWith(p))?.[1] ?? "an older version";
+
 const dataDir = process.env.DATA_DIR || defaultDataDir();
 const pinned = path.join(dataDir, "db", "pinned-backups");
 const dirs = fs.existsSync(pinned)
   ? fs
-      .readdirSync(pinned)
-      .filter((d) => d.startsWith("pre-encrypt-credentials-"))
-      .map((d) => path.join(pinned, d))
+      .readdirSync(pinned, { withFileTypes: true })
+      .filter((e) => e.isDirectory())
+      .map((e) => e.name)
+      .sort()
   : [];
 
 if (!dirs.length) {
-  console.log(`No plaintext credential backups in ${pinned}.`);
+  console.log(`No plaintext restore points in ${pinned}.`);
   process.exit(0);
 }
-if (!process.argv.includes("--yes")) {
+const yes = process.argv.includes("--yes");
+console.log(`${yes ? "Deleting" : "These"} pinned backups hold provider credentials in plaintext:`);
+for (const d of dirs)
+  console.log(`  ${path.join(pinned, d)}\n    restore point for ${describe(d)}`);
+if (!yes) {
   console.log(
-    `These backups hold provider credentials in plaintext:\n${dirs.map((d) => `  ${d}`).join("\n")}`,
-  );
-  console.log(
-    "They are your restore point for a downgrade. Delete them with: vp run purge-plaintext-backups --yes",
+    "Keep them until this version is known good. Delete them with: vp run purge-plaintext-backups --yes",
   );
   process.exit(0);
 }
-for (const d of dirs) {
-  fs.rmSync(d, { recursive: true, force: true });
-  console.log(`Deleted ${d}`);
-}
+for (const d of dirs) fs.rmSync(path.join(pinned, d), { recursive: true, force: true });
+console.log(`Deleted ${dirs.length} backup(s).`);

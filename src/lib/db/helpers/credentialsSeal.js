@@ -186,7 +186,11 @@ export function sealBackupFile(adapter, file, ring) {
   adapter.exec(`ATTACH DATABASE '${file.replace(/'/g, "''")}' AS sealbak`);
   try {
     const n = adapter.transaction(() => sealPlaintextRows(adapter, ring, "sealbak"));
-    if (n) adapter.exec("VACUUM sealbak");
+    if (n) {
+      adapter.exec("VACUUM sealbak");
+      // A backup copied from a WAL-mode DB keeps a WAL: fold it in so no old page lingers there.
+      adapter.exec("PRAGMA sealbak.wal_checkpoint(TRUNCATE)");
+    }
     return n;
   } finally {
     try {
@@ -200,14 +204,13 @@ export function needsBackupSeal(db) {
 }
 
 /**
- * Seals the backups in `dirs`, skipping the plaintext restore points (`keep(name)` true).
- * Throws on the first failure, leaving the flag "0" so the next boot retries.
- * Returns [{ dir, rows }] for the backups it changed.
+ * Seals the backups in `dirs` (the caller passes unpinned ones only: pinned restore points
+ * stay plaintext). Throws on the first failure, leaving the flag "0" so the next boot
+ * retries. Returns [{ dir, rows }] for the backups it changed.
  */
-export function sealBackups(adapter, ring, dirs, keep) {
+export function sealBackups(adapter, ring, dirs) {
   const changed = [];
   for (const dir of dirs) {
-    if (keep(path.basename(dir))) continue;
     const file = path.join(dir, "data.sqlite");
     if (!fs.existsSync(file)) continue;
     const rows = sealBackupFile(adapter, file, ring);

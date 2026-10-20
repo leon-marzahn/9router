@@ -10,7 +10,6 @@ import {
   backupDbLite,
   backupFile,
   makeBackupDir,
-  isPlaintextRestorePoint,
   listBackupDirs,
   lockDownBackup,
   pruneOldBackups,
@@ -399,24 +398,25 @@ export async function runMigrationOnce(adapter) {
       console.warn(`[DB][migrate] vacuum after encrypting credentials failed (retried next boot): ${e.message}`);
     }
   }
-  // Older backups hold the same plaintext. Each is sealed in place (and vacuumed), except
-  // the pre-encrypt-credentials restore points, which stay plaintext on purpose. Only after
-  // a plaintext seal (credentialsBackupsSealed = 0), never after a rekey-only pass; a
-  // failure leaves the flag at 0 and retries next boot. No backup is ever deleted here.
+  // Older unpinned backups (db/backups) hold the same plaintext: each is sealed in place and
+  // vacuumed. Pinned backups (db/pinned-backups) are restore points for older versions,
+  // which can't read envelopes, so they stay exactly as taken (plaintext). Only after a
+  // plaintext seal (credentialsBackupsSealed = 0), never after a rekey-only pass; a failure
+  // leaves the flag at 0 and retries next boot. No backup is ever deleted here.
   if (!needsCredentialsScrub(adapter) && needsBackupSeal(adapter)) {
     try {
-      const changed = sealBackups(adapter, ring, listBackupDirs(), isPlaintextRestorePoint);
+      const changed = sealBackups(adapter, ring, listBackupDirs({ pinned: false }));
       for (const { dir, rows } of changed) console.log(`[DB][migrate] encrypted credentials in backup ${dir} (${rows} rows)`);
     } catch (e) {
       console.warn(`[DB][migrate] encrypting credentials in older backups failed (retried next boot): ${e.message}`);
     }
   }
   for (const dir of listBackupDirs()) lockDownBackup(dir);
-  const restorePoints = listBackupDirs().filter((d) => isPlaintextRestorePoint(path.basename(d)));
-  if (restorePoints.length) {
+  const restorePoints = listBackupDirs({ pinned: true });
+  if (restorePoints.length && scanCredentials(adapter).keyIds.size) {
     console.warn(
-      `[DB][migrate] ${restorePoints.length} backup(s) still hold provider credentials in PLAINTEXT (restore points from before encryption): ` +
-        `${restorePoints.join(", ")}. Once this version is known good, remove them with: vp run purge-plaintext-backups`,
+      `[DB][migrate] ${restorePoints.length} pinned restore point(s) for older versions hold provider credentials in PLAINTEXT ` +
+        `(owner-only files): ${restorePoints.join(", ")}. Once this version is known good, list or remove them with: vp run purge-plaintext-backups`,
     );
   }
 

@@ -406,52 +406,61 @@ describe("migration 006", () => {
     expect(db.get("SELECT value FROM _meta WHERE key = 'credentialsScrubbed'").value).toBe("1");
   });
 
-  /** Copies of the plaintext DB as older backups: one unpinned, one pinned pre-usage-key-refs. */
+  /**
+   * Copies of the plaintext DB as older backups: two unpinned (db/backups) and one pinned
+   * pre-usage-key-refs restore point (db/pinned-backups). Returns { unpinned, pinned }.
+   */
   async function olderBackups() {
     await schema5WithPlaintext();
     global._dbAdapter.instance.close();
     delete global._dbAdapter;
     const src = path.join(tempDir, "db", "data.sqlite");
-    const dirs = [
+    const unpinned = [
       path.join(tempDir, "db", "backups", "schema-3-to-4-100.0.0-old"),
-      path.join(pinnedDir(), "pre-usage-key-refs-100.0.0-old"),
+      path.join(tempDir, "db", "backups", "pre-usage-key-heal-100.0.0-old"),
     ];
-    for (const d of dirs) {
+    const pinned = path.join(pinnedDir(), "pre-usage-key-refs-100.0.0-old");
+    for (const d of [...unpinned, pinned]) {
       fs.mkdirSync(d, { recursive: true });
       fs.copyFileSync(src, path.join(d, "data.sqlite"));
       fs.chmodSync(path.join(d, "data.sqlite"), 0o644);
     }
-    return dirs;
+    return { unpinned, pinned };
   }
   const secretsIn = (file) =>
     Object.values(SECRETS).filter((s) => fs.readFileSync(file).includes(s)).length;
+  const ALL = Object.keys(SECRETS).length;
 
-  it("seals older backups in place (never deletes them) and keeps the restore point plaintext, all 0600", async () => {
-    const dirs = await olderBackups();
+  it("seals unpinned backups in place, keeps every pinned restore point plaintext, all 0600", async () => {
+    const { unpinned, pinned } = await olderBackups();
     const db = await boot();
-    for (const d of dirs) {
+    for (const d of unpinned) {
       expect(fs.existsSync(d)).toBe(true);
       expect(secretsIn(path.join(d, "data.sqlite"))).toBe(0);
     }
     expect(db.get("SELECT value FROM _meta WHERE key = 'credentialsBackupsSealed'").value).toBe(
       "1",
     );
+    // Restore points for older versions stay exactly as taken.
+    expect(secretsIn(path.join(pinned, "data.sqlite"))).toBe(ALL);
     const [restore] = list(pinnedDir()).filter((d) => d.startsWith("pre-encrypt-credentials-"));
     const restoreFile = path.join(pinnedDir(), restore, "data.sqlite");
-    expect(secretsIn(restoreFile)).toBe(Object.keys(SECRETS).length);
+    expect(secretsIn(restoreFile)).toBe(ALL);
     if (process.platform !== "win32") {
       for (const f of [
         restoreFile,
-        ...dirs.map((d) => path.join(d, "data.sqlite")),
+        path.join(pinned, "data.sqlite"),
+        ...unpinned.map((d) => path.join(d, "data.sqlite")),
         path.join(tempDir, "db", "data.sqlite"),
       ]) {
         expect(fs.statSync(f).mode & 0o777).toBe(0o600);
       }
+      expect(fs.statSync(pinned).mode & 0o777).toBe(0o700);
     }
     // A sealed backup restores into this version and still decrypts.
     db.close();
     delete global._dbAdapter;
-    fs.copyFileSync(path.join(dirs[0], "data.sqlite"), path.join(tempDir, "db", "data.sqlite"));
+    fs.copyFileSync(path.join(unpinned[0], "data.sqlite"), path.join(tempDir, "db", "data.sqlite"));
     for (const f of ["data.sqlite-wal", "data.sqlite-shm"])
       fs.rmSync(path.join(tempDir, "db", f), { force: true });
     await boot();
@@ -477,31 +486,34 @@ describe("migration 006", () => {
   });
 
   it("retries sealing the backups next boot when it fails", async () => {
-    const dirs = await olderBackups();
-    fs.writeFileSync(path.join(dirs[0], "data.sqlite"), "not a database");
+    const { unpinned } = await olderBackups();
+    fs.writeFileSync(path.join(unpinned[0], "data.sqlite"), "not a database");
     let db = await boot();
     expect(db.get("SELECT value FROM _meta WHERE key = 'credentialsBackupsSealed'").value).toBe(
       "0",
     );
-    fs.rmSync(dirs[0], { recursive: true });
+    fs.rmSync(unpinned[0], { recursive: true });
     db = await boot();
     expect(db.get("SELECT value FROM _meta WHERE key = 'credentialsBackupsSealed'").value).toBe(
       "1",
     );
-    expect(secretsIn(path.join(dirs[1], "data.sqlite"))).toBe(0);
+    expect(secretsIn(path.join(unpinned[1], "data.sqlite"))).toBe(0);
   });
 
-  it("purge-plaintext-backups lists, then deletes only the restore points with --yes", async () => {
-    const dirs = await olderBackups();
+  it("purge-plaintext-backups lists every pinned restore point with what it restores, deletes them only with --yes", async () => {
+    const { unpinned, pinned } = await olderBackups();
     await boot();
     const { execFileSync } = await import("node:child_process");
     const script = path.join(import.meta.dirname, "../../scripts/purge-plaintext-backups.mjs");
     const env = { ...process.env, DATA_DIR: tempDir };
-    expect(execFileSync(process.execPath, [script], { env }).toString()).toMatch(/plaintext/);
-    expect(list(pinnedDir()).some((d) => d.startsWith("pre-encrypt-credentials-"))).toBe(true);
+    const listing = execFileSync(process.execPath, [script], { env }).toString();
+    expect(listing).toContain(pinned);
+    expect(listing).toMatch(/restore point for v100\.x/);
+    expect(listing).toMatch(/restore point for v101\.x and older/);
+    expect(fs.existsSync(pinned)).toBe(true);
     execFileSync(process.execPath, [script, "--yes"], { env });
-    expect(list(pinnedDir()).some((d) => d.startsWith("pre-encrypt-credentials-"))).toBe(false);
-    for (const d of dirs) expect(fs.existsSync(d)).toBe(true);
+    expect(list(pinnedDir())).toEqual([]);
+    for (const d of unpinned) expect(fs.existsSync(d)).toBe(true);
     expect(execFileSync(process.execPath, [script], { env }).toString()).toMatch(/No plaintext/);
   });
 
