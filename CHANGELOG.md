@@ -1,4 +1,15 @@
 
+# v102.0.0 (2026-10-20)
+
+## Breaking
+- Provider credentials, proxy passwords and notification/OIDC secrets are now encrypted at rest (AES-256-GCM, migration 006, one-way). The key comes from `CREDENTIALS_KEY`, or is generated once into `DATA_DIR/credentials.key` (0600). **Back up the key together with the database**: without it the credentials cannot be read, and the server refuses to start rather than fall back to plaintext.
+- A verified plaintext backup is taken first and pinned in `db/pinned-backups/pre-encrypt-credentials-*`; boot refuses to migrate without it. Unpinned backups in `db/backups/` are encrypted in place. Pinned restore points stay plaintext (0600) until you run `vp run purge-plaintext-backups --yes`.
+- Older versions cannot read the encrypted database. To roll back: stop the server, move `db/data.sqlite*` aside, copy `db/pinned-backups/pre-encrypt-credentials-*/data.sqlite` to `db/data.sqlite` and start v101.0.2 (or `pre-usage-key-refs-*` with v100.7.2). Changes since the upgrade and request details are lost.
+- Still plaintext: client API keys (`apiKeys.key`), the DB export (password-protected), legacy `db.json` files and CLI tool config files.
+
+## Features
+- **db**: Encrypt provider credentials at rest (#136)
+
 # v101.0.2 (2026-10-20)
 
 ## Fixes
