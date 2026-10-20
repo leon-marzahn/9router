@@ -1,4 +1,12 @@
 
+# v101.0.0 (2026-10-20)
+
+## Breaking
+- Usage tables now store key references instead of raw API keys (migration 005, one-way). A verified backup is taken first and pinned in `db/pinned-backups/`; boot refuses to migrate without it. Downgrading to v100.x makes per-key budgets, billing and the customer view see only post-downgrade usage; to roll back cleanly, stop the server, restore the newest `db/pinned-backups/pre-usage-key-refs-*/data.sqlite` to `db/data.sqlite` (move the old `-wal`/`-shm` aside) and start v100.7.0. Request details are not in the backup. The pinned backup keeps raw keys; delete it once you are happy.
+
+## Fixes
+- **usage**: Store key references instead of raw API keys in usage tables (#123)
+
 # v100.7.0 (2026-10-20)
 
 ## Features
