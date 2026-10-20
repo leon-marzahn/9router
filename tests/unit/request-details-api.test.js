@@ -28,7 +28,7 @@ describe("request-details API", () => {
     const response = await GET(request());
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("private, no-store");
-    expect(await response.json()).toEqual({ details, pagination });
+    expect(await response.json()).toEqual({ details: details.map((d) => ({ ...d, providerName: expect.any(String) })), pagination });
     expect(getRequestDetails).toHaveBeenCalledWith({ page: 1, pageSize: 20 });
   });
 

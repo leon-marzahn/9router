@@ -13,7 +13,8 @@ vi.mock("@/sse/handlers/chat.js", () => ({
   handleChat: mocks.handleChat,
 }));
 
-vi.mock("@/sse/services/auth.js", () => ({
+vi.mock("@/sse/services/auth.js", async (importOriginal) => ({
+  extractApiKey: (await importOriginal()).extractApiKey,
   getProviderCredentials: mocks.getProviderCredentials,
   isValidApiKey: mocks.isValidApiKey,
   markAccountUnavailable: mocks.markAccountUnavailable,

@@ -2,6 +2,7 @@ import { handleChat } from "@/sse/handlers/chat.js";
 import {
   clearAccountError,
   getProviderCredentials,
+  extractApiKey,
   isValidApiKey,
   markAccountUnavailable,
 } from "@/sse/services/auth.js";
@@ -126,17 +127,6 @@ export async function POST(request, { params }) {
   }
 }
 
-function extractGeminiClientApiKey(request) {
-  const authHeader = request.headers.get("Authorization");
-  if (authHeader?.startsWith("Bearer ")) return authHeader.slice(7);
-
-  const googleApiKey = request.headers.get("x-goog-api-key");
-  if (googleApiKey) return googleApiKey;
-
-  const url = new URL(request.url);
-  return url.searchParams.get("key");
-}
-
 function normalizeGeminiNativeModel(model) {
   return String(model || "")
     .replace(/^models\//, "")
@@ -184,7 +174,7 @@ async function validateGeminiNativeClientKey(request) {
   const settings = await getSettings();
   if (!settings.requireApiKey) return null;
 
-  const apiKey = extractGeminiClientApiKey(request);
+  const apiKey = extractApiKey(request);
   if (!apiKey) {
     return Response.json({ error: { message: "Missing API key" } }, { status: 401 });
   }

@@ -34,6 +34,8 @@ export interface KeyRow {
 export interface Active {
   model: string;
   provider: string;
+  /** Display label (custom node name); `provider` is the id. */
+  providerName?: string;
   account?: string;
   count: number;
 }
@@ -52,6 +54,8 @@ export interface FeedItem {
   timestamp: string;
   model: string;
   provider: string;
+  /** Display label (custom node name); `provider` is the id. */
+  providerName?: string;
   status: string;
   inTokens: number;
   outTokens: number;
@@ -106,6 +110,7 @@ export function feedItemOf(d: Raw): FeedItem {
     timestamp: d.timestamp,
     model: d.model ?? "unknown",
     provider: d.provider ?? "",
+    providerName: d.providerName ?? undefined,
     status: d.status ?? "",
     // Legacy rows may store prompt cache-exclusive; never report less than the cache.
     inTokens: Math.max(prompt, cached),
@@ -126,6 +131,7 @@ const recentItemOf = (r: Raw, i: number): FeedItem => ({
   timestamp: r.timestamp,
   model: r.model ?? "unknown",
   provider: r.provider ?? "",
+  providerName: r.providerName ?? undefined,
   status: r.status ?? "",
   inTokens: num(r.promptTokens),
   outTokens: num(r.completionTokens),

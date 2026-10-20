@@ -2,10 +2,10 @@ import { beforeEach, expect, it, vi } from "vite-plus/test";
 
 vi.mock("open-sse/index.js", () => ({}));
 vi.mock("@/lib/localDb", () => ({ getSettings: vi.fn() }));
-vi.mock("../../src/sse/services/auth.js", () => ({
+vi.mock("../../src/sse/services/auth.js", async (importOriginal) => ({
   getProviderCredentials: vi.fn(async () => ({ connectionId: "test" })),
   markAccountUnavailable: vi.fn(), clearAccountError: vi.fn(),
-  extractApiKey: vi.fn(() => "test"), isValidApiKey: vi.fn(async () => true),
+  extractApiKey: (await importOriginal()).extractApiKey, isValidApiKey: vi.fn(async () => true),
 }));
 vi.mock("../../src/sse/services/model.js", () => ({
   getModelInfo: vi.fn(async () => ({ provider: "openai", model: "test" })),
@@ -41,7 +41,7 @@ import { handleChat } from "../../src/sse/handlers/chat.js";
 
 const request = (selector = "agentic", header = "X-9Router-Pipeline") => new Request("http://localhost/v1/chat/completions", {
   method: "POST",
-  headers: selector === null ? {} : { [header]: selector },
+  headers: { Authorization: "Bearer test", ...(selector === null ? {} : { [header]: selector }) },
   body: JSON.stringify({ model: "openai/test", messages: [{ role: "user", content: "aaa" }] }),
 });
 

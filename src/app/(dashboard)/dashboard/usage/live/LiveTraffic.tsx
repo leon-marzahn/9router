@@ -445,7 +445,7 @@ function InFlight({ active }: { active: Usage["active"] }) {
                 <span className="size-3 shrink-0 animate-spin rounded-full border-2 border-accent/25 border-t-accent" />
                 <span className="truncate font-mono">{a.model}</span>
                 <span className="truncate text-text-muted">
-                  {a.provider}
+                  {a.providerName || a.provider}
                   {a.account ? ` · ${a.account}` : ""}
                 </span>
                 <Tag tone="accent" className="ml-auto shrink-0">
@@ -493,7 +493,7 @@ function FeedRow({
         <StatusDot status={failed ? "error" : "ok"} />
         <span className="min-w-0">
           <span className="block truncate font-mono text-xs">{r.model}</span>
-          <span className="block truncate text-[11px] text-text-muted">{r.provider}</span>
+          <span className="block truncate text-[11px] text-text-muted">{r.providerName || r.provider}</span>
         </span>
         <span className="text-right text-xs tabular-nums text-text-muted">
           {fmtTokens(r.inTokens)} <span className="text-text-subtle">→</span>{" "}
@@ -539,7 +539,7 @@ function MobileFeedRow({ r, now, failed }: { r: FeedItem; now: number; failed: b
           </span>
         </span>
         <span className="flex items-center gap-2">
-          <span className="min-w-0 flex-1 truncate text-[11px] text-text-muted">{r.provider}</span>
+          <span className="min-w-0 flex-1 truncate text-[11px] text-text-muted">{r.providerName || r.provider}</span>
           <span className="shrink-0 text-xs tabular-nums">
             {failed ? (
               <Tag tone="danger" mono>

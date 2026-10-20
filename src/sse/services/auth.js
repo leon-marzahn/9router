@@ -350,22 +350,28 @@ export async function clearAccountError(connectionId, currentConnection, model =
 }
 
 /**
- * Extract API key from request headers
+ * The client's API key, read from the same places and in the same order as the
+ * middleware (src/dashboardGuard.js) authorizes a remote /v1 call with:
+ * Bearer, x-api-key, x-goog-api-key (Gemini SDKs), then the `?key=` query param
+ * (Gemini REST convention). Every check on the key (validity, per-key access,
+ * budget, usage attribution) reads it through here, so a key is treated the
+ * same whichever place carries it. Callers log only pathnames, never
+ * request.url, so a `?key=` value stays out of logs and traces.
  */
 export function extractApiKey(request) {
-  // Check Authorization header first
-  const authHeader = request.headers.get("Authorization");
-  if (authHeader?.startsWith("Bearer ")) {
-    return authHeader.slice(7);
+  const headers = request?.headers;
+  if (!headers?.get) return null;
+  const authHeader = headers.get("Authorization");
+  if (authHeader?.startsWith("Bearer ")) return authHeader.slice(7);
+  const xApiKey = headers.get("x-api-key");
+  if (xApiKey) return xApiKey;
+  const googKey = headers.get("x-goog-api-key");
+  if (googKey) return googKey;
+  try {
+    return new URL(request.url).searchParams.get("key") || null;
+  } catch {
+    return null;
   }
-
-  // Check Anthropic x-api-key header
-  const xApiKey = request.headers.get("x-api-key");
-  if (xApiKey) {
-    return xApiKey;
-  }
-
-  return null;
 }
 
 /**

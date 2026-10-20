@@ -11,6 +11,7 @@ import { ROLE, RESPONSES_ITEM } from "../../translator/schema/index.js";
 // Responses-API providers (e.g. codex) may emit SSE without content-type + use Responses output shape
 const isResponsesProvider = (p) => PROVIDERS[p]?.format === FORMATS.OPENAI_RESPONSES;
 import { appendRequestLog } from "@/lib/usageDb.js";
+import { stripAnsweredReasoning } from "./reasoning.js";
 
 function textFromResponsesMessageItem(item) {
   if (!item?.content || !Array.isArray(item.content)) return "";
@@ -348,17 +349,9 @@ export async function handleForcedSSEToJson({ traceAttempt, providerResponse, so
     // a 90%-cached request from a cheap one without this.
     if (usage && Object.keys(usage).length > 0) parsed.usage = usage;
 
-    // Strip reasoning_content only when content is non-empty.
-    // When content is empty (e.g. thinking models that used all tokens for reasoning),
-    // reasoning_content is the only useful output and must be preserved.
-    // Previously this was unconditional, which broke Qwen3.5, Claude extended thinking, etc.
-    if (parsed?.choices) {
-      for (const choice of parsed.choices) {
-        if (choice?.message?.reasoning_content && choice.message.content) {
-          delete choice.message.reasoning_content;
-        }
-      }
-    }
+    // Strip answered reasoning_content (kept when it is the only output, e.g.
+    // Qwen3.5 or Claude extended thinking, and for Gemini-native clients).
+    stripAnsweredReasoning(parsed?.choices, clientRawRequest?.endpoint);
 
     // A Responses-format client (e.g. Codex) forced this provider to stream,
     // but wants JSON back. parseSSEToOpenAIResponse yields a Chat Completions

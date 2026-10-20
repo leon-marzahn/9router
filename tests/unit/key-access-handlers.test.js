@@ -28,14 +28,11 @@ vi.mock("@/lib/disabledModelsDb", () => ({ getDisabledModels: async () => ({}) }
 vi.mock("@/lib/db/repos/combosRepo.js", () => ({ getCombos: async () => fx.combos }));
 vi.mock("@/lib/db/repos/apiKeysRepo.js", () => ({ getApiKeyByKey: async (k) => fx.keys[k] || null }));
 vi.mock("@/lib/usageDb.js", () => ({ saveRequestUsage: vi.fn() }));
-vi.mock("@/sse/services/auth.js", () => ({
+vi.mock("@/sse/services/auth.js", async (importOriginal) => ({
   getProviderCredentials: mocks.getProviderCredentials,
   markAccountUnavailable: vi.fn(async () => ({ shouldFallback: false })),
   clearAccountError: vi.fn(),
-  extractApiKey: (request) => {
-    const a = request.headers.get("Authorization");
-    return a?.startsWith("Bearer ") ? a.slice(7) : request.headers.get("x-api-key");
-  },
+  extractApiKey: (await importOriginal()).extractApiKey,
   isValidApiKey: async () => true,
 }));
 vi.mock("@/sse/services/tokenRefresh.js", () => ({

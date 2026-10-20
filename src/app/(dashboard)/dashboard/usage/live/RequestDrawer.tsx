@@ -111,7 +111,7 @@ export function RequestDrawer({
           <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 whitespace-nowrap text-xs text-text-muted">
             <StatusLabel status={failed ? "error" : "ok"} label={failed ? "Failed" : "Completed"} />
             <span>·</span>
-            <span>{item.provider}</span>
+            <span>{item.providerName || item.provider}</span>
             <span>·</span>
             <span className="tabular-nums">{new Date(item.timestamp).toLocaleTimeString()}</span>
           </div>

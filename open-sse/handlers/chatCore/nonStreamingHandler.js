@@ -13,6 +13,7 @@ import { appendRequestLog } from "@/lib/usageDb.js";
 import { decloakToolNames } from "../../utils/claudeCloaking.js";
 import { restoreToolNames } from "../../utils/opencodeFingerprint.js";
 import { ROLE, RESPONSES_ITEM } from "../../translator/schema/index.js";
+import { stripAnsweredReasoning } from "./reasoning.js";
 
 /**
  * Convert an OpenAI Chat Completions non-streaming response body into the
@@ -320,15 +321,10 @@ export async function handleNonStreamingResponse({ traceAttempt, providerRespons
     translatedResponse.usage = filterUsageForFormat(addBufferToUsage(translatedResponse.usage), sourceFormat);
   }
 
-  // Strip reasoning_content only when content is non-empty.
-  // When content is empty (e.g. thinking models that used all tokens for reasoning),
-  // reasoning_content is the only useful output and must be preserved.
-  if (!isClaudeMessageResponse && !isResponsesResponse && translatedResponse?.choices) {
-    for (const choice of translatedResponse.choices) {
-      if (choice?.message?.reasoning_content && choice.message.content) {
-        delete choice.message.reasoning_content;
-      }
-    }
+  // Strip answered reasoning_content (kept when it is the only output, and for
+  // Gemini-native clients, which render it as a thought part).
+  if (!isClaudeMessageResponse && !isResponsesResponse) {
+    stripAnsweredReasoning(translatedResponse?.choices, clientRawRequest?.endpoint);
   }
 
   reqLogger.logConvertedResponse(translatedResponse);
