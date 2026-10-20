@@ -3,6 +3,10 @@
 // points for older versions and hold provider credentials in plaintext (an older version
 // can't read encrypted ones), see src/lib/db/backup.js and docs/ARCHITECTURE.md.
 //
+// One backup per upgrade: a v100 → v102 upgrade takes a single
+// pre-usage-key-refs+encrypt-credentials-schema4-* (schema 4 = v100.7.x). Its backup.json
+// says what it restores; older names (pre-<step>-<app version>-*) are read from the name.
+//
 //   vp run purge-plaintext-backups          list them and what each one restores
 //   vp run purge-plaintext-backups --yes    delete them
 //
@@ -10,29 +14,41 @@
 import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
+import { describeBackup, isPinnedName } from "../src/lib/db/pinnedBackups.js";
 
 const require = createRequire(import.meta.url);
 const { defaultDataDir } = require("../src/lib/appDir.cjs");
 
-// Label prefix → the versions that backup restores to.
-const RESTORES = {
-  "pre-usage-key-refs-":
-    "v100.7.x, e.g. v100.7.2 (before usage rows stored key references, migration 005)",
-  "pre-encrypt-credentials-":
-    "v101.0.x, e.g. v101.0.2 (before credential encryption, migration 006), or this version from before a downgrade heal",
+const STEP_NAMES = {
+  "pre-usage-key-refs": "usage key references (migration 005)",
+  "pre-encrypt-credentials": "credential encryption (migration 006)",
 };
-const describe = (name) =>
-  Object.entries(RESTORES).find(([p]) => name.startsWith(p))?.[1] ?? "an older version";
+const describe = (dir) => {
+  const m = describeBackup(dir);
+  const steps = m.precedes.map((l) => STEP_NAMES[l] ?? l).join(" and ");
+  return [
+    `restore point for ${m.restoresTo}`,
+    `DB schema ${m.schemaVersion ?? "unknown"}, taken before ${steps || "a one-way change"}` +
+      (m.createdBy ? ` by v${m.createdBy}` : ""),
+  ];
+};
 
 const dataDir = process.env.DATA_DIR || defaultDataDir();
 const pinned = path.join(dataDir, "db", "pinned-backups");
-const dirs = fs.existsSync(pinned)
+const entries = fs.existsSync(pinned)
   ? fs
       .readdirSync(pinned, { withFileTypes: true })
       .filter((e) => e.isDirectory())
       .map((e) => e.name)
       .sort()
   : [];
+// Only directories named like a pinned backup are listed or deleted; anything else is left alone.
+const dirs = entries.filter(isPinnedName);
+const unknown = entries.filter((d) => !isPinnedName(d));
+if (unknown.length) {
+  console.log(`Not a recognised backup, left untouched (check and remove by hand):`);
+  for (const d of unknown) console.log(`  ${path.join(pinned, d)}`);
+}
 
 if (!dirs.length) {
   console.log(`No plaintext restore points in ${pinned}.`);
@@ -40,8 +56,14 @@ if (!dirs.length) {
 }
 const yes = process.argv.includes("--yes");
 console.log(`${yes ? "Deleting" : "These"} pinned backups hold provider credentials in plaintext:`);
-for (const d of dirs)
-  console.log(`  ${path.join(pinned, d)}\n    restore point for ${describe(d)}`);
+for (const d of dirs) {
+  const full = path.join(pinned, d);
+  console.log(
+    `  ${full}\n${describe(full)
+      .map((l) => `    ${l}`)
+      .join("\n")}`,
+  );
+}
 if (!yes) {
   console.log(
     "Keep them until this version is known good. Delete them with: vp run purge-plaintext-backups --yes",

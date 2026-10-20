@@ -428,7 +428,7 @@ describe("migration 006", () => {
     fs.mkdirSync(pinnedDir(), { recursive: true });
     fs.chmodSync(pinnedDir(), 0o555);
     await expect(boot()).rejects.toThrow(
-      /Refusing to encrypt stored credentials without a verified backup/,
+      /Refusing to encrypt stored credentials \(006\) without a verified backup/,
     );
     fs.chmodSync(pinnedDir(), 0o755);
     // The key file may exist, but the rows are untouched and the migration is still pending.

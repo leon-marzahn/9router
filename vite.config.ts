@@ -110,6 +110,7 @@ export default defineConfig({
       "!/src/lib/credentials",
       "!/src/lib/db",
       "/src/lib/db/*",
+      "!/src/lib/db/pinnedBackups.js",
       "!/src/lib/db/helpers",
       "/src/lib/db/helpers/*",
       "!/src/lib/db/helpers/credentialsSeal.js",
