@@ -1,7 +1,7 @@
-import { createHash } from "node:crypto";
 import { EventEmitter } from "events";
 import { getAdapter } from "../driver.js";
 import { parseJson, stringifyJson } from "../helpers/jsonCol.js";
+import { NO_KEY_BUCKET, keyIdFromRef, usageKeyRef } from "../helpers/usageKeyRef.js";
 import { getMeta, setMeta } from "../helpers/metaStore.js";
 import { currentTrace, getTrace } from "@/lib/requestTrace.js";
 import { withProviderNames } from "@/lib/providerName.js";
@@ -14,18 +14,19 @@ function maskApiKey(key) {
   return trimmed.slice(0, 8) + "***" + trimmed.slice(-4);
 }
 
-// byApiKey buckets are keyed internally by the full key (masking collides keys that
-// share a machine-id prefix). Before stats leave this module, swap the raw key in each
-// bucket id for a short one-way hash: still unique per key, never the secret itself.
-function redactApiKeyBucketIds(byApiKey) {
-  const out = {};
-  for (const [bucketId, bucket] of Object.entries(byApiKey)) {
-    const sep = bucketId.indexOf("|");
-    if (bucketId === "local-no-key" || sep < 0) { out[bucketId] = bucket; continue; }
-    const digest = createHash("sha256").update(bucketId.slice(0, sep)).digest("hex").slice(0, 16);
-    out[`key-${digest}${bucketId.slice(sep)}`] = bucket;
+/**
+ * Display info for a stored key reference (helpers/usageKeyRef.js). `keysById` maps
+ * apiKeys.id → key record. A key deleted since (or never issued) gets a stable label.
+ */
+function describeKeyRef(ref, keysById) {
+  const id = keyIdFromRef(ref);
+  const rec = id ? keysById[id] : null;
+  if (rec) {
+    const masked = maskApiKey(rec.key);
+    return { keyId: rec.id, keyName: rec.name || masked || rec.id, apiKeyMasked: masked };
   }
-  return out;
+  const tag = id ? id.slice(0, 8) : String(ref).slice(4, 12);
+  return { keyId: null, keyName: `Deleted key (${tag})`, apiKeyMasked: null };
 }
 
 const PENDING_TIMEOUT_MS = 60 * 1000;
@@ -117,9 +118,10 @@ function aggregateEntryToDay(day, entry) {
     addToCounter(day.byAccount, entry.connectionId, { ...vals, meta: { rawModel: entry.model, provider: entry.provider } });
   }
 
-  const apiKeyVal = entry.apiKey && typeof entry.apiKey === "string" ? entry.apiKey : "local-no-key";
-  const akModelKey = `${apiKeyVal}|${entry.model}|${entry.provider || "unknown"}`;
-  addToCounter(day.byApiKey, akModelKey, { ...vals, meta: { rawModel: entry.model, provider: entry.provider, apiKey: entry.apiKey || null } });
+  // entry.keyRef: the key reference (never the raw key), set by saveRequestUsage.
+  const keyRef = typeof entry.keyRef === "string" && entry.keyRef ? entry.keyRef : null;
+  const akModelKey = `${keyRef || NO_KEY_BUCKET}|${entry.model}|${entry.provider || "unknown"}`;
+  addToCounter(day.byApiKey, akModelKey, { ...vals, meta: { rawModel: entry.model, provider: entry.provider, keyRef } });
 
   const endpoint = entry.endpoint || "Unknown";
   const epKey = `${endpoint}|${entry.model}|${entry.provider || "unknown"}`;
@@ -317,6 +319,10 @@ export async function saveRequestUsage(entry) {
     const completionTokens = tokens.completion_tokens || tokens.output_tokens || 0;
 
     let inserted = false;
+    // Usage rows store a key reference, never the raw key (see helpers/usageKeyRef.js).
+    // entry.apiKey stays raw in memory for budgets.
+    const keyRef = usageKeyRef(db, entry.apiKey);
+    const stored = { ...entry, keyRef };
 
     // All 3 writes (history insert, daily upsert, lifetime counter) in ONE transaction.
     // better-sqlite3 is sync → no JS yield mid-transaction → no race in same process.
@@ -333,7 +339,7 @@ export async function saveRequestUsage(entry) {
          ORDER BY id DESC LIMIT 1`,
         [
           entry.timestamp, entry.provider || null, entry.model || null,
-          entry.connectionId || null, entry.apiKey || null,
+          entry.connectionId || null, keyRef,
           promptTokens, completionTokens,
         ]
       );
@@ -349,7 +355,7 @@ export async function saveRequestUsage(entry) {
         `INSERT INTO usageHistory(timestamp, provider, model, connectionId, apiKey, endpoint, promptTokens, completionTokens, cost, charge, status, tokens, meta) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           entry.timestamp, entry.provider || null, entry.model || null,
-          entry.connectionId || null, entry.apiKey || null, entry.endpoint || null,
+          entry.connectionId || null, keyRef, entry.endpoint || null,
           promptTokens, completionTokens, entry.cost || 0, entry.charge ?? entry.cost ?? 0, entry.status || "ok",
           stringifyJson(tokens),
           // meta.traceId links the row to its in-memory routing trace (Usage inspector).
@@ -364,7 +370,7 @@ export async function saveRequestUsage(entry) {
         requests: 0, promptTokens: 0, completionTokens: 0, cost: 0,
         byProvider: {}, byModel: {}, byAccount: {}, byApiKey: {}, byEndpoint: {},
       };
-      aggregateEntryToDay(day, entry);
+      aggregateEntryToDay(day, stored);
       db.run(`INSERT INTO usageDaily(dateKey, data) VALUES(?, ?) ON CONFLICT(dateKey) DO UPDATE SET data = excluded.data`, [dateKey, stringifyJson(day)]);
 
       // Atomic counter increment in same transaction
@@ -379,7 +385,7 @@ export async function saveRequestUsage(entry) {
       import("@/lib/budgets/index.js")
         .then(({ recordUsage }) => recordUsage(entry))
         .catch(() => {});
-      pushToRing(entry);
+      pushToRing({ ...stored, apiKey: keyRef });
       scheduleStatsEvent("update", 250);
     }
   } catch (e) {
@@ -399,12 +405,26 @@ export async function getUsageHistory(filter = {}) {
 
   const where = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
   const rows = db.all(`SELECT timestamp, provider, model, connectionId, apiKey, endpoint, cost, status, tokens FROM usageHistory ${where} ORDER BY id ASC`, params);
+  const keysById = await keysByIdMap();
 
+  const noKey = { keyId: null, keyName: null, apiKeyMasked: null };
   return rows.map((r) => ({
     timestamp: r.timestamp, provider: r.provider, model: r.model,
-    connectionId: r.connectionId, apiKeyMasked: maskApiKey(r.apiKey), endpoint: r.endpoint,
+    connectionId: r.connectionId,
+    // r.apiKey is a key reference; the key string itself is never returned.
+    ...(r.apiKey ? describeKeyRef(r.apiKey, keysById) : noKey),
+    endpoint: r.endpoint,
     cost: r.cost, status: r.status, tokens: parseJson(r.tokens, {}),
   }));
+}
+
+async function keysByIdMap() {
+  const out = {};
+  try {
+    const { getApiKeys } = await import("./apiKeysRepo.js");
+    for (const k of await getApiKeys()) out[k.id] = k;
+  } catch {}
+  return out;
 }
 
 function loadDaysInRange(adapter, maxDays) {
@@ -420,9 +440,8 @@ function loadDaysInRange(adapter, maxDays) {
 export async function getUsageStats(period = "all") {
   const db = await getAdapter();
 
-  const [{ getProviderConnections }, { getApiKeys }, { getProviderNodes }] = await Promise.all([
+  const [{ getProviderConnections }, { getProviderNodes }] = await Promise.all([
     import("./connectionsRepo.js"),
-    import("./apiKeysRepo.js"),
     import("./nodesRepo.js"),
   ]);
 
@@ -437,12 +456,7 @@ export async function getUsageStats(period = "all") {
     for (const n of nodes) if (n.id && n.name) providerNodeNameMap[n.id] = n.name;
   } catch {}
 
-  let allApiKeys = [];
-  try { allApiKeys = await getApiKeys(); } catch {}
-  const apiKeyMap = {};
-  for (const k of allApiKeys) {
-    if (k.key) apiKeyMap[k.key.trim()] = { name: k.name, id: k.id, createdAt: k.createdAt };
-  }
+  const keysById = await keysByIdMap();
 
   // recentRequests from live history (last 100 entries enough for 20 deduped)
   const recentRows = db.all(`SELECT timestamp, provider, model, tokens, status, meta FROM usageHistory ORDER BY id DESC LIMIT 100`);
@@ -589,13 +603,12 @@ export async function getUsageStats(period = "all") {
         const rawModel = ak.rawModel || "";
         const provider = ak.provider || "";
         const providerDisplayName = providerNodeNameMap[provider] || provider;
-        const apiKeyVal = ak.apiKey ? ak.apiKey.trim() : null;
-        const keyInfo = apiKeyVal ? apiKeyMap[apiKeyVal] : null;
-        const apiKeyMasked = maskApiKey(apiKeyVal);
-        const keyName = keyInfo?.name || (apiKeyVal ? (apiKeyMasked || apiKeyVal.slice(0, 8) + "...") : "Local (No API Key)");
-        const apiKeyKey = apiKeyMasked || "local-no-key";
+        const sep = akKey.indexOf("|");
+        const idPart = sep < 0 ? akKey : akKey.slice(0, sep);
+        const keyRef = ak.keyRef || (idPart !== NO_KEY_BUCKET ? idPart : null);
+        const info = keyRef ? describeKeyRef(keyRef, keysById) : { keyId: null, keyName: "Local (No API Key)", apiKeyMasked: null };
         if (!stats.byApiKey[akKey]) {
-          stats.byApiKey[akKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, charge: 0, credits: 0, creditCost: 0, rawModel, provider: providerDisplayName, apiKeyMasked, keyName, keyId: keyInfo?.id || null, apiKeyKey, lastUsed: dateKey };
+          stats.byApiKey[akKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, charge: 0, credits: 0, creditCost: 0, rawModel, provider: providerDisplayName, apiKeyMasked: info.apiKeyMasked, keyName: info.keyName, keyId: info.keyId, apiKeyKey: keyRef || NO_KEY_BUCKET, lastUsed: dateKey };
         }
         stats.byApiKey[akKey].requests += ak.requests || 0;
         stats.byApiKey[akKey].promptTokens += ak.promptTokens || 0;
@@ -724,15 +737,11 @@ export async function getUsageStats(period = "all") {
       }
 
       if (r.apiKey && typeof r.apiKey === "string") {
-        const apiKeyVal = r.apiKey.trim();
-        const keyInfo = apiKeyMap[apiKeyVal];
-        const apiKeyMasked = maskApiKey(apiKeyVal);
-        const keyName = keyInfo?.name || apiKeyMasked || r.apiKey.slice(0, 8) + "...";
-        // Key by the FULL api key (same as the daily rollup + lastUsed overlay)
-        // — masking here collided all keys sharing a prefix into one bucket.
+        // r.apiKey is a key reference (same bucket ids as the daily rollup + lastUsed overlay).
+        const info = describeKeyRef(r.apiKey, keysById);
         const akKey = `${r.apiKey}|${r.model}|${r.provider || "unknown"}`;
         if (!stats.byApiKey[akKey]) {
-          stats.byApiKey[akKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, charge: 0, credits: 0, creditCost: 0, rawModel: r.model, provider: providerDisplayName, apiKeyMasked, keyName, keyId: keyInfo?.id || null, apiKeyKey: apiKeyMasked, lastUsed: r.timestamp };
+          stats.byApiKey[akKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, charge: 0, credits: 0, creditCost: 0, rawModel: r.model, provider: providerDisplayName, apiKeyMasked: info.apiKeyMasked, keyName: info.keyName, keyId: info.keyId, apiKeyKey: r.apiKey, lastUsed: r.timestamp };
         }
         const ake = stats.byApiKey[akKey];
         ake.requests++; ake.promptTokens += promptTokens; ake.completionTokens += completionTokens; ake.cachedTokens += cachedTokens; ake.cost += entryCost; ake.charge += r.charge ?? entryCost; ake.credits += entryCredits; ake.creditCost += entryCreditCost;
@@ -758,7 +767,6 @@ export async function getUsageStats(period = "all") {
   }
 
   stats.totalRequests = Object.values(stats.byProvider).reduce((sum, p) => sum + (p.requests || 0), 0);
-  stats.byApiKey = redactApiKeyBucketIds(stats.byApiKey);
   const names = new Map();
   stats.activeRequests = await withProviderNames(stats.activeRequests, names);
   stats.recentRequests = await withProviderNames(stats.recentRequests, names);
