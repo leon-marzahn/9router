@@ -24,7 +24,7 @@ Defined in `src/app/globals.css` (`:root` and `.dark`) and exposed as Tailwind u
 | `surface` | Raised: panels, inputs, menus |
 | `surface-2` / `surface-3` | Hover / pressed fills, segmented track |
 | `border`, `border-subtle`, `border-strong` | Dividers, outlines (strong = inputs/secondary buttons in light mode) |
-| `text`, `text-muted`, `text-subtle` | Primary, secondary, tertiary text |
+| `text`, `text-muted`, `text-subtle` | Primary, secondary, tertiary text. All three meet WCAG AA (4.5:1) on every surface up to `surface-3`, light and dark; don't dim them further with `opacity-*` |
 | `accent`, `accent-hover`, `accent-fg` | Primary action, current location |
 | `accent-soft`, `accent-ring`, `accent-text` | Selected row fill / ring / text on soft fill |
 | `inverse`, `inverse-fg` | Tooltips, high-emphasis secondary buttons |
@@ -189,7 +189,7 @@ Use the scale from *Type* above: 13px base, `text-xs`, and 11px meta. The `text-
 
 ## Components (`src/ui/index.ts`)
 
-`Button` / `IconButton` (primary · secondary · ghost · inverse · danger), `Switch`, `Field` / `Input` / `Select` / `SearchInput` / `Kbd`, `Segmented`, `StatusDot` / `StatusLabel`, `Tag`, `Panel` / `SectionTitle` / `Eyebrow` / `EmptyState`, `SettingsSection` / `SettingRow` / `SettingRowSkeleton` / `Note`, `StatGrid` / `InlineStat`, `ListRow` / `ListGroup` / `ListAddRow`, `WorkbenchList` / `WorkbenchDetail` / `useListKeyboard`, `Skeleton` / `ListSkeleton`, `CopyButton`, `CodeBlock`, `Popover` / `MenuItem`, `ProviderLogo`, `LiveNumber`, `useFlashOnChange`, `cn` (tailwind-merge).
+`Button` / `IconButton` (primary · secondary · ghost · inverse · danger), `Switch`, `Checkbox` (16px box, 40px tap area via `::after`), `Field` / `Input` / `Select` / `SearchInput` / `Kbd`, `Segmented`, `StatusDot` / `StatusLabel`, `Tag`, `Panel` / `SectionTitle` / `Eyebrow` / `EmptyState`, `SettingsSection` / `SettingRow` / `SettingRowSkeleton` / `Note`, `StatGrid` / `InlineStat`, `ListRow` / `ListGroup` / `ListAddRow`, `WorkbenchList` / `WorkbenchDetail` / `useListKeyboard`, `Skeleton` / `ListSkeleton`, `CopyButton`, `CodeBlock`, `Popover` / `MenuItem`, `ProviderLogo`, `LiveNumber`, `useFlashOnChange`, `cn` (tailwind-merge).
 
 Rules: icon-only buttons always get a `label`; switches always get a `label`; don't nest panels; one primary button per view.
 

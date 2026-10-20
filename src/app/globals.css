@@ -52,16 +52,16 @@
 
   --color-text: #1c1917;
   --color-text-main: var(--color-text);
-  --color-text-muted: #78716c;
-  --color-text-subtle: #a8a29e;
+  --color-text-muted: #4f4a45;
+  --color-text-subtle: #6b635e;
 
   /* Status — use via StatusDot / Tag, not ad hoc */
   --color-success: #10b981;
   --color-success-text: #047857;
   --color-warning: #f59e0b;
-  --color-warning-text: #b45309;
+  --color-warning-text: #a3480c;
   --color-danger: #dc2626;
-  --color-danger-text: #dc2626;
+  --color-danger-text: #b91c1c;
   --color-danger-soft: rgba(220, 38, 38, 0.07);
   --color-danger-border: #fecaca;
   --color-info: #0ea5e9;
@@ -107,8 +107,8 @@
   --color-border-strong: rgba(255, 255, 255, 0.14);
 
   --color-text: #e7e5e4;
-  --color-text-muted: #a8a29e;
-  --color-text-subtle: #78716c;
+  --color-text-muted: #b8b2ad;
+  --color-text-subtle: #9c948e;
 
   --color-success-text: #34d399;
   --color-warning-text: #fbbf24;

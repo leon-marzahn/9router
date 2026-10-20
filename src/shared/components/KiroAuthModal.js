@@ -341,7 +341,7 @@ export default function KiroAuthModal({ isOpen, onMethodSelect, onClose }) {
             </div>
 
             {error && (
-              <p className="text-sm text-red-600">{error}</p>
+              <p className="text-sm text-danger-text">{error}</p>
             )}
 
             <div className="flex gap-2">
@@ -397,7 +397,7 @@ export default function KiroAuthModal({ isOpen, onMethodSelect, onClose }) {
 
             {error && (
               <div className="bg-red-50 dark:bg-red-900/20 p-3 rounded-lg border border-red-200 dark:border-red-800">
-                <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+                <p className="text-sm text-danger-text">{error}</p>
               </div>
             )}
 
@@ -527,7 +527,7 @@ export default function KiroAuthModal({ isOpen, onMethodSelect, onClose }) {
 
                 {error && (
                   <div className="bg-red-50 dark:bg-red-900/20 p-3 rounded-lg border border-red-200 dark:border-red-800">
-                    <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+                    <p className="text-sm text-danger-text">{error}</p>
                   </div>
                 )}
 
@@ -570,7 +570,7 @@ export default function KiroAuthModal({ isOpen, onMethodSelect, onClose }) {
 
             {error && (
               <div className="bg-red-50 dark:bg-red-900/20 p-3 rounded-lg border border-red-200 dark:border-red-800">
-                <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+                <p className="text-sm text-danger-text">{error}</p>
               </div>
             )}
 

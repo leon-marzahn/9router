@@ -188,7 +188,9 @@ export function ConsoleLog() {
           onScroll={onScroll}
           role="log"
           aria-live="polite"
-          className="h-[calc(100dvh-260px)] min-h-64 overflow-y-auto bg-bg-alt py-2 font-mono text-xs leading-5"
+          aria-label="Console output"
+          tabIndex={0}
+          className="h-[calc(100dvh-260px)] min-h-64 overflow-y-auto bg-bg-alt py-2 font-mono text-xs leading-5 focus-visible:outline-none focus-visible:shadow-focus"
         >
           {shown.length === 0 ? (
             <EmptyState icon="receipt_long" className="m-4">

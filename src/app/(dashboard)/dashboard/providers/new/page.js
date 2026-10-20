@@ -78,7 +78,7 @@ export default function NewProviderPage() {
       <div className="mb-8">
         <Link
           href="/dashboard/providers"
-          className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-primary transition-colors mb-4"
+          className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-primary transition-colors mb-4 max-md:min-h-10"
         >
           <span className="material-symbols-outlined text-lg">arrow_back</span>
           Back to Providers
@@ -196,7 +196,7 @@ export default function NewProviderPage() {
 
           {/* Error Message */}
           {errors.submit && (
-            <div className="p-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 text-sm">
+            <div className="p-4 rounded-lg bg-danger-soft border border-danger-border text-danger-text text-sm">
               {errors.submit}
             </div>
           )}

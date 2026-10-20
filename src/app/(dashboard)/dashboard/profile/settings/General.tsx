@@ -523,7 +523,7 @@ export function About() {
                   href={update.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-accent-text hover:underline"
+                  className="text-accent-text underline underline-offset-2"
                 >
                   v{update.version} available
                 </a>

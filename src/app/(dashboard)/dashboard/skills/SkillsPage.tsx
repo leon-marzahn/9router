@@ -82,7 +82,7 @@ export function SkillsPage() {
         href={`${SKILLS_REPO_URL}/tree/master/skills`}
         target="_blank"
         rel="noreferrer"
-        className="inline-flex items-center gap-1.5 text-[13px] text-text-muted hover:text-text"
+        className="inline-flex items-center gap-1.5 text-[13px] text-text-muted hover:text-text relative after:absolute after:-inset-x-1 after:-inset-y-3.5"
       >
         Browse the source and examples on GitHub
         <Icon name="open_in_new" size={14} />
@@ -116,7 +116,7 @@ function SkillRow({
           href={getSkillBlobUrl(skill.id)}
           target="_blank"
           rel="noreferrer"
-          className="mt-1 inline-flex items-center gap-1 text-[11px] text-text-subtle hover:text-text"
+          className="mt-1 inline-flex items-center gap-1 text-[11px] text-text-subtle hover:text-text relative after:absolute after:-inset-x-1 after:-inset-y-3.5"
         >
           Read it on GitHub
           <Icon name="open_in_new" size={12} />
