@@ -30,28 +30,12 @@ bun run build && PORT=20128 HOSTNAME=0.0.0.0 bun run start           # productio
 - Formatting (`vp fmt`) is scoped by an allow-list in `vite.config.ts` `fmt.ignorePatterns` to fork-owned files only, so upstream files keep their style and merges stay clean. Add new fork-owned files/dirs there.
 
 ### Working in a fresh worktree (agents)
-**The tools are installed — don't conclude otherwise.** Bun usually lives in `~/.bun/bin` and Vite+ in `~/.local/share/vite-plus/bin/vp`; some setups only define `vp` as an interactive-shell function, so a non-interactive shell may say `vp: command not found`. The `SessionStart` hook (`.claude/hooks/ensure-deps.sh`) adds both to `PATH` and installs `node_modules` in a fresh worktree. Subagents and worktrees created by tools may not run that hook, so **run `bun install --frozen-lockfile` once before your first typecheck/lint/test** (a ~1s no-op when already complete; it fixes a missing or half-installed `node_modules`). If a command is still missing:
-- `vp …` → `~/.local/share/vite-plus/bin/vp …`, or `bunx vp …`, or the `bun run` script (`bun run test`, `bun run lint`, `bun run typecheck`).
-- no `node_modules` → `bun install --frozen-lockfile`.
-- Chromium for screenshots → `bunx playwright@1.63.0 install chromium`.
-Never skip a check or report a tool as "not installed" before trying these.
+Run `bun install --frozen-lockfile` before your first typecheck/lint/test: tool-created worktrees may skip the `SessionStart` hook (`.claude/hooks/ensure-deps.sh`), and it is a ~1s no-op on a complete install. If `vp` is not found (some setups define it only as an interactive-shell function), use `bunx vp …` or the `bun run` scripts. Chromium for browser scripts: `bunx playwright@1.63.0 install chromium`.
 
-**Try every UI change in a running dev server before opening the PR.** Typecheck and tests don't catch a broken page. Start your own instance (never `bun run dev`: it binds port 20127, likely a developer's own running server, and reads the real `~/.regent` data):
-```bash
-DATA_DIR="$(mktemp -d)" PORT=20137 NEXT_PUBLIC_BASE_URL=http://localhost:20137 bunx next dev --webpack --port 20137
-```
-Run it in the background, pick another port if 20137 is taken, open the changed pages in the browser tool (log in with the default password `123456`), click through the flows you touched at desktop and 375px width, and check the console for errors. The scratch data starts empty (no providers), so seed what the check needs through the dashboard or API; `scripts/pr-shots/seed.mjs` shows how to seed demo data. Usage/log files ignore `DATA_DIR` and still go to `~/.regent` (see Persistence), so don't send real model traffic. Stop the server when done.
-
-### PR evidence (agents)
-Reviewing a PR? Follow `REVIEW.md`.
-
-CI (`.github/workflows/pr.yml`) runs typecheck, `vp lint` on the files the PR changes (`scripts/ci/lint-changed.sh`; fix errors in files you touch), and `vp test run`, which must be green: any failure fails the job unless it is listed in `tests/__baseline__/known-fails.txt` (empty; `scripts/ci/compare-tests.mjs` also reports listed tests that pass again). For UI changes, attach screenshots of demo data only (the repo is public):
-```bash
-node scripts/pr-shots.mjs --routes /dashboard/usage,/dashboard/providers --label after [--dark]
-node scripts/pr-shots.mjs --shots shots.json --label after   # specific states: opened dialogs, filled forms, menus
-node scripts/pr-shots-publish.mjs --pr <number>
-```
-The first boots its own seeded instance (temp `DATA_DIR` + `HOME`, random password) and writes PNGs (1440×900 and 375×812) to `pr-shots/`; for before/after, also run it on the base branch with `--label before`. The second pushes them to the orphan `pr-assets` branch under `pr-<number>/` and prints Markdown links for the PR's Evidence section. When the change is a state rather than a page (a new dialog, menu, validation error), the shot must show that state: describe it in a `--shots` JSON file (`name`, `route`, `steps` of `click`/`fill`/`hover`/`press`/`waitFor`/`wait`, optional `selector` to crop to the dialog); the format is documented at the top of `scripts/pr-shots.mjs`. Copy `scripts/pr-shots/example-shots.json` as a starting point. Needs Chromium for playwright-core 1.63 (`bunx playwright@1.63.0 install chromium` if not preinstalled).
+### PRs (agents)
+- Push your branch and stop: a reviewer agent tests it per `REVIEW.md` before a PR is opened. Open the PR once the review passes.
+- CI gates and their local commands are listed in `REVIEW.md` ("Tests and CI"); `tests/__baseline__/known-fails.txt` stays empty.
+- UI changes need screenshots of demo data (the repo is public): `scripts/pr-shots.mjs` (usage in its header; `--shots` for dialogs and other states), published with `scripts/pr-shots-publish.mjs --pr <n>`.
 
 CLI package (`cli/`):
 ```bash
@@ -68,7 +52,7 @@ vp test run tests/unit/capabilities.test.js   # single file
 > Test runs are isolated from your real data: `vite.config.ts` points `DATA_DIR`, `HOME`, `USERPROFILE` and `APPDATA` at a fresh temp dir per run, so nothing reaches `~/.regent`.
 > `tests/package.json` only exists for `"type": "module"`; it has no deps of its own. Tests run with the repo root as cwd — resolve file paths with `import.meta.dirname`, not `path.resolve("../…")`.
 >
-> **The suite is expected to be all-green on a plain checkout** (~3920 pass, ~95 skipped, 0 fail). `tests/__baseline__/known-fails.txt` lists tests that are allowed to fail (one `file :: full name` per line); it is empty — keep it that way, and if a red test truly can't be fixed in your change, add it there with a reason in the PR. (`tests/__baseline__/verify-no-regression.mjs` assumes Docker `/app/` paths and misreports locally.) Skipped on purpose:
+> **The suite is expected to be all-green on a plain checkout.** `tests/__baseline__/known-fails.txt` (one `file :: full name` per line) lists tests allowed to fail; keep it empty, and if a red test truly can't be fixed in your change, add it with a reason in the PR. (`tests/__baseline__/verify-no-regression.mjs` assumes Docker `/app/` paths and misreports locally.) Skipped on purpose:
 > - `real/*.real.test.js` and `unit/*.live.test.js` make live provider calls — they skip unless `RUN_REAL=1` (plus credentials) is set.
 - Regression baselines: `tests/__baseline__/verify-*.mjs` compare against committed snapshots (providers, aliases, OAuth URLs). Run these after touching provider registry / alias logic.
 
@@ -101,7 +85,6 @@ Two authoritative docs already exist — read them before working in these areas
 State is **no longer `db.json`**. It's a SQLite layer under `src/lib/db/` with an adapter fallback chain (`driver.js`): `bun:sqlite` → `better-sqlite3` (optional native dep) → `node:sqlite` (Node ≥22.5) → `sql.js` (pure-JS fallback, always works). `better-sqlite3` is deliberately in `optionalDependencies` so install never fails without build tools.
 - `src/lib/localDb.js` is a **backward-compat shim** re-exporting `src/lib/db/index.js`. New code should import from `@/lib/db/index.js`; per-entity logic lives in `src/lib/db/repos/*`. Schema/migrations in `src/lib/db/migrations/`.
 - DB file location resolves via `src/lib/db/paths.js` (`DATA_DIR`, else `~/.regent/`; the default comes from `src/lib/appDir.cjs`, which moves a pre-rename `~/.9router` over once).
-- Usage/logs (`src/lib/usageDb.js`, `usage.json` + `log.txt`) still live under `~/.regent` and do **not** follow `DATA_DIR`.
 
 ### RTK token saver (`open-sse/rtk/`)
 Pre-translate hooks that compress `tool_result` content in-place to cut tokens. **Fail-open**: any error returns null and leaves the body untouched — never throw out of them. Skips `is_error`/`status:"error"` results to preserve traces.
