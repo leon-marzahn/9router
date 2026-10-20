@@ -16,6 +16,7 @@
 # next.js
 /.next/
 /.next-cli-build/
+/.next-smoke/
 /out/
 cli/.build-home/
 product

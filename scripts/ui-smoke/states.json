@@ -1,0 +1,99 @@
+[
+  {
+    "name": "endpoint-new-key",
+    "route": "/dashboard/endpoint",
+    "steps": [{ "click": "button:has-text('New key')" }],
+    "selector": "[role=dialog]"
+  },
+  {
+    "name": "endpoint-key-budget",
+    "route": "/dashboard/endpoint",
+    "steps": [
+      { "click": "button:has-text('Set budget'), button:has-text('Edit'):not(:has-text('plan'))" }
+    ],
+    "selector": "[role=dialog]"
+  },
+  {
+    "name": "endpoint-price-plan-new",
+    "route": "/dashboard/endpoint",
+    "steps": [{ "select": ["select[aria-label^='Price plan for']", "__new"] }],
+    "selector": "[role=dialog]"
+  },
+  {
+    "name": "endpoint-price-plan-edit",
+    "route": "/dashboard/endpoint",
+    "steps": [{ "click": "button:has-text('Edit plan')" }],
+    "selector": "[role=dialog]"
+  },
+  {
+    "name": "provider-add-key",
+    "route": "/dashboard/providers/openai",
+    "steps": [{ "click": "button:has-text('Add key')" }],
+    "selector": "[role=dialog]"
+  },
+  {
+    "name": "provider-edit-account",
+    "route": "/dashboard/providers/openai",
+    "steps": [{ "click": "button[aria-label='Edit account']" }],
+    "selector": "[role=dialog]"
+  },
+  {
+    "name": "usage-request-drawer",
+    "route": "/dashboard/usage",
+    "steps": [
+      { "click": "button[data-req]:not([disabled])" },
+      { "waitFor": "aside[aria-label='Request details'] :text('Route')" }
+    ],
+    "selector": "aside[aria-label='Request details']"
+  },
+  {
+    "name": "cli-tools-manual-config",
+    "route": "/dashboard/cli-tools/claude",
+    "steps": [{ "click": "button:has-text('Manual config')" }],
+    "selector": "[role=dialog]"
+  },
+  {
+    "name": "combos-new",
+    "route": "/dashboard/combos",
+    "steps": [{ "click": "button:has-text('Add combo')" }],
+    "selector": "[role=dialog]"
+  },
+  {
+    "name": "pipelines-new",
+    "route": "/dashboard/request-pipelines",
+    "steps": [
+      { "click": "button:has-text('Add pipeline')" },
+      { "waitFor": "button:has-text('Discard')" }
+    ]
+  },
+  {
+    "name": "proxy-pools-add",
+    "route": "/dashboard/proxy-pools",
+    "steps": [{ "click": "button:has-text('Add proxy pool')" }],
+    "selector": "[role=dialog]"
+  },
+  {
+    "name": "proxy-pools-relay-menu",
+    "route": "/dashboard/proxy-pools",
+    "steps": [{ "click": "button:has(:text('rocket_launch'))" }],
+    "selector": "body > div.fixed:has(button:has-text('Cloudflare relay'))"
+  },
+  {
+    "name": "proxy-pools-relay-dialog",
+    "route": "/dashboard/proxy-pools",
+    "steps": [
+      { "click": "button:has(:text('rocket_launch'))" },
+      { "click": "body > div.fixed button:has-text('Cloudflare relay')" }
+    ],
+    "selector": "[role=dialog]"
+  },
+  {
+    "name": "customer-signed-in",
+    "route": "/customer",
+    "steps": [
+      { "fill": ["input[placeholder^='sk-']", "sk-regent-demo-laptop-0000000000"] },
+      { "click": "button[type=submit]" },
+      { "waitFor": "button:has-text('Sign out')" }
+    ]
+  }
+]
