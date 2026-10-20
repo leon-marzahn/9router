@@ -2,7 +2,7 @@
 
 How to review a PR in this repo. Written for a reviewer agent that did not write the change; CLAUDE.md covers how to build, this file covers how to check.
 
-Assume nobody else will run the change in a browser. Do the hands-on checks yourself; don't infer them from the code or the author's report.
+Review happens on the pushed branch **before** the PR is opened, and every change gets one. Assume nobody else will run it: do the hands-on checks yourself rather than inferring them from the code or the author's report. Changes to the request path, pricing/billing, budgets or auth always get hands-on requests against a fake OpenAI-compatible upstream.
 
 ## Setup
 
@@ -10,9 +10,13 @@ Assume nobody else will run the change in a browser. Do the hands-on checks your
 git fetch origin <branch> && git checkout <branch>
 bun install --frozen-lockfile        # always, before anything else
 ```
-Use `bunx vp …` if `vp` isn't on PATH. Run your own instance per CLAUDE.md ("Working in a fresh worktree"): temp `DATA_DIR` **and** temp `HOME` (usage files ignore `DATA_DIR`), your own port, never 20127.
+Use `bunx vp …` if `vp` isn't on PATH. Run your own instance on a free port with a throwaway data dir (all state, usage included, follows `DATA_DIR`); never `bun run dev`, which binds 20127 (likely a developer's own server) and reads the real `~/.regent`:
+```bash
+DATA_DIR="$(mktemp -d)" PORT=20137 NEXT_PUBLIC_BASE_URL=http://localhost:20137 bunx next dev --webpack --port 20137
+```
+Log in with the default password `123456`; seed what you need through the dashboard or API (`scripts/pr-shots/seed.mjs` shows how). Stop the server when done.
 
-**Never push, commit to, or edit the PR.** You report; the author fixes.
+**Never push to or edit the branch or PR.** You report; the author fixes.
 
 ## Order of review
 
