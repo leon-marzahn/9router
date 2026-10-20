@@ -5,6 +5,7 @@ import { extractUsage, mergeUsage, hasValidUsage, estimateUsage, logUsage, addBu
 import { parseSSELine, hasValuableContent, fixInvalidId, formatSSE } from "./streamHelpers.js";
 import { getOpenAIResponsesEventName, isOpenAIResponsesTerminalEvent, formatIncompleteOpenAIResponsesStreamFailure } from "./responsesStreamHelpers.js";
 import { dbg, isDebugEnabled } from "./debugLog.js";
+import { clientRequestedStreamUsage } from "../translator/concerns/streamUsage.js";
 
 import { SSE_DONE, SSE_HEADERS, SSE_HEADERS_NO_BUFFER } from "./sseConstants.js";
 
@@ -78,6 +79,7 @@ export function createSSEStream(options = {}) {
   // True while `usage` (or state.usage) holds a length-based estimate: real
   // upstream usage arriving later replaces it instead of max-merging with it.
   let usageEstimated = false;
+  // Finish chunks (one per choice index when n>1) held for the usage trailer.
   let heldFinish = null;
   let heldFinishTimer = null;
   const awaitUsageTrailer = mode === STREAM_MODE.PASSTHROUGH && streamUsage?.awaitTrailer === true;
@@ -111,6 +113,21 @@ export function createSSEStream(options = {}) {
   let streamDoneSent = false;  // track duplicate [DONE] across transform + flush
   let finalized = false;
   let completionFlushTimer = null;
+
+  // Translate mode, Claude client behind an OpenAI chat upstream: the upstream's
+  // finish chunk comes before its include_usage trailer, so message_delta (and
+  // everything after it) is held until real usage arrives, [DONE], the end of
+  // the stream, or PENDING_COMPLETION_FLUSH_MS — whichever is first. Content
+  // deltas before the finish are never held.
+  const holdClaudeFinish = mode === STREAM_MODE.TRANSLATE && sourceFormat === FORMATS.CLAUDE && targetFormat === FORMATS.OPENAI;
+  let heldTail = null;
+  let heldTailTimer = null;
+  // Translate mode, OpenAI chat client: the stream must end with data: [DONE],
+  // preceded by the usage-only trailer when the client asked for it.
+  const endsWithOpenAIDone = mode === STREAM_MODE.TRANSLATE && sourceFormat === FORMATS.OPENAI;
+  const clientWantsUsageTrailer = endsWithOpenAIDone && clientRequestedStreamUsage(body);
+  let openAIChunkBase = null;
+  let openAIDoneSent = false;
 
   // Usage/logging tail, callable from transform() as well as flush(): a client that
   // closes right after the terminal event cancels the reader, and flush() never runs.
@@ -155,21 +172,84 @@ export function createSSEStream(options = {}) {
     finalizeStream();
   };
 
+  // Translate mode: the client's finish chunk carries the real usage plus the
+  // context buffer, or an estimate when the upstream sent none.
+  const applyFinishUsage = (item) => {
+    const isFinishChunk = item.type === "message_delta" || item.choices?.[0]?.finish_reason;
+    if (!state.finishReason || !isFinishChunk) return;
+    if (!hasValidUsage(item.usage) && !hasValidUsage(state.usage) && totalContentLength > 0) {
+      const estimated = estimateUsage(body, totalContentLength, sourceFormat);
+      item.usage = filterUsageForFormat(addBufferToUsage(estimated), sourceFormat); // client copy gets the context buffer
+      state.usage = estimated;
+      usageEstimated = true;
+    } else if (state.usage) {
+      // Add buffer and filter usage for client (but keep original in state.usage for logging)
+      item.usage = filterUsageForFormat(addBufferToUsage(state.usage), sourceFormat);
+    }
+  };
+
+  const emitTranslated = (item, controller) => {
+    if (endsWithOpenAIDone && item.object === "chat.completion.chunk" && !openAIChunkBase) {
+      openAIChunkBase = { id: item.id, object: item.object, created: item.created, model: item.model };
+    }
+    const output = formatSSE(withClientUsageBuffer(item), sourceFormat);
+    reqLogger?.appendConvertedChunk?.(output);
+    controller.enqueue(sharedEncoder.encode(output));
+    sseEmittedCount++;
+  };
+
+  const emitHeldTail = (controller) => {
+    if (heldTailTimer) { clearTimeout(heldTailTimer); heldTailTimer = null; }
+    if (!heldTail) return;
+    const items = heldTail;
+    heldTail = null;
+    for (const item of items) {
+      applyFinishUsage(item);
+      emitTranslated(item, controller);
+    }
+  };
+
+  const emitOpenAIDone = (controller) => {
+    if (!endsWithOpenAIDone || openAIDoneSent) return;
+    openAIDoneSent = true;
+    let output = "";
+    if (clientWantsUsageTrailer && hasValidUsage(state.usage) && !usageEstimated) {
+      const base = openAIChunkBase || { object: "chat.completion.chunk", created: Math.floor(Date.now() / 1000), model };
+      output += formatSSE({ ...base, choices: [], usage: filterUsageForFormat(state.usage, FORMATS.OPENAI) }, FORMATS.OPENAI);
+    }
+    output += SSE_DONE;
+    reqLogger?.appendConvertedChunk?.(output);
+    controller.enqueue(sharedEncoder.encode(output));
+  };
+
   // Passthrough: release a finish chunk held for the usage trailer, carrying
   // the real usage if it came, else an estimate (client copy gets the buffer).
   const emitHeldFinish = (controller) => {
     if (heldFinishTimer) { clearTimeout(heldFinishTimer); heldFinishTimer = null; }
     if (!heldFinish) return;
-    const parsed = heldFinish;
+    const held = heldFinish;
     heldFinish = null;
     if (!hasValidUsage(usage)) {
       usage = estimateUsage(body, totalContentLength, FORMATS.OPENAI);
       usageEstimated = true;
     }
-    parsed.usage = filterUsageForFormat(addBufferToUsage(usage), FORMATS.OPENAI);
-    const output = `data: ${JSON.stringify(parsed)}\n\n`;
-    reqLogger?.appendConvertedChunk?.(output);
-    controller.enqueue(sharedEncoder.encode(output));
+    for (const parsed of held) {
+      parsed.usage = filterUsageForFormat(addBufferToUsage(usage), FORMATS.OPENAI);
+      const output = `data: ${JSON.stringify(parsed)}\n\n`;
+      reqLogger?.appendConvertedChunk?.(output);
+      controller.enqueue(sharedEncoder.encode(output));
+    }
+  };
+
+  // The client went away: stop every pending timer and record usage now, once.
+  const cancelPending = () => {
+    if (heldFinishTimer) { clearTimeout(heldFinishTimer); heldFinishTimer = null; }
+    if (heldTailTimer) { clearTimeout(heldTailTimer); heldTailTimer = null; }
+    heldFinish = null;
+    heldTail = null;
+    if (finalized) return;
+    trackPendingRequest(model, provider, connectionId, false);
+    finalizeStream();
   };
 
   return new TransformStream({
@@ -275,13 +355,25 @@ export function createSSEStream(options = {}) {
 
               const isFinishChunk = parsed.choices?.[0]?.finish_reason;
               if (isFinishChunk && !hasValidUsage(parsed.usage) && awaitUsageTrailer) {
-                heldFinish = parsed;
+                // Content (or a tool-call delta) riding on the finish chunk goes out
+                // now; only the empty finish waits for the trailer.
+                const finishChoice = parsed.choices[0];
+                if (finishChoice.delta && Object.keys(finishChoice.delta).length > 0) {
+                  const contentNow = { ...parsed, choices: [{ ...finishChoice, finish_reason: null }] };
+                  const contentOutput = `data: ${JSON.stringify(contentNow)}\n\n`;
+                  reqLogger?.appendConvertedChunk?.(contentOutput);
+                  controller.enqueue(sharedEncoder.encode(contentOutput));
+                  parsed.choices = [{ ...finishChoice, delta: {} }];
+                }
+                (heldFinish ||= []).push(parsed);
                 // Bounded wait: a stalled upstream must not delay finish_reason.
                 // A trailer arriving later still replaces the recorded estimate.
-                heldFinishTimer = setTimeout(() => {
-                  heldFinishTimer = null;
-                  try { emitHeldFinish(controller); } catch { /* controller already closed */ }
-                }, PENDING_COMPLETION_FLUSH_MS);
+                if (!heldFinishTimer) {
+                  heldFinishTimer = setTimeout(() => {
+                    heldFinishTimer = null;
+                    try { emitHeldFinish(controller); } catch { /* controller already closed */ }
+                  }, PENDING_COMPLETION_FLUSH_MS);
+                }
                 continue;
               } else if (isFinishChunk && !hasValidUsage(parsed.usage)) {
                 const estimated = estimateUsage(body, totalContentLength, FORMATS.OPENAI);
@@ -357,6 +449,7 @@ export function createSSEStream(options = {}) {
               state.completionPending && !state.completedSent) {
             flushPendingCompletion(controller);
           }
+          emitHeldTail(controller);
 
           // Synthesize response.failed if the Responses stream never sent a terminal event
           if (keepsOpenAIResponsesFormat && !openAIResponsesTerminalSeen) {
@@ -455,25 +548,22 @@ export function createSSEStream(options = {}) {
               continue; // Skip this empty chunk
             }
 
-            // Inject estimated usage if finish chunk has no valid usage
-            const isFinishChunk = item.type === "message_delta" || item.choices?.[0]?.finish_reason;
-            if (state.finishReason && isFinishChunk && !hasValidUsage(item.usage) && totalContentLength > 0) {
-              const estimated = estimateUsage(body, totalContentLength, sourceFormat);
-              item.usage = filterUsageForFormat(addBufferToUsage(estimated), sourceFormat); // client copy gets the context buffer
-              state.usage = estimated;
-              usageEstimated = true;
-            } else if (state.finishReason && isFinishChunk && state.usage) {
-              // Add buffer and filter usage for client (but keep original in state.usage for logging)
-              const buffered = addBufferToUsage(state.usage);
-              item.usage = filterUsageForFormat(buffered, sourceFormat);
+            if (heldTail) { heldTail.push(item); continue; }
+            if (holdClaudeFinish && item.type === "message_delta" && state.finishReason && !hasValidUsage(state.usage)) {
+              heldTail = [item];
+              heldTailTimer = setTimeout(() => {
+                heldTailTimer = null;
+                try { emitHeldTail(controller); } catch { /* controller already closed */ }
+              }, PENDING_COMPLETION_FLUSH_MS);
+              continue;
             }
 
-            const output = formatSSE(withClientUsageBuffer(item), sourceFormat);
-            reqLogger?.appendConvertedChunk?.(output);
-            controller.enqueue(sharedEncoder.encode(output));
-            sseEmittedCount++;
+            applyFinishUsage(item);
+            emitTranslated(item, controller);
           }
         }
+        // Real usage arrived (the include_usage trailer): release the held finish.
+        if (heldTail && extracted && hasValidUsage(state.usage)) emitHeldTail(controller);
 
         // The completion deferral can outlive the upstream: a broken chat upstream
         // may stall after finish_reason with no usage trailer and no [DONE], holding
@@ -487,6 +577,12 @@ export function createSSEStream(options = {}) {
           }, PENDING_COMPLETION_FLUSH_MS);
         }
       }
+    },
+
+    // Client disconnect (pipeWithDisconnect cancels the reader): flush() never runs.
+    cancel() {
+      if (completionFlushTimer) { clearTimeout(completionFlushTimer); completionFlushTimer = null; }
+      cancelPending();
     },
 
     flush(controller) {
@@ -567,6 +663,7 @@ export function createSSEStream(options = {}) {
             if (translated?.length > 0) {
               for (const item of translated) {
                 if (item === null || item === undefined) continue;
+                if (heldTail) { heldTail.push(item); continue; }
                 const output = formatSSE(withClientUsageBuffer(item), sourceFormat);
                 reqLogger?.appendConvertedChunk?.(output);
                 controller.enqueue(sharedEncoder.encode(output));
@@ -575,6 +672,7 @@ export function createSSEStream(options = {}) {
           }
         }
 
+        emitHeldTail(controller);
         const flushed = translateResponse(targetFormat, sourceFormat, null, state);
 
         if (flushed?._openaiIntermediate) {
@@ -610,9 +708,11 @@ export function createSSEStream(options = {}) {
           streamDoneSent = true;
         }
 
+        emitOpenAIDone(controller);
         finalizeStream();
       } catch (error) {
         console.log("Error in flush:", error);
+        if (heldTailTimer) { clearTimeout(heldTailTimer); heldTailTimer = null; }
         finalizeStream();
       }
     }

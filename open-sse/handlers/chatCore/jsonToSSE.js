@@ -11,7 +11,7 @@ import { upstreamResponseHeaders } from "../../utils/upstreamHeaders.js";
 /** Client formats this module can replay. Others keep the JSON response. */
 export const JSON_REPLAY_FORMATS = new Set([FORMATS.OPENAI, FORMATS.CLAUDE, FORMATS.OPENAI_RESPONSES]);
 
-function openAIChatEvents(json) {
+function openAIChatEvents(json, { includeUsage = false, realUsage = null } = {}) {
   const base = { id: json.id, object: "chat.completion.chunk", created: json.created, model: json.model };
   const events = [];
   for (const choice of json.choices || []) {
@@ -31,6 +31,9 @@ function openAIChatEvents(json) {
     events.push({ ...base, choices: [{ index, delta: {}, finish_reason: choice.finish_reason || "stop" }] });
   }
   if (json.usage && events.length) events[events.length - 1].usage = json.usage;
+  // stream_options.include_usage: the usage-only trailer carries the real count.
+  const trailerUsage = realUsage || json.usage;
+  if (includeUsage && trailerUsage) events.push({ ...base, choices: [], usage: trailerUsage });
   return events.map((e) => formatSSE(e, FORMATS.OPENAI)).join("") + "data: [DONE]\n\n";
 }
 
@@ -90,20 +93,21 @@ const BUILDERS = {
 };
 
 /** SSE text for one complete client-format JSON response. */
-export function jsonResponseToSSE(json, sourceFormat) {
+export function jsonResponseToSSE(json, sourceFormat, options = {}) {
   const build = BUILDERS[sourceFormat];
-  return build ? build(json) : null;
+  return build ? build(json, options) : null;
 }
 
 /**
  * Turn the non-streaming handler's JSON Response into an SSE Response for a
- * streaming client. Error results and unknown formats are returned unchanged.
+ * streaming client (`includeUsage`: append the OpenAI usage-only trailer the
+ * client asked for with stream_options.include_usage). Error results and unknown formats are returned unchanged.
  */
-export async function replayJsonResultAsSSE(result, sourceFormat, upstreamHeaders) {
+export async function replayJsonResultAsSSE(result, sourceFormat, upstreamHeaders, { includeUsage = false } = {}) {
   if (!result?.success || !result.response || !JSON_REPLAY_FORMATS.has(sourceFormat)) return result;
   let json;
   try { json = await result.response.clone().json(); } catch { return result; }
-  const text = jsonResponseToSSE(json, sourceFormat);
+  const text = jsonResponseToSSE(json, sourceFormat, { includeUsage, realUsage: result.clientUsage || null });
   if (!text) return result;
   return {
     ...result,

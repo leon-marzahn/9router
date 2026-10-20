@@ -432,70 +432,11 @@ const label = (c) =>
   `${c.format} | ${c.mode} | stream=${c.stream ?? "omitted"} | accept=${c.accept ?? "none"}${c.includeUsage ? " | include_usage" : ""}`;
 
 /**
- * Cells that are wrong on master: real bugs, not fixed here. Each lists the checks
+ * Cells that are wrong on master: real bugs, not fixed yet. Each lists the checks
  * that are wrong today; every other check in the cell is still enforced.
+ * @type {Record<string, string[]>}
  */
-// An always-JSON upstream replayed as SSE folds usage into the finish chunk but never
-// emits the usage-only trailer the client asked for.
-const NO_REQUESTED_TRAILER = ["usage trailer (requested)", "trailer completion tokens", "trailer prompt tokens"];
-// The strict upstream 422s the proxy's own stream_options; on the retry without it the
-// client's finish chunk carries an estimate instead of the real usage, and the
-// upstream's trailer reaches a client that didn't ask for it. (The usage row is right.)
-const STRICT_RETRY_USAGE = ["finish-chunk completion tokens", "finish-chunk prompt tokens", "usage trailer (not requested)"];
-// A Responses-API upstream streamed to an OpenAI chat client: the SSE never ends with
-// data: [DONE], and a requested usage trailer is missing.
-const RESP_NO_DONE = ["[DONE] count", "[DONE] is last"];
-const RESP_NO_DONE_NO_TRAILER = [...RESP_NO_DONE, ...NO_REQUESTED_TRAILER];
-// A Claude streaming client behind an OpenAI chat upstream that streams: the final
-// message_delta carries an estimate ("estimated": true, output_tokens 1) because the
-// usage trailer arrives after the finish chunk. (The usage row is right.)
-const CLAUDE_ESTIMATED_USAGE = ["client output tokens"];
-const KNOWN_BROKEN = {
-  "claude | honors | stream=omitted | accept=text/event-stream": CLAUDE_ESTIMATED_USAGE,
-  "claude | honors | stream=true | accept=none": CLAUDE_ESTIMATED_USAGE,
-  "claude | honors | stream=true | accept=application/json": CLAUDE_ESTIMATED_USAGE,
-  "claude | honors | stream=true | accept=text/event-stream": CLAUDE_ESTIMATED_USAGE,
-  "claude | honors | stream=true | accept=application/json, text/event-stream": CLAUDE_ESTIMATED_USAGE,
-  "claude | sse | stream=omitted | accept=text/event-stream": CLAUDE_ESTIMATED_USAGE,
-  "claude | sse | stream=true | accept=none": CLAUDE_ESTIMATED_USAGE,
-  "claude | sse | stream=true | accept=application/json": CLAUDE_ESTIMATED_USAGE,
-  "claude | sse | stream=true | accept=text/event-stream": CLAUDE_ESTIMATED_USAGE,
-  "claude | sse | stream=true | accept=application/json, text/event-stream": CLAUDE_ESTIMATED_USAGE,
-  "claude | strict | stream=omitted | accept=text/event-stream": CLAUDE_ESTIMATED_USAGE,
-  "claude | strict | stream=true | accept=none": CLAUDE_ESTIMATED_USAGE,
-  "claude | strict | stream=true | accept=application/json": CLAUDE_ESTIMATED_USAGE,
-  "claude | strict | stream=true | accept=text/event-stream": CLAUDE_ESTIMATED_USAGE,
-  "claude | strict | stream=true | accept=application/json, text/event-stream": CLAUDE_ESTIMATED_USAGE,
-  "claude | forced | stream=omitted | accept=text/event-stream": CLAUDE_ESTIMATED_USAGE,
-  "claude | forced | stream=true | accept=none": CLAUDE_ESTIMATED_USAGE,
-  "claude | forced | stream=true | accept=application/json": CLAUDE_ESTIMATED_USAGE,
-  "claude | forced | stream=true | accept=text/event-stream": CLAUDE_ESTIMATED_USAGE,
-  "claude | forced | stream=true | accept=application/json, text/event-stream": CLAUDE_ESTIMATED_USAGE,
-  "fb-503 | claude | stream=omitted | accept=text/event-stream": CLAUDE_ESTIMATED_USAGE,
-  "fb-503 | claude | stream=true | accept=none": CLAUDE_ESTIMATED_USAGE,
-  "fb-strict | claude | stream=omitted | accept=text/event-stream": CLAUDE_ESTIMATED_USAGE,
-  "fb-strict | claude | stream=true | accept=none": CLAUDE_ESTIMATED_USAGE,
-  "openai | resp | stream=omitted | accept=text/event-stream": RESP_NO_DONE,
-  "openai | resp | stream=true | accept=none": RESP_NO_DONE,
-  "openai | resp | stream=true | accept=application/json": RESP_NO_DONE,
-  "openai | resp | stream=true | accept=text/event-stream": RESP_NO_DONE,
-  "openai | resp | stream=true | accept=application/json, text/event-stream": RESP_NO_DONE,
-  "openai | resp | stream=true | accept=none | include_usage": RESP_NO_DONE_NO_TRAILER,
-  "openai | resp | stream=true | accept=application/json | include_usage": RESP_NO_DONE_NO_TRAILER,
-  "openai | resp | stream=true | accept=text/event-stream | include_usage": RESP_NO_DONE_NO_TRAILER,
-  "openai | resp | stream=true | accept=application/json, text/event-stream | include_usage": RESP_NO_DONE_NO_TRAILER,
-  "openai | json | stream=true | accept=none | include_usage": NO_REQUESTED_TRAILER,
-  "openai | json | stream=true | accept=application/json | include_usage": NO_REQUESTED_TRAILER,
-  "openai | json | stream=true | accept=text/event-stream | include_usage": NO_REQUESTED_TRAILER,
-  "openai | json | stream=true | accept=application/json, text/event-stream | include_usage": NO_REQUESTED_TRAILER,
-  "openai | strict | stream=omitted | accept=text/event-stream": STRICT_RETRY_USAGE,
-  "openai | strict | stream=true | accept=none": STRICT_RETRY_USAGE,
-  "openai | strict | stream=true | accept=application/json": STRICT_RETRY_USAGE,
-  "openai | strict | stream=true | accept=text/event-stream": STRICT_RETRY_USAGE,
-  "openai | strict | stream=true | accept=application/json, text/event-stream": STRICT_RETRY_USAGE,
-  "fb-strict | openai | stream=omitted | accept=text/event-stream": STRICT_RETRY_USAGE,
-  "fb-strict | openai | stream=true | accept=none": STRICT_RETRY_USAGE,
-};
+const KNOWN_BROKEN = {};
 
 /** Registers a cell: known-broken checks may fail, and must still be failing. */
 function cell(name, fn) {
