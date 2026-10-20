@@ -193,4 +193,52 @@ describe("proxy pools overview", () => {
     );
     for (const b of boxes) expect(b.className).toContain("sr-only");
   });
+
+  it("the captioned Checkbox selects every row", () => {
+    const pools = [
+      { id: "a", name: "Office egress", proxyUrl: "http://a", isActive: true },
+      { id: "b", name: "Residential EU", proxyUrl: "http://b", isActive: true },
+    ];
+    render(h(Overview, { api: { list: pools }, onOpen: () => {}, onAdd: () => {} }));
+    const all = [...container.querySelectorAll("label")].find(
+      (l) => visibleText(l) === "Select all",
+    );
+    act(() => all.querySelector("input").click());
+    const rows = [...container.querySelectorAll("input[aria-label^='Select ']")];
+    expect(rows.every((r) => r.checked)).toBe(true);
+    expect(container.textContent).toContain("Unselect all");
+  });
+});
+
+describe("MITM page", () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: true, json: async () => ({ running: false, dnsStatus: {} }) })),
+    );
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("loads its data, labels the server fields and uses the danger token", async () => {
+    const MitmPageClient = (await import("@/app/(dashboard)/dashboard/mitm/MitmPageClient"))
+      .default;
+    await act(async () => root.render(h(MitmPageClient)));
+    const urls = fetch.mock.calls.map(([u]) => String(u));
+    expect(urls).toEqual(
+      expect.arrayContaining(["/api/providers", "/api/keys", "/api/models/alias", "/api/settings"]),
+    );
+    expect(container.querySelector(".text-danger-text")).not.toBeNull();
+    expect(container.querySelector(".text-red-600")).toBeNull();
+    for (const input of container.querySelectorAll("input[type=text]"))
+      expect(labelOf(input), input.outerHTML).not.toBe("");
+
+    // Expanding a tool card loads its saved model mappings.
+    const toggle = [...container.querySelectorAll("div.hover\\:cursor-pointer")].find((b) =>
+      /Antigravity/i.test(b.textContent),
+    );
+    await act(async () => toggle.click());
+    expect(fetch.mock.calls.some(([u]) => String(u).includes("antigravity-mitm/alias"))).toBe(
+      true,
+    );
+  });
 });
