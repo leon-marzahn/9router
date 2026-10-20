@@ -179,4 +179,24 @@ describe("pipeline settings API", () => {
     expect(response.status).toBe(200);
     expect((await response.json()).body.input).toBe(latest);
   });
+
+  it("previews a pipeline whose newly added step is still blank, skipping that step", async () => {
+    const { POST } = await import("../../src/app/api/settings/request-pipelines/preview/route.js");
+    const call = (pipeline) => POST(new Request("http://localhost/api/settings/request-pipelines/preview", {
+      method: "POST", body: JSON.stringify({ pipeline, body: { input: old + latest } }),
+    }));
+    const withBlank = { ...pipelines[0], rules: [...pipelines[0].rules, { regex: "", replacement: "" }, { kind: "tag", tag: " " }] };
+    const response = await call(withBlank);
+    expect(response.status).toBe(200);
+    const data = await response.json();
+    expect(data.body.input).toBe(latest);
+    expect(data.stats).toHaveLength(withBlank.rules.length);
+    expect(data.stats.slice(-2)).toEqual([null, null]);
+    expect(data.stats[0]).not.toBeNull();
+    const onlyBlank = await call({ name: "draft", rules: [{ regex: "" }] });
+    expect(onlyBlank.status).toBe(200);
+    expect(await onlyBlank.json()).toEqual({ body: { input: old + latest }, stats: [null] });
+    // A malformed (not blank) step is still an error.
+    expect((await call({ name: "draft", rules: [{ regex: "(" }] })).status).toBe(400);
+  });
 });
