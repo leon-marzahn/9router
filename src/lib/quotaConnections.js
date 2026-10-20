@@ -4,6 +4,7 @@
 import { getProviderConnections } from "@/lib/localDb";
 import { backfillCodexEmails } from "@/lib/oauth/providers";
 import { USAGE_APIKEY_PROVIDERS, USAGE_SUPPORTED_PROVIDERS } from "@/shared/constants/providers";
+import { maskUrlCredentials } from "@/lib/secretRedaction";
 
 const SAFE_FIELDS = [
   "id", "provider", "authType", "name", "email", "displayName",
@@ -37,6 +38,7 @@ export function sanitizeConnection(c) {
     for (const f of SAFE_PSD_FIELDS) {
       if (c.providerSpecificData[f] !== undefined) psd[f] = c.providerSpecificData[f];
     }
+    if (psd.connectionProxyUrl) psd.connectionProxyUrl = maskUrlCredentials(psd.connectionProxyUrl);
     safe.providerSpecificData = psd;
   }
   return safe;
