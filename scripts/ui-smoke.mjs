@@ -34,7 +34,8 @@
 // compiles on first visit and live reloads open pages, so it visits one at a time).
 //
 // Known issues live in scripts/ui-smoke/baseline.txt, one `check | viewport | route | detail`
-// per line (`*` matches any field, `# ...` is a comment); a state's route is
+// per line (`*` matches any field, `# ...` is a comment, a trailing ` @dev`/` @prod`
+// limits a line to that server mode); a state's route is
 // `state:<name>`. Only issues not in the baseline fail the run; baseline lines
 // that no longer match (among what this run visited) are reported as fixed so
 // they can be deleted. Same idea as tests/__baseline__/known-fails.txt: keep it
@@ -61,7 +62,7 @@ import {
   startInstance,
   VIEWPORTS,
 } from "./pr-shots/instance.mjs";
-import { affectedSections, routeSelected, sectionOf } from "./ui-smoke/affected.mjs";
+import { affectedSections, routeSelected } from "./ui-smoke/affected.mjs";
 
 const { values: args } = parseArgs({
   options: {
@@ -115,7 +116,7 @@ let states = args.states
     : allStates;
 let scope = args.routes || args.states ? "picked by --routes/--states" : "full run";
 if (args.changed && !args.routes && !args.states) {
-  const hit = affectedSections(changedFiles(args.changed), { importers });
+  const hit = affectedSections(changedFiles(args.changed), appSources());
   if (hit.full) scope = `full run (${hit.reason} changed)`;
   else {
     routes = routes.filter((r) => routeSelected(r, hit.sections));
@@ -194,18 +195,31 @@ const unique = issues
   .sort((a, b) => key(a).localeCompare(key(b)));
 if (args["update-baseline"]) {
   if (partial) throw new Error("--update-baseline needs a full run (drop --changed)");
-  const lines = unique.map((i) => `${key(i)}  # TODO: ${todo(i.check)}`).sort();
+  // Lines scoped to the other server mode can't be judged by this run: keep them.
+  const other = existsSync(BASELINE)
+    ? readFileSync(BASELINE, "utf8")
+        .split("\n")
+        .filter((l) => /\s@(dev|prod)(\s|$)/.test(l) && !l.includes(` @${instance.mode}`))
+    : [];
+  const lines = [...unique.map((i) => `${key(i)}  # TODO: ${todo(i.check)}`), ...other].sort(
+    (a, b) => a.localeCompare(b),
+  );
   writeFileSync(BASELINE, `${readHeader()}${lines.join("\n")}\n`);
   console.log(`wrote ${lines.length} entries to ${BASELINE}`);
 }
 const baseline = readBaseline();
 const fresh = unique.filter((i) => !baseline.some((b) => matches(b, i)));
 const ran = new Set(visited.map((v) => `${v.viewport} | ${v.route}`));
-const stale = baseline.filter(
-  (b) =>
-    (b.viewport === "*" || b.route === "*" || ran.has(`${b.viewport} | ${b.route}`)) &&
-    !unique.some((i) => matches(b, i)),
-);
+// Only claim a line is fixed when this run fully covered it: a clean full run
+// for wildcard lines, the exact route/viewport otherwise, and never on a failing run.
+const stale = fresh.length
+  ? []
+  : baseline.filter(
+      (b) =>
+        ((b.viewport === "*" || b.route === "*") && !partial
+          ? true
+          : ran.has(`${b.viewport} | ${b.route}`)) && !unique.some((i) => matches(b, i)),
+    );
 
 const report = renderReport();
 writeFileSync(join(outDir, "report.md"), report);
@@ -608,25 +622,22 @@ function changedFiles(ref) {
   return git("diff", "--name-only", from, "HEAD").split("\n").filter(Boolean);
 }
 
-/** Other page sections whose files import from `section`'s directory. */
-function importers(section) {
-  if (section === "/customer") return [];
-  const dir = section.slice(1); // dashboard/usage
-  const needle = new RegExp(`from\\s+["'][^"']*${dir.replace(/[/-]/g, "\\$&")}/`);
-  const hits = new Set();
+/** Code of the page and shared-UI sources (src/app minus api, src/ui), for affectedSections(). */
+function appSources() {
+  const out = new Map();
   const walk = (d) => {
     for (const e of readdirSync(d, { withFileTypes: true })) {
       const p = join(d, e.name);
       if (e.isDirectory()) {
-        if (e.name !== "api") walk(p);
-      } else if (/\.(m?[jt]sx?)$/.test(e.name) && needle.test(readFileSync(p, "utf8"))) {
-        const s = sectionOf(p.slice(root.length + 1));
-        if (s && s !== section) hits.add(s);
+        if (p !== join(root, "src/app/api")) walk(p);
+      } else if (/\.(m?[jt]sx?)$/.test(e.name)) {
+        out.set(p.slice(root.length + 1), readFileSync(p, "utf8"));
       }
     }
   };
   walk(join(root, "src/app"));
-  return [...hits];
+  walk(join(root, "src/ui"));
+  return out;
 }
 
 function key(i) {
@@ -636,7 +647,7 @@ function key(i) {
 /** Strip volatile bits (numbers, hashes, ports) so findings are stable across runs. */
 function norm(s) {
   return String(s)
-    .replace(/https?:\/\/localhost:\d+/g, "")
+    .replace(/https?:\/\/(localhost|127\.0\.0\.1):\d+/g, "")
     .replace(/\s+/g, " ")
     .replace(/[|#]/g, "/")
     .replace(/\d+/g, "N")
@@ -678,9 +689,15 @@ function readBaseline() {
     .map((l) => l.replace(/\s+#.*$/, "").trim())
     .filter((l) => l && !l.startsWith("#"))
     .map((l) => {
-      const [check, viewport, route, ...rest] = l.split("|").map((x) => x.trim());
-      return { line: l, check, viewport, route, detail: rest.join("|").trim() };
-    });
+      // A trailing ` @dev` / ` @prod` limits the entry to that server mode.
+      const mode = l.match(/\s@(dev|prod)$/)?.[1];
+      const [check, viewport, route, ...rest] = l
+        .replace(/\s@(dev|prod)$/, "")
+        .split("|")
+        .map((x) => x.trim());
+      return { line: l, mode, check, viewport, route, detail: rest.join("|").trim() };
+    })
+    .filter((b) => !b.mode || b.mode === instance.mode);
 }
 
 function matches(b, i) {

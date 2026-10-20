@@ -1,5 +1,5 @@
 # Known UI smoke findings (scripts/ui-smoke.mjs). Format: check | viewport | route | detail
-# `*` matches any field. Every entry is a real bug to fix: delete the line when it is.
+# `*` matches any field; a trailing ` @dev` or ` @prod` limits a line to that server mode. Every entry is a real bug to fix: delete the line when it is.
 # Regenerate with `node scripts/ui-smoke.mjs --update-baseline` only to accept current findings.
 axe | desktop | /customer | color-contrast  # TODO: fix accessibility violation
 axe | desktop | /customer#signed-in | color-contrast  # TODO: fix accessibility violation
@@ -51,6 +51,7 @@ axe | mobile | /dashboard/basic-chat | color-contrast  # TODO: fix accessibility
 axe | mobile | /dashboard/cli-tools | color-contrast  # TODO: fix accessibility violation
 axe | mobile | /dashboard/combos | color-contrast  # TODO: fix accessibility violation
 axe | mobile | /dashboard/console-log | color-contrast  # TODO: fix accessibility violation
+axe | mobile | /dashboard/console-log | scrollable-region-focusable @dev  # TODO: fix accessibility violation (--dev only: its log is long enough to scroll)
 axe | mobile | /dashboard/endpoint | color-contrast  # TODO: fix accessibility violation
 axe | mobile | /dashboard/media-providers | color-contrast  # TODO: fix accessibility violation
 axe | mobile | /dashboard/media-providers/web | color-contrast  # TODO: fix accessibility violation
@@ -92,7 +93,7 @@ tap | mobile | /dashboard/basic-chat | button "addNew chat"  # TODO: enlarge tap
 tap | mobile | /dashboard/basic-chat | input "Search chats"  # TODO: enlarge tap target to 40px
 tap | mobile | /dashboard/cli-tools | input "Search tools"  # TODO: enlarge tap target to 40px
 tap | mobile | /dashboard/cli-tools/claude | select "Keep current keyLaptop (demo)CI runner ("  # TODO: enlarge tap target to 40px
-tap | mobile | /dashboard/cli-tools/claude | select "This machine · localhost:NCustom add"  # TODO: enlarge tap target to 40px
+tap | mobile | /dashboard/cli-tools/claude | select "This machine · N.N.N.N:NCustom add"  # TODO: enlarge tap target to 40px
 tap | mobile | /dashboard/combos | button "addAdd combo"  # TODO: enlarge tap target to 40px
 tap | mobile | /dashboard/combos | input "Search combos"  # TODO: enlarge tap target to 40px
 tap | mobile | /dashboard/console-log | input "Filter lines"  # TODO: enlarge tap target to 40px

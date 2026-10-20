@@ -48,7 +48,8 @@ export async function startInstance(opts = {}) {
   const tmp = mkdtempSync(join(tmpdir(), "pr-shots-"));
   const password = randomBytes(12).toString("hex");
   const port = opts.port || (await freePort());
-  const base = `http://localhost:${port}`;
+  // Bound to loopback only: the instance has a known-to-us password and demo data.
+  const base = `http://127.0.0.1:${port}`;
   const env = {
     ...process.env,
     DATA_DIR: join(tmp, "data"),
@@ -57,6 +58,7 @@ export async function startInstance(opts = {}) {
     APPDATA: join(tmp, "home"),
     INITIAL_PASSWORD: password,
     PORT: String(port),
+    HOSTNAME: "127.0.0.1",
     NEXT_PUBLIC_BASE_URL: base,
     NEXT_TELEMETRY_DISABLED: "1",
     NODE_NO_WARNINGS: "1",
@@ -94,8 +96,8 @@ export async function startInstance(opts = {}) {
     // client IP that local-only APIs such as /api/cli-tools check).
     const [cmd, ...argv] =
       mode === "prod"
-        ? ["node", "custom-server.js", "--port", String(port)]
-        : ["bunx", "next", "dev", "--webpack", "--port", String(port)];
+        ? ["node", "custom-server.js", "--hostname", "127.0.0.1", "--port", String(port)]
+        : ["bunx", "next", "dev", "--webpack", "--hostname", "127.0.0.1", "--port", String(port)];
     server = spawn(cmd, argv, {
       cwd: root,
       env,
