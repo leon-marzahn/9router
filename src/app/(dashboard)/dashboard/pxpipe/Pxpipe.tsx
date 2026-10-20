@@ -39,6 +39,8 @@ interface PxpipeStatus {
   running?: boolean;
   uptimeMs?: number;
   enabled?: boolean;
+  pinnedVersion?: string;
+  pinMismatch?: boolean;
 }
 
 interface HealthCheck {
@@ -52,6 +54,8 @@ interface PxpipeHealth {
   healthy?: boolean;
   checks?: HealthCheck[];
   error?: string | null;
+  code?: "NOT_INSTALLED" | "PIN_MISMATCH" | null;
+  pinnedVersion?: string;
 }
 
 interface WindowTotals {
@@ -110,6 +114,7 @@ const REASON_LABELS: Record<string, string> = {
   passthrough: "Passthrough",
   disabled: "Disabled",
   not_installed: "Not installed",
+  pin_mismatch: "Not the pinned release",
 };
 
 const fmtTokens = (n: number | undefined) => {
@@ -132,6 +137,9 @@ function overallStatus(
 ): { status: Status; label: string } {
   if (!status) return { status: "pending", label: "Checking" };
   if (!status.installed) return { status: "none", label: "Not installed" };
+  if (status.pinMismatch || health?.code === "PIN_MISMATCH") {
+    return { status: "error", label: "Pin mismatch" };
+  }
   if (health?.healthy) return { status: "ok", label: "Healthy" };
   if (status.running) return { status: "degraded", label: "Running" };
   return { status: "error", label: "Stopped" };
@@ -156,6 +164,8 @@ export function Pxpipe() {
   const [logs, setLogs] = useState<{ installLog?: string } | null>(null);
   const [windowId, setWindowId] = useState<WindowId>("last7d");
   const [loading, setLoading] = useState(true);
+  const [installing, setInstalling] = useState(false);
+  const [installError, setInstallError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -176,6 +186,22 @@ export function Pxpipe() {
       setLoading(false);
     }
   }, []);
+
+  // Explicit only: a missing or mismatched copy is never replaced silently.
+  const installPinned = useCallback(async () => {
+    setInstalling(true);
+    setInstallError(null);
+    try {
+      const res = await fetch("/api/pxpipe/install", { method: "POST" });
+      const body = await res.json();
+      if (!res.ok) setInstallError(body.error || "Install failed");
+    } catch {
+      setInstallError("Install request failed");
+    } finally {
+      setInstalling(false);
+      void refresh();
+    }
+  }, [refresh]);
 
   useEffect(() => {
     // eslint-disable-next-line react/set-state-in-effect -- initial data load on mount
@@ -234,7 +260,10 @@ export function Pxpipe() {
           {
             label: "Version",
             value: status?.version ? `v${status.version}` : "—",
-            sub: "pxpipe-proxy",
+            sub:
+              overall.label === "Pin mismatch"
+                ? `Does not match pinned v${status?.pinnedVersion}`
+                : "pxpipe-proxy",
           },
           { label: "Uptime", value: fmtUptime(status?.uptimeMs), sub: "module loaded" },
           { label: "Requests", value: w ? w.requests : "—" },
@@ -346,6 +375,31 @@ export function Pxpipe() {
             {health.error && (
               <div className="py-4">
                 <Note tone="danger">{health.error}</Note>
+              </div>
+            )}
+            {(health.code === "NOT_INSTALLED" || health.code === "PIN_MISMATCH") && (
+              <SettingRow
+                title={
+                  health.code === "PIN_MISMATCH"
+                    ? "Reinstall pinned version"
+                    : "Install pinned version"
+                }
+                hint={`Installs pxpipe-proxy v${health.pinnedVersion} from registry.npmjs.org with install scripts disabled, then verifies it.`}
+              >
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  icon="download"
+                  onClick={installPinned}
+                  loading={installing}
+                >
+                  {health.code === "PIN_MISMATCH" ? "Reinstall" : "Install"}
+                </Button>
+              </SettingRow>
+            )}
+            {installError && (
+              <div className="py-4">
+                <Note tone="danger">{installError}</Note>
               </div>
             )}
           </>

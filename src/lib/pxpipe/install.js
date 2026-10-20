@@ -2,9 +2,11 @@ import fs from "fs";
 import path from "path";
 import { spawn, execSync } from "child_process";
 import { DATA_DIR } from "@/lib/dataDir.js";
+import { PXPIPE_PACKAGE, PXPIPE_REGISTRY, PXPIPE_SPEC, defaultPin, verifyPinnedInstall } from "./pin.js";
+import { clearPinFailure } from "./loader.js";
 
+export { PXPIPE_PACKAGE };
 export const PXPIPE_DIR = path.join(DATA_DIR, "pxpipe");
-export const PXPIPE_PACKAGE = "pxpipe-proxy";
 const INSTALL_LOG = path.join(PXPIPE_DIR, "install.log");
 const INSTALL_TIMEOUT_MS = 5 * 60 * 1000;
 
@@ -59,11 +61,37 @@ export function getInstallInfo() {
   }
 }
 
+// Does the installed copy match the pinned version, tarball integrity and files?
+// { ok, reason } — the loader refuses to import anything that isn't ok.
+export function verifyInstall() {
+  return verifyPinnedInstall({ hostDir: PXPIPE_DIR, packageRoot: packageRoot(), pin: defaultPin() });
+}
+
+// npm args for the pinned install. Exported for tests.
+//  --ignore-scripts: pxpipe-proxy and its one dependency (gpt-tokenizer) ship
+//    no install scripts, so none should ever run on this machine.
+//  --registry: explicit so a user/global .npmrc or npm_config_registry can't
+//    point the download at another host (CLI flags beat every config source).
+//  --package-lock: forced on, verifyInstall reads the recorded integrity.
+export function installArgs() {
+  return [
+    "install",
+    PXPIPE_SPEC,
+    "--save-exact",
+    "--ignore-scripts",
+    `--registry=${PXPIPE_REGISTRY}`,
+    "--package-lock=true",
+    "--no-audit",
+    "--no-fund",
+    "--omit=dev",
+  ];
+}
+
 export function isInstalling() {
   return installInFlight !== null;
 }
 
-// Install (or repair by reinstalling) pxpipe-proxy into DATA_DIR/pxpipe.
+// Install (or repair by reinstalling) the pinned pxpipe-proxy into DATA_DIR/pxpipe.
 // Serialized: concurrent calls await the same run.
 export function installPxpipe() {
   if (installInFlight) return installInFlight;
@@ -80,20 +108,31 @@ async function runInstall() {
   }
 
   ensureDir();
-  const pkgJson = path.join(PXPIPE_DIR, "package.json");
-  if (!fs.existsSync(pkgJson)) {
-    fs.writeFileSync(pkgJson, JSON.stringify({ name: "9router-pxpipe-host", private: true }, null, 2));
-  }
+  // Fresh host manifest every time: drops anything a previous @latest install
+  // (or a hand edit) added; npm writes the exact pin back via --save-exact.
+  fs.writeFileSync(
+    path.join(PXPIPE_DIR, "package.json"),
+    JSON.stringify({ name: "regent-pxpipe-host", private: true }, null, 2),
+  );
+  // A project .npmrc here would sit above the user config; never honour one.
+  fs.rmSync(path.join(PXPIPE_DIR, ".npmrc"), { force: true });
+  // Start clean: npm treats an already-present pxpipe-proxy@<pin> as satisfied
+  // and would keep files edited on disk, and an edited lockfile could point
+  // `resolved` at another host. Both are rebuilt from the registry.
+  fs.rmSync(path.join(PXPIPE_DIR, "node_modules"), { recursive: true, force: true });
+  fs.rmSync(path.join(PXPIPE_DIR, "package-lock.json"), { force: true });
 
+  clearPinFailure();
+  const args = installArgs();
   const outFd = fs.openSync(INSTALL_LOG, "a");
-  fs.writeSync(outFd, `\n[${new Date().toISOString()}] npm install ${PXPIPE_PACKAGE}@latest\n`);
+  fs.writeSync(outFd, `\n[${new Date().toISOString()}] npm ${args.join(" ")}\n`);
 
   await new Promise((resolve, reject) => {
-    const child = spawn(npm, ["install", `${PXPIPE_PACKAGE}@latest`, "--no-audit", "--no-fund", "--omit=dev"], {
+    const child = spawn(npm, args, {
       cwd: PXPIPE_DIR,
       stdio: ["ignore", outFd, outFd],
       windowsHide: true,
-      env: { ...process.env, PATH: EXTENDED_PATH },
+      env: { ...process.env, PATH: EXTENDED_PATH, npm_config_ignore_scripts: "true" },
     });
     const timer = setTimeout(() => {
       child.kill("SIGKILL");
@@ -109,6 +148,12 @@ async function runInstall() {
 
   const info = getInstallInfo();
   if (!info.installed) throw new Error("install finished but package is missing — see install.log");
+  const pin = verifyInstall();
+  if (!pin.ok) {
+    const err = new Error(`installed package does not match the pin: ${pin.reason}`);
+    err.code = "PIN_MISMATCH";
+    throw err;
+  }
   return info;
 }
 

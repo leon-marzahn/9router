@@ -29,9 +29,10 @@ function skipped(reason, extra = {}) {
 // { body: <new body object> | null, summary } — body is null when nothing changed.
 // opts.transform is injected by the host (src side) so open-sse stays free of
 // filesystem/install concerns and remains usable standalone.
-export async function compressWithPxpipe(body, { enabled, format, model, minChars, timeoutMs, transform } = {}) {
+export async function compressWithPxpipe(body, { enabled, format, model, minChars, timeoutMs, transform, unavailableReason } = {}) {
   if (!enabled) return skipped("disabled");
-  if (typeof transform !== "function") return skipped("not_installed");
+  // The host says why it has no transform (e.g. "pin_mismatch"); default not_installed.
+  if (typeof transform !== "function") return skipped(unavailableReason || "not_installed");
   if (!body) return skipped("missing_body");
   if (format !== FORMATS.CLAUDE) return skipped("unsupported_format", { detail: format });
 

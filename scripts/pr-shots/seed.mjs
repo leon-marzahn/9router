@@ -82,7 +82,12 @@ await seedConnection("demo-conn-compatible-1", {
   provider: "openai-compatible-chat-demo",
   name: "Demo Compatible",
   apiKey: "sk-demo-compatible-000000000000",
-  providerSpecificData: { prefix: "democ", apiType: "chat", baseUrl: "https://llm.example.com/v1", nodeName: "Demo Compatible" },
+  providerSpecificData: {
+    prefix: "democ",
+    apiType: "chat",
+    baseUrl: "https://llm.example.com/v1",
+    nodeName: "Demo Compatible",
+  },
 });
 await seedConnection("demo-conn-groq-2", {
   provider: "groq",
@@ -464,6 +469,29 @@ write(
     2,
   ),
 );
+
+// A PXPIPE install whose files don't match the pin (no network, nothing that
+// could load), so the PXPIPE page shows the "Reinstall pinned version" state.
+{
+  const { PXPIPE_INTEGRITY, PXPIPE_VERSION } = await import("@/lib/pxpipe/pin.js");
+  const host = join(process.env.DATA_DIR, "pxpipe");
+  const root = join(host, "node_modules", "pxpipe-proxy");
+  mkdirSync(join(root, "dist", "core"), { recursive: true });
+  writeFileSync(
+    join(root, "package.json"),
+    JSON.stringify({ name: "pxpipe-proxy", version: PXPIPE_VERSION, type: "module" }),
+  );
+  writeFileSync(join(root, "dist", "core", "library.js"), "// demo: not the pinned release\n");
+  writeFileSync(
+    join(host, "package-lock.json"),
+    JSON.stringify({
+      lockfileVersion: 3,
+      packages: {
+        "node_modules/pxpipe-proxy": { version: PXPIPE_VERSION, integrity: PXPIPE_INTEGRITY },
+      },
+    }),
+  );
+}
 
 console.log(`seeded connections, ${keys.length} API keys, 6 combos, ${n} usage rows`);
 process.exit(0);
