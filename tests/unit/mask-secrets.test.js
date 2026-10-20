@@ -95,7 +95,8 @@ describe("review bypasses", () => {
 
   it("masks bare and object-valued secret fields in bodies", () => {
     expect(JSON.stringify(maskBody({ token: S, secret: S, key: S }))).not.toContain(S);
-    expect(maskBody({ client_secret: { value: S } })).toEqual({ client_secret: REDACTED });
+    expect(maskBody({ client_secret: { value: S } })).toEqual({ client_secret: { value: REDACTED } });
+    expect(maskBody({ auth: { type: "oauth", token: S } })).toEqual({ auth: { type: "oauth", token: REDACTED } });
   });
 
   it("masks raw header lines, key prefixes, encoded param names and fragments", () => {
@@ -118,5 +119,22 @@ describe("value redaction", () => {
     expect(redactValues(text, secrets)).toBe(`bad key ${REDACTED}; tok ${REDACTED}; url ?x=${REDACTED}`);
     expect(redactValues(text, [])).toBe(text);
     expect(redactValuesDeep({ a: [{ m: "prov-key-abcdef" }], n: 1 }, secrets)).toEqual({ a: [{ m: REDACTED }], n: 1 });
+  });
+});
+
+describe("over-masking guards", () => {
+  it("keeps tool schemas whose properties are named like secrets", () => {
+    const tools = [
+      { name: "login", input_schema: { type: "object", properties: { password: { type: "string" }, token: { type: "string", description: "x" } } } },
+      { type: "function", function: { name: "f", parameters: { properties: { api_key: { type: "string" } } } } },
+    ];
+    expect(maskBody({ tools })).toEqual({ tools });
+    expect(maskBody({ schema: { key: "string" } })).toEqual({ schema: { key: "string" } });
+  });
+
+  it("keeps prose 'Basic ...' and masks real Basic credentials and cookie2", () => {
+    expect(maskString("Basic information about the model")).toBe("Basic information about the model");
+    expect(maskString("Authorization header: Basic dXNlcjpwYXNzd29yZA==")).toBe(`Authorization header: Basic ${REDACTED}`);
+    expect(isSecretHeader("Cookie2")).toBe(true);
   });
 });

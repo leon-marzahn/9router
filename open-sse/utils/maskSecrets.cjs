@@ -20,6 +20,7 @@ const SECRET_HEADERS = new Set([
   "api-key",
   "cookie",
   "set-cookie",
+  "cookie2",
 ]);
 
 // Any other header naming a token/secret/key/credential, or a session *token/key/secret*.
@@ -76,7 +77,8 @@ const JSON_FIELD_RE = /("([A-Za-z0-9_-]+)"\s*:\s*)("(?:[^"\\]|\\.)*"|-?\d+(?:\.\
 const ESC_JSON_FIELD_RE = /(\\"([A-Za-z0-9_-]+)\\"\s*:\s*)(\\"(?:[^"\\]|\\[^"])*\\")/g;
 // Raw "Header: value" lines.
 const HEADER_LINE_RE = /^([ \t]*)((?:proxy-)?authorization|x-api-key|x-goog-api-key|api-key|cookie|set-cookie)([ \t]*:[ \t]*)(.+)$/gim;
-const BEARER_RE = /\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{6,}/gi;
+// Basic needs a base64-shaped token (>= 12 chars) so prose like "Basic information" stays.
+const BEARER_RE = /\b(?:(Bearer)\s+[A-Za-z0-9._~+/=-]{6,}|(Basic)\s+[A-Za-z0-9+/]{12,}={0,2}(?![A-Za-z0-9+/=]))/gi;
 // Well-known key formats, with a minimum length so ordinary words never match.
 const KEY_PREFIX_RE = /\b(?:sk-ant-[A-Za-z0-9_-]{8,}|sk-(?:proj-|or-v1-|or-)?[A-Za-z0-9_-]{16,}|AIza[0-9A-Za-z_-]{30,}|gsk_[A-Za-z0-9]{20,}|xai-[A-Za-z0-9]{20,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|hf_[A-Za-z0-9]{20,}|ya29\.[A-Za-z0-9._-]{20,}|AKIA[0-9A-Z]{16})/g;
 
@@ -101,7 +103,7 @@ function maskString(str) {
     .replace(QUERY_RE, (m, prefix, name) => (isSecretName(name) ? `${prefix}${REDACTED}` : m))
     .replace(JSON_FIELD_RE, (m, prefix, name, value) => (isSecretName(name) && !value.includes(REDACTED) ? `${prefix}"${REDACTED}"` : m))
     .replace(ESC_JSON_FIELD_RE, (m, prefix, name, value) => (isSecretName(name) && !value.includes(REDACTED) ? `${prefix}\\"${REDACTED}\\"` : m))
-    .replace(BEARER_RE, `$1 ${REDACTED}`)
+    .replace(BEARER_RE, (_m, bearer, basic) => `${bearer || basic} ${REDACTED}`)
     .replace(KEY_PREFIX_RE, REDACTED);
 }
 
@@ -117,18 +119,25 @@ function maskHeaders(headers) {
   return out;
 }
 
-function maskBody(value, depth = 0) {
+// Keys directly under these are field *names* in a schema (a tool's `password`
+// property), not credentials, so they are never redacted themselves.
+const SCHEMA_PARENTS = new Set(["properties", "input_schema", "inputschema", "parameters", "schema"]);
+
+function maskBody(value, depth = 0, parentKey = "") {
   if (depth > 50) return value;
   if (typeof value === "string") return maskString(value);
   if (Array.isArray(value)) return value.map((v) => maskBody(v, depth + 1));
   if (value && typeof value === "object") {
+    const inSchema = SCHEMA_PARENTS.has(String(parentKey).toLowerCase());
     const out = {};
     for (const [k, v] of Object.entries(value)) {
-      if (isSecretName(k) && v != null && v !== "") {
-        if (typeof v === "object") out[k] = REDACTED;
-        else if (typeof v === "string" && v.includes(REDACTED)) out[k] = v;
-        else out[k] = REDACTED;
-      } else out[k] = maskBody(v, depth + 1);
+      // Only scalar values are replaced; objects (e.g. `auth: {type: "oauth"}`) are walked.
+      const scalar = typeof v === "string" || typeof v === "number" || typeof v === "bigint";
+      // `{client_secret: {value: S}}`: the wrapped value of a secret-named field is secret too.
+      const wrapped = k === "value" && isSecretName(parentKey);
+      if (!inSchema && scalar && v !== "" && (isSecretName(k) || wrapped)) {
+        out[k] = typeof v === "string" && v.includes(REDACTED) ? v : REDACTED;
+      } else out[k] = maskBody(v, depth + 1, k);
     }
     return out;
   }
