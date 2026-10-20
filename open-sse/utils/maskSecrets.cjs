@@ -25,8 +25,8 @@ const SAFE_HEADER_RE = /ratelimit|rate-limit|max-tokens|tokens?-(limit|remaining
 // JSON body fields that carry credentials (OAuth refresh/exchange bodies, key configs).
 const SECRET_FIELD_RE = /^(access[-_]?token|refresh[-_]?token|id[-_]?token|session[-_]?token|auth[-_]?token|api[-_]?key|apikey|x-api-key|x-goog-api-key|client[-_]?secret|password|authorization|cookie|private[-_]?key)$/i;
 
-// Credentials embedded in free text: URL query params and bearer tokens.
-const QUERY_RE = /([?&](?:key|api[-_]?key|access[-_]?token|refresh[-_]?token|id[-_]?token|token|client[-_]?secret|auth|password)=)[^&\s"'#<>\\]+/gi;
+// Credentials embedded in free text: URL query params / form bodies and bearer tokens.
+const QUERY_RE = /((?:^|[?&\s])(?:key|api[-_]?key|access[-_]?token|refresh[-_]?token|id[-_]?token|token|client[-_]?secret|auth|password)=)[^&\s"'#<>\\]+/gi;
 const JSON_FIELD_RE = /("(?:access_token|refresh_token|id_token|session_token|api_?key|client_secret|password)"\s*:\s*")[^"]*/gi;
 const BEARER_RE = /\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{6,}/gi;
 

@@ -53,6 +53,12 @@ describe("maskString", () => {
     expect(maskString(text)).not.toContain(KEY);
   });
 
+  it("redacts form-encoded OAuth refresh bodies", () => {
+    const out = maskString(`refresh_token=${KEY}&client_secret=${KEY}&grant_type=refresh_token`);
+    expect(out).not.toContain(KEY);
+    expect(out).toContain("grant_type=refresh_token");
+  });
+
   it("leaves non-strings and ordinary text alone", () => {
     expect(maskString(undefined)).toBeUndefined();
     expect(maskString("hello ?monkey=1")).toBe("hello ?monkey=1");
