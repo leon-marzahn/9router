@@ -60,13 +60,34 @@ export function prNumber(ref) {
   return match ? Number(match[1]) : null;
 }
 
+/**
+ * The upstream commit recorded in `forkedFrom.commit` of package.json on `masterRef`, if this
+ * clone has it. Everything reachable from it is 9router's history, not ours.
+ */
+export function upstreamBase(git, masterRef) {
+  let commit;
+  try {
+    commit = JSON.parse(git.run(["show", `${masterRef}:package.json`]))?.forkedFrom?.commit;
+  } catch {
+    return null;
+  }
+  if (typeof commit !== "string" || !/^[0-9a-f]{7,40}$/i.test(commit)) return null;
+  return git.ok(["rev-parse", "--verify", "--quiet", `${commit}^{commit}`]) ? commit : null;
+}
+
 /** The commit on `masterRef` whose subject ends in "(#n)". */
 export function resolvePr(git, masterRef, n) {
-  // First parent only: merged upstream history carries its own, colliding PR numbers.
+  // First parent only: merged upstream history carries its own, colliding PR numbers. That is
+  // not enough on its own: the fork was branched off 9router's master, so 9router's commits
+  // before the fork point are on our first-parent line too. Exclude everything reachable from
+  // the upstream commit we last synced to (`forkedFrom.commit`). Without that marker (a shallow
+  // or partial clone), a collision still refuses rather than guessing.
+  const base = upstreamBase(git, masterRef);
   const out = git.run([
     "log",
     "--first-parent",
     masterRef,
+    ...(base ? ["--not", base] : []),
     "--format=%H%x09%s",
     "-F",
     "--grep",
