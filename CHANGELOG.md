@@ -1,4 +1,10 @@
 
+# v102.0.1 (2026-10-20)
+
+## Fixes
+- **release**: Resolve backport PR numbers past the upstream fork base (#138)
+- **db**: Take one pinned backup per upgrade, labelled by the schema it restores (#139)
+
 # v102.0.0 (2026-10-20)
 
 ## Breaking
