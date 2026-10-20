@@ -11,7 +11,7 @@ on:
         required: true
         type: string
       promote_latest:
-        description: "Promote this republish to latest"
+        description: "Move floating tags (latest, major, major.minor) where this is the highest stable release"
         required: false
         default: false
         type: boolean
@@ -45,6 +45,18 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ inputs.release_tag || github.ref_name }}
+          # All tags, so the floating-tag guard can see every release.
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Check out floating-tag guard
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: workflow
+          sparse-checkout: |
+            scripts/ci/floating-tags.mjs
+          sparse-checkout-cone-mode: false
           fetch-depth: 1
 
       - name: Validate tag and package versions
@@ -104,14 +116,22 @@ jobs:
           const commit = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
           const ghcrImage = `ghcr.io/${process.env.REPOSITORY.toLowerCase()}`;
           const isPrerelease = version.includes("-");
-          const promoteLatest = (process.env.EVENT_NAME === "push" && !isPrerelease)
+          const promoteRequested = (process.env.EVENT_NAME === "push" && !isPrerelease)
             || process.env.PROMOTE_LATEST_INPUT === "true";
-          // Stable releases also move :{major} and :{major}.{minor} (epoch semver: :100, :100.2),
-          // together with :latest so a republish of an older version never moves them back.
-          const [major, minor] = version.split(".");
-          const floatingTags = promoteLatest
-            ? ["latest", ...(isPrerelease ? [] : [major, `${major}.${minor}`])].join(" ")
+          // Each floating tag (latest, :{major}, :{major}.{minor}) only moves when this version is the
+          // highest stable version in that scope, so a backport never moves latest or a newer major.
+          // A manual promote_latest obeys the same guard; it can never move a tag backwards.
+          const floatingTags = promoteRequested
+            ? execFileSync("node", ["workflow/scripts/ci/floating-tags.mjs", "floating", version], { encoding: "utf8" }).trim()
             : "";
+          const promoteLatest = floatingTags !== "";
+          const skipped = promoteRequested
+            ? ["latest", ...(isPrerelease ? [] : [version.split(".")[0], version.split(".").slice(0, 2).join(".")])]
+                .filter((t) => !floatingTags.split(" ").includes(t))
+            : [];
+          if (promoteRequested && skipped.length) {
+            console.log(`::warning title=Floating tags held back::${tag} is not the highest stable release for: ${skipped.join(", ")}. Those tags stay where they are.`);
+          }
           const output = process.env.GITHUB_OUTPUT;
 
           fs.appendFileSync(output, `tag=${tag}\n`);
@@ -358,7 +378,7 @@ jobs:
             echo "- Policy: promote \`${FLOATING_TAGS}\` after the verified ${VERSION} manifest." >> "$GITHUB_STEP_SUMMARY"
           else
             echo "### Latest promotion" >> "$GITHUB_STEP_SUMMARY"
-            echo "- Policy: leave \`latest\` and the floating major tags unchanged; this is a numbered-tag-only manual republish." >> "$GITHUB_STEP_SUMMARY"
+            echo "- Policy: leave \`latest\` and the floating major tags unchanged (prerelease, numbered-tag-only republish, or a newer release already holds every floating tag)." >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - name: Promote verified version to floating tags
