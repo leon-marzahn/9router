@@ -76,6 +76,18 @@ describe("transformToOllama", () => {
     expect(out.at(-1).done_reason).toBeUndefined();
   });
 
+  it("turns the gateway's mid-stream error tail into an error line and no done_reason", async () => {
+    const out = await lines(await transformToOllama(sse([
+      { choices: [{ delta: { content: "par" } }] },
+      { error: { message: "upstream connection lost", type: "upstream_error" } },
+      { choices: [{ delta: {}, finish_reason: "error" }] },
+      "[DONE]",
+    ]), "m"));
+    expect(out.find((l) => l.error)).toEqual({ error: "upstream connection lost" });
+    expect(out.filter((l) => l.done)).toHaveLength(1);
+    expect(out.at(-1).done_reason).toBeUndefined();
+  });
+
   it("rewrites errors to Ollama's { error } shape, keeping the status", async () => {
     const cases = [
       [Response.json({ error: { message: "bad key" } }, { status: 401 }), 401, "bad key"],

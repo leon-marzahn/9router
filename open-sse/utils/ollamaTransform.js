@@ -18,7 +18,8 @@ function toolCallsOut(calls) {
 // No finish reason (upstream closed early) → no done_reason, so a cut-off reply doesn't look complete.
 function finalFields(usage, finishReason) {
   const out = { done: true };
-  if (finishReason) out.done_reason = DONE_REASON[finishReason] || "stop";
+  // "error" and unknown reasons get none either.
+  if (DONE_REASON[finishReason]) out.done_reason = DONE_REASON[finishReason];
   if (usage) {
     if (Number.isFinite(usage.prompt_tokens)) out.prompt_eval_count = usage.prompt_tokens;
     if (Number.isFinite(usage.completion_tokens)) out.eval_count = usage.completion_tokens;
@@ -96,6 +97,12 @@ export async function transformToOllama(response, model) {
     try {
       parsed = JSON.parse(data);
     } catch {
+      return;
+    }
+    // Mid-stream failure (e.g. upstream connection lost): Ollama's NDJSON error line.
+    if (parsed?.error) {
+      const err = parsed.error.message ?? parsed.error;
+      controller.enqueue(line({ error: typeof err === "string" ? err : JSON.stringify(err) }));
       return;
     }
     if (parsed.usage) usage = parsed.usage;
