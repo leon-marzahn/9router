@@ -58,18 +58,34 @@ describe("transformToOllama", () => {
       { choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: ":1}" } }] }, finish_reason: "tool_calls" }] },
       "[DONE]",
     ]), "m"));
-    expect(out).toHaveLength(1);
-    expect(out[0].message.tool_calls).toEqual([{ function: { name: "f", arguments: { a: 1 } } }]);
+    expect(out).toHaveLength(2);
+    expect(out[0]).toMatchObject({ done: false, message: { tool_calls: [{ function: { name: "f", arguments: { a: 1 } } }] } });
+    expect(out[1].done).toBe(true);
+    expect(out[1].message.tool_calls).toBeUndefined();
   });
 
   it("still ends with one done line when the stream has no [DONE]", async () => {
     const out = await lines(await transformToOllama(sse([{ choices: [{ delta: { content: "x" }, finish_reason: "stop" }] }]), "m"));
     expect(out.filter((l) => l.done)).toHaveLength(1);
+    expect(out.at(-1).done_reason).toBe("stop");
   });
 
-  it("passes errors through unchanged", async () => {
-    const res = await transformToOllama(Response.json({ error: { message: "bad" } }, { status: 401 }), "m");
-    expect(res.status).toBe(401);
-    expect(await res.json()).toEqual({ error: { message: "bad" } });
+  it("does not mark a cut-off stream (no finish_reason, no [DONE]) as stopped", async () => {
+    const out = await lines(await transformToOllama(sse([{ choices: [{ delta: { content: "par" } }] }]), "m"));
+    expect(out.filter((l) => l.done)).toHaveLength(1);
+    expect(out.at(-1).done_reason).toBeUndefined();
+  });
+
+  it("rewrites errors to Ollama's { error } shape, keeping the status", async () => {
+    const cases = [
+      [Response.json({ error: { message: "bad key" } }, { status: 401 }), 401, "bad key"],
+      [Response.json({ error: "rate limited" }, { status: 429 }), 429, "rate limited"],
+      [new Response("upstream down", { status: 502 }), 502, "upstream down"],
+    ];
+    for (const [input, status, error] of cases) {
+      const res = await transformToOllama(input, "m");
+      expect(res.status).toBe(status);
+      expect(await res.json()).toEqual({ error });
+    }
   });
 });

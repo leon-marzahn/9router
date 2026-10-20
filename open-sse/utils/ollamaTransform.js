@@ -15,8 +15,10 @@ function toolCallsOut(calls) {
   return calls.map((tc) => ({ function: { name: tc.function?.name || "", arguments: parseArgs(tc.function?.arguments) } }));
 }
 
+// No finish reason (upstream closed early) → no done_reason, so a cut-off reply doesn't look complete.
 function finalFields(usage, finishReason) {
-  const out = { done: true, done_reason: DONE_REASON[finishReason] || "stop" };
+  const out = { done: true };
+  if (finishReason) out.done_reason = DONE_REASON[finishReason] || "stop";
   if (usage) {
     if (Number.isFinite(usage.prompt_tokens)) out.prompt_eval_count = usage.prompt_tokens;
     if (Number.isFinite(usage.completion_tokens)) out.eval_count = usage.completion_tokens;
@@ -38,8 +40,17 @@ export function openAIBodyToOllama(body, model) {
 const JSON_HEADERS = { "Access-Control-Allow-Origin": "*" };
 
 export async function transformToOllama(response, model) {
-  // Errors keep their status and body so the client sees what went wrong.
-  if (!response.ok) return response;
+  // Errors keep their status; the body becomes Ollama's { error: "<message>" }.
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    let message = text;
+    try {
+      const body = JSON.parse(text);
+      const err = body?.error?.message ?? body?.error ?? body?.message;
+      if (err !== undefined) message = typeof err === "string" ? err : JSON.stringify(err);
+    } catch {}
+    return Response.json({ error: message || `HTTP ${response.status}` }, { status: response.status, headers: JSON_HEADERS });
+  }
   if (!response.body) {
     return new Response("", { status: response.status, headers: { "Content-Type": "application/x-ndjson" } });
   }
@@ -63,13 +74,17 @@ export async function transformToOllama(response, model) {
   let ended = false;
   const line = (obj) => encoder.encode(JSON.stringify(obj) + "\n");
 
-  // Exactly one done:true line, carrying any tool calls, the finish reason and token counts.
+  // Tool calls go out in their own done:false line (as Ollama does), then exactly
+  // one done:true line with the finish reason and token counts.
   function end(controller) {
     if (ended) return;
     ended = true;
-    const message = { role: "assistant", content: "" };
     const calls = Object.values(pendingToolCalls);
-    if (calls.length) message.tool_calls = toolCallsOut(calls);
+    if (calls.length) {
+      const message = { role: "assistant", content: "", tool_calls: toolCallsOut(calls) };
+      controller.enqueue(line({ model, created_at: new Date().toISOString(), message, done: false }));
+    }
+    const message = { role: "assistant", content: "" };
     controller.enqueue(line({ model, created_at: new Date().toISOString(), message, ...finalFields(usage, finishReason) }));
   }
 
