@@ -1,5 +1,5 @@
 import { pathToFileURL } from "url";
-import { getInstallInfo, libraryEntry } from "./install.js";
+import { getInstallInfo, libraryEntry, verifyInstall } from "./install.js";
 
 // Module cache: pxpipe is loaded once per process ("started") and dropped on
 // "stop". In library mode start/stop govern the in-process module, not a daemon.
@@ -22,6 +22,14 @@ async function doLoad() {
   if (!info.installed) {
     const err = new Error("PXPIPE is not installed");
     err.code = "NOT_INSTALLED";
+    throw err;
+  }
+  // Never import a copy that isn't the pinned, reviewed release: it would run
+  // in-process and see prompts. Reinstalling is an explicit user action.
+  const pin = verifyInstall();
+  if (!pin.ok) {
+    const err = new Error(`PXPIPE install does not match the pinned release (${pin.reason}) — reinstall the pinned version`);
+    err.code = "PIN_MISMATCH";
     throw err;
   }
   // Cache-bust per version so Repair/upgrade takes effect without a server restart.
