@@ -13,6 +13,7 @@
     "release": "node scripts/release.mjs",
     "backport": "node scripts/backport.mjs",
     "rotate-credentials-key": "node scripts/rotate-credentials-key.mjs",
+    "purge-plaintext-backups": "node scripts/purge-plaintext-backups.mjs",
     "dev": "next dev --port 20127",
     "dev:webpack": "next dev --webpack --port 20127",
     "build": "next build --webpack",

@@ -27,7 +27,7 @@ describe("DB SQLite layer — public API parity", () => {
   it("settings: get → defaults; update → merge", async () => {
     const s = await sqliteDb.getSettings();
     expect(s).toBeDefined();
-    expect(s.cloudEnabled).toBe(false);
+    expect(s.cloudEnabled).toBeUndefined(); // cloud sync was removed; no default
     expect(s.requireLogin).toBe(true);
 
     const updated = await sqliteDb.updateSettings({ cloudEnabled: true, customField: "x" });

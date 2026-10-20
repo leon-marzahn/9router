@@ -6,7 +6,8 @@
 // Key file mode (no CREDENTIALS_KEY): moves the current DATA_DIR/credentials.key into
 // DATA_DIR/credentials.key.previous and writes a new key. The next server start
 // re-encrypts every stored credential under the new key (after a backup) and VACUUMs.
-// Env mode (CREDENTIALS_KEY set): prints a new key and the env vars to set; nothing is written.
+// Env mode (CREDENTIALS_KEY set): writes a new key to DATA_DIR/credentials.key.new-<ts>
+// (0600) and prints its path and the env vars to set; the key itself is never printed.
 //
 // After a successful start ("[DB][migrate] credentials encrypted" in the log) the old key is
 // only needed to open backups taken before the rotation.
@@ -24,10 +25,16 @@ const prevFile = path.join(dataDir, "credentials.key.previous");
 const newKey = crypto.randomBytes(32).toString("base64");
 
 if (process.env.CREDENTIALS_KEY) {
-  console.log(`CREDENTIALS_KEY is set, so the key lives in your environment. To rotate:
+  // Never print the key: write it to a 0600 file the operator copies into their secret store.
+  const newFile = path.join(dataDir, `credentials.key.new-${Date.now()}`);
+  fs.mkdirSync(dataDir, { recursive: true });
+  fs.writeFileSync(newFile, `${newKey}\n`, { mode: 0o600, flag: "wx" });
+  fs.chmodSync(newFile, 0o600);
+  console.log(`CREDENTIALS_KEY is set, so the key lives in your environment.
+New key written to ${newFile} (mode 0600). To rotate:
   1. Stop the server.
-  2. Set CREDENTIALS_KEY_PREVIOUS=<the current CREDENTIALS_KEY> and CREDENTIALS_KEY=${newKey}
-  3. Start the server: it re-encrypts every credential under the new key.
+  2. Set CREDENTIALS_KEY_PREVIOUS=<the current CREDENTIALS_KEY> and CREDENTIALS_KEY=<contents of ${newFile}>
+  3. Start the server: it re-encrypts every credential under the new key. Then delete ${newFile}.
   4. Remove CREDENTIALS_KEY_PREVIOUS once the start succeeded (keep the old key with any older backups).`);
   process.exit(0);
 }

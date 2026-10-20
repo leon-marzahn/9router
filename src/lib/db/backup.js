@@ -33,7 +33,7 @@ export function makeBackupDir(label) {
   const ver = getAppVersion();
   const slug = `${label}-${ver}-${timestampSlug()}`;
   const dir = path.join(isPinned(slug) ? PINNED_BACKUPS_DIR : BACKUPS_DIR, slug);
-  fs.mkdirSync(dir, { recursive: true });
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   return dir;
 }
 
@@ -86,17 +86,28 @@ export function pruneOldBackups() {
   }
 }
 
-/** Removes unpinned backups made before `beforeMs` (they hold unencrypted credentials). Returns the count. */
-export function purgeUnpinnedBackups(beforeMs) {
-  if (!fs.existsSync(BACKUPS_DIR)) return 0;
-  let n = 0;
-  for (const e of fs.readdirSync(BACKUPS_DIR, { withFileTypes: true })) {
-    if (!e.isDirectory() || isPinned(e.name)) continue;
-    const full = path.join(BACKUPS_DIR, e.name);
-    if (fs.statSync(full).mtimeMs >= beforeMs) continue;
-    try { fs.rmSync(full, { recursive: true, force: true }); n++; } catch {}
+/** Every backup directory, pinned and unpinned (full paths). */
+export function listBackupDirs() {
+  const out = [];
+  for (const root of [BACKUPS_DIR, PINNED_BACKUPS_DIR]) {
+    if (!fs.existsSync(root)) continue;
+    for (const e of fs.readdirSync(root, { withFileTypes: true })) {
+      if (e.isDirectory()) out.push(path.join(root, e.name));
+    }
   }
-  return n;
+  return out;
+}
+
+/** True for a pre-encrypt-credentials backup: the plaintext restore point, never sealed. */
+export const isPlaintextRestorePoint = (name) => name.startsWith(`${PRE_ENCRYPT_CREDENTIALS}-`);
+
+/** Owner-only permissions on a backup: the directory 0700, every file 0600 (they hold credentials). */
+export function lockDownBackup(dir) {
+  if (process.platform === "win32") return;
+  try {
+    fs.chmodSync(dir, 0o700);
+    for (const f of fs.readdirSync(dir)) fs.chmodSync(path.join(dir, f), 0o600);
+  } catch {}
 }
 
 /**
@@ -195,6 +206,7 @@ export function requiredBackup(adapter, label) {
     } else {
       verifyBackup(adapter, backupDbLite(adapter, dir));
     }
+    lockDownBackup(dir);
     return dir;
   } catch (e) {
     if (dir) { try { fs.rmSync(dir, { recursive: true, force: true }); } catch {} }

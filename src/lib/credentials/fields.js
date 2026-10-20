@@ -6,9 +6,18 @@
 import { decryptValue, encryptValue, envelopeKeyId, isEnvelope } from "./envelope.js";
 import { getKeyring } from "./keyring.js";
 
-// Names ending like a secret: apiKey, accessToken, refreshToken, idToken, sessionToken,
+// Names ending like a secret: apiKey(s), accessToken, refreshToken, idToken, sessionToken,
 // copilotToken, mimoPassToken, clientSecret, oidcClientSecret, password, cookie(s), ...
-const SECRET_SUFFIX = /(token|secret|password|passwd|cookies?|apikey|privatekey|secretaccesskey)$/i;
+const SECRET_SUFFIX =
+  /(token|secret|password|passwd|cookies?|apikeys?|privatekey|secretaccesskey)$/i;
+// Credential header names, so header maps (providerOverrides, requestPipelines) are sealed.
+const SECRET_HEADERS = new Set([
+  "authorization",
+  "proxy-authorization",
+  "x-api-key",
+  "x-goog-api-key",
+  "api-key",
+]);
 // Secrets whose name doesn't say so: AWS access key ids and URLs that can embed user:pass
 // or a deploy token.
 const SECRET_NAMES = new Set([
@@ -22,30 +31,37 @@ const SECRET_NAMES = new Set([
 ]);
 
 export function isSecretField(name) {
-  return SECRET_NAMES.has(name) || SECRET_SUFFIX.test(name);
+  return (
+    SECRET_NAMES.has(name) || SECRET_HEADERS.has(name.toLowerCase()) || SECRET_SUFFIX.test(name)
+  );
 }
 
 const isPlainObject = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 
-/** Visits every credential string in `obj` (recursively): fn(value, path) returns the replacement. */
-function mapSecrets(obj, fn, prefix = "") {
-  if (!isPlainObject(obj)) return obj;
+/**
+ * Visits every credential string in `v`, recursing through objects and arrays:
+ * fn(value, path) returns the replacement. A string is a credential when its own key is
+ * secret-named or when it sits anywhere below a secret-named key (an array of keys, an
+ * object of tokens).
+ */
+function mapSecrets(v, fn, path = "", secret = false) {
+  if (typeof v === "string") return secret && v !== "" ? fn(v, path) : v;
+  if (Array.isArray(v)) return v.map((x, i) => mapSecrets(x, fn, `${path}[${i}]`, secret));
+  if (!isPlainObject(v)) return v;
   const out = {};
-  for (const [k, v] of Object.entries(obj)) {
-    const path = prefix ? `${prefix}.${k}` : k;
-    if (typeof v === "string" && v !== "" && isSecretField(k)) out[k] = fn(v, path);
-    else if (isPlainObject(v)) out[k] = mapSecrets(v, fn, path);
-    else out[k] = v;
+  for (const [k, x] of Object.entries(v)) {
+    out[k] = mapSecrets(x, fn, path ? `${path}.${k}` : k, secret || isSecretField(k));
   }
   return out;
 }
 
 /** Encrypts every credential field (re-encrypts envelopes under an older key). `where` = { table, column, id }. */
-export function sealSecrets(obj, where, ring = getKeyring()) {
+// `plaintextOnly` leaves every existing envelope alone (used on old backups, whose keys may be gone).
+export function sealSecrets(obj, where, ring = getKeyring(), { plaintextOnly = false } = {}) {
   return mapSecrets(obj, (v, path) => {
     const ctx = { ...where, path };
     if (isEnvelope(v)) {
-      if (envelopeKeyId(v) === ring.currentId) return v;
+      if (plaintextOnly || envelopeKeyId(v) === ring.currentId) return v;
       return encryptValue(decryptValue(v, ctx, ring), ctx, ring);
     }
     return encryptValue(v, ctx, ring);
@@ -53,8 +69,11 @@ export function sealSecrets(obj, where, ring = getKeyring()) {
 }
 
 /**
- * Decrypts every credential field. A plaintext value is returned as-is: it is only possible
- * between an older version writing it and the next boot's heal (see db/helpers/credentialsSeal.js).
+ * Decrypts every credential field. A plaintext value is returned as-is: that only happens
+ * between an older version writing it (after a downgrade) and the next boot's heal, which
+ * encrypts it (db/helpers/credentialsSeal.js). This is confidentiality at rest, not
+ * integrity against someone who can write the DB file: such a writer can always plant a
+ * plaintext value, which is read as-is until the heal seals it.
  */
 export function openSecrets(obj, where, ring) {
   let r = ring;

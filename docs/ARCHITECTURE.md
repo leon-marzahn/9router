@@ -542,7 +542,10 @@ Runtime visibility sources:
 - JWT secret (`JWT_SECRET`) secures dashboard session cookie verification/signing
 - Initial password fallback (`INITIAL_PASSWORD`, default `123456`) must be overridden in real deployments
 - API key HMAC secret (`API_KEY_SECRET`) secures generated local API key format
-- Provider secrets (API keys, OAuth tokens, cookies, client secrets, proxy URLs, notification/SSO secrets) are encrypted at rest with AES-256-GCM (`src/lib/credentials/`, migration 006), keyed by `CREDENTIALS_KEY` or the generated `DATA_DIR/credentials.key`. Back the key up with the DB; a missing or wrong key stops the boot. The pinned `db/pinned-backups/pre-encrypt-credentials-*` backup holds them in plaintext. Client API keys (`apiKeys.key`) are still stored as-is.
+- Provider secrets (API keys, OAuth tokens, cookies, client secrets, proxy URLs, notification/SSO secrets) are encrypted at rest with AES-256-GCM (`src/lib/credentials/`, migration 006), keyed by `CREDENTIALS_KEY` or the generated `DATA_DIR/credentials.key`. Back the key up with the DB; a missing or wrong key stops the boot. Rotate with `vp run rotate-credentials-key`.
+  - Backups: the pinned `db/pinned-backups/pre-encrypt-credentials-*` backup is the downgrade restore point and keeps the credentials in **plaintext** (0600, path logged every boot). Every older backup is sealed in place and vacuumed after the upgrade; backups are never deleted automatically. Once the upgrade is verified, delete the plaintext restore points with `vp run purge-plaintext-backups --yes`.
+  - Reads accept a plaintext value only until the next boot's heal encrypts it (rows an older version wrote after a downgrade). This is confidentiality at rest, not integrity: whoever can write the DB file can plant values.
+  - Still in plaintext: client API keys (`apiKeys.key`, needed for the auth lookup), legacy `db.json` files left after a JSON import, the DB export (by design, behind password re-auth), and the CLI tool config files the dashboard or `regent connect` write (`~/.claude/settings.json`, Codex/OpenCode/... configs, 0600), which hold the client API key.
 - Cloud sync endpoints rely on API key auth + machine id semantics
 
 ## Environment and Runtime Matrix

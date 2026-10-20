@@ -9,8 +9,9 @@ export const ENVELOPE_PREFIX = "enc:v1:";
 const ENVELOPE_RE =
   /^enc:v1:([A-Za-z0-9_-]+):([A-Za-z0-9_-]{16}):([A-Za-z0-9_-]{22}):([A-Za-z0-9_-]*)$/;
 
+/** Only a well-formed envelope counts: a plaintext secret that merely starts with "enc:" is sealed like any other. */
 export function isEnvelope(v) {
-  return typeof v === "string" && v.startsWith(ENVELOPE_PREFIX);
+  return typeof v === "string" && ENVELOPE_RE.test(v);
 }
 
 /** Key id of an envelope, or null. */

@@ -187,7 +187,88 @@ describe("envelope", () => {
   });
 });
 
+describe("field coverage", () => {
+  const where = { table: "settings", column: "data", id: "1" };
+  async function ring() {
+    vi.resetModules();
+    const k = await import("@/lib/credentials/keyring.js");
+    const key = k.parseKey(KEY_A, "t");
+    return { current: key, currentId: k.keyIdOf(key), keys: new Map([[k.keyIdOf(key), key]]) };
+  }
+
+  it("seals arrays under secret-named keys and credential header maps, and round-trips them", async () => {
+    const r = await ring();
+    const { sealSecrets, openSecrets, inspectSecrets } =
+      await import("@/lib/credentials/fields.js");
+    const input = {
+      apiKeys: ["k-one-FAKE-00001", { key: "k-two-FAKE-00002", label: "two" }],
+      providerOverrides: {
+        openai: {
+          headers: {
+            Authorization: "Bearer FAKE-hdr-1",
+            "X-Api-Key": "FAKE-hdr-2",
+            "x-goog-api-key": "FAKE-hdr-3",
+            "api-key": "FAKE-hdr-4",
+            "Proxy-Authorization": "Basic FAKE-hdr-5",
+            "X-Trace": "keep-me",
+          },
+        },
+      },
+      requestPipelines: [{ steps: [{ headers: { authorization: "Bearer FAKE-hdr-6" } }] }],
+      tokens: 5,
+      name: "plain",
+    };
+    const sealed = sealSecrets(input, where, r);
+    const json = JSON.stringify(sealed);
+    for (const s of ["k-one-FAKE", "k-two-FAKE", "FAKE-hdr-"]) expect(json).not.toContain(s);
+    expect(json).toContain("keep-me");
+    expect(json).toContain('"label":"enc:v1:'); // everything under a secret-named key
+    expect(inspectSecrets(sealed).plaintext).toBe(0);
+    expect(inspectSecrets(input).plaintext).toBe(9);
+    expect(openSecrets(sealed, where, r)).toEqual(input);
+  });
+
+  it("treats only well-formed envelopes as encrypted: a secret that starts with enc: is sealed", async () => {
+    const r = await ring();
+    const { sealSecrets, openSecrets } = await import("@/lib/credentials/fields.js");
+    const { isEnvelope } = await import("@/lib/credentials/envelope.js");
+    const odd = { apiKey: "enc:v1:my-real-password" };
+    expect(isEnvelope(odd.apiKey)).toBe(false);
+    const sealed = sealSecrets(odd, where, r);
+    expect(sealed.apiKey).not.toBe(odd.apiKey);
+    expect(isEnvelope(sealed.apiKey)).toBe(true);
+    expect(openSecrets(sealed, where, r)).toEqual(odd);
+  });
+});
+
 describe("credentials key", () => {
+  it("rejects weak keys", async () => {
+    const k = await import("@/lib/credentials/keyring.js");
+    expect(() => k.parseKey("00".repeat(32), "t")).toThrow(/weak key/);
+    expect(() => k.parseKey("0102".repeat(16), "t")).toThrow(/weak key/);
+    expect(() => k.parseKey(Buffer.alloc(32, 7).toString("base64"), "t")).toThrow(/weak key/);
+  });
+
+  it("uses the winner's key when another process creates the file first (EEXIST)", async () => {
+    vi.resetModules();
+    delete global._credentialsKeyring;
+    const k = await import("@/lib/credentials/keyring.js");
+    const real = fs.writeFileSync;
+    const spy = vi.spyOn(fs, "writeFileSync").mockImplementation((file, data, opts) => {
+      if (file === k.KEY_FILE) {
+        real(file, `${KEY_A}\n`, { mode: 0o600 });
+        throw Object.assign(new Error("exists"), { code: "EEXIST" });
+      }
+      return real(file, data, opts);
+    });
+    try {
+      const ring = k.ensureCredentialsKey(new Set());
+      expect(ring.currentId).toBe(k.keyIdOf(k.parseKey(KEY_A, "t")));
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
   it("is generated on first boot as a 0600 file outside the DB", async () => {
     await boot();
     expect(fs.existsSync(keyFile())).toBe(true);
@@ -325,14 +406,103 @@ describe("migration 006", () => {
     expect(db.get("SELECT value FROM _meta WHERE key = 'credentialsScrubbed'").value).toBe("1");
   });
 
-  it("removes older unpinned backups (they hold plaintext) once the scrub succeeds", async () => {
+  /** Copies of the plaintext DB as older backups: one unpinned, one pinned pre-usage-key-refs. */
+  async function olderBackups() {
     await schema5WithPlaintext();
-    const old = path.join(tempDir, "db", "backups", "schema-3-to-4-100.0.0-old");
-    fs.mkdirSync(old, { recursive: true });
-    fs.writeFileSync(path.join(old, "data.sqlite"), SECRETS.apiKey);
-    fs.utimesSync(old, new Date(2020, 1, 1), new Date(2020, 1, 1));
+    global._dbAdapter.instance.close();
+    delete global._dbAdapter;
+    const src = path.join(tempDir, "db", "data.sqlite");
+    const dirs = [
+      path.join(tempDir, "db", "backups", "schema-3-to-4-100.0.0-old"),
+      path.join(pinnedDir(), "pre-usage-key-refs-100.0.0-old"),
+    ];
+    for (const d of dirs) {
+      fs.mkdirSync(d, { recursive: true });
+      fs.copyFileSync(src, path.join(d, "data.sqlite"));
+      fs.chmodSync(path.join(d, "data.sqlite"), 0o644);
+    }
+    return dirs;
+  }
+  const secretsIn = (file) =>
+    Object.values(SECRETS).filter((s) => fs.readFileSync(file).includes(s)).length;
+
+  it("seals older backups in place (never deletes them) and keeps the restore point plaintext, all 0600", async () => {
+    const dirs = await olderBackups();
+    const db = await boot();
+    for (const d of dirs) {
+      expect(fs.existsSync(d)).toBe(true);
+      expect(secretsIn(path.join(d, "data.sqlite"))).toBe(0);
+    }
+    expect(db.get("SELECT value FROM _meta WHERE key = 'credentialsBackupsSealed'").value).toBe(
+      "1",
+    );
+    const [restore] = list(pinnedDir()).filter((d) => d.startsWith("pre-encrypt-credentials-"));
+    const restoreFile = path.join(pinnedDir(), restore, "data.sqlite");
+    expect(secretsIn(restoreFile)).toBe(Object.keys(SECRETS).length);
+    if (process.platform !== "win32") {
+      for (const f of [
+        restoreFile,
+        ...dirs.map((d) => path.join(d, "data.sqlite")),
+        path.join(tempDir, "db", "data.sqlite"),
+      ]) {
+        expect(fs.statSync(f).mode & 0o777).toBe(0o600);
+      }
+    }
+    // A sealed backup restores into this version and still decrypts.
+    db.close();
+    delete global._dbAdapter;
+    fs.copyFileSync(path.join(dirs[0], "data.sqlite"), path.join(tempDir, "db", "data.sqlite"));
+    for (const f of ["data.sqlite-wal", "data.sqlite-shm"])
+      fs.rmSync(path.join(tempDir, "db", f), { force: true });
     await boot();
-    expect(fs.existsSync(old)).toBe(false);
+    const repo = await import("@/lib/db/index.js");
+    expect((await repo.getProviderConnectionById("c2")).refreshToken).toBe(SECRETS.refreshToken);
+  });
+
+  it("does not touch backups on a rekey-only pass", async () => {
+    process.env.CREDENTIALS_KEY = KEY_A;
+    await schema5WithPlaintext();
+    await boot();
+    const old = path.join(tempDir, "db", "backups", "planted-old");
+    fs.mkdirSync(old, { recursive: true });
+    fs.copyFileSync(
+      path.join(pinnedDir(), list(pinnedDir())[0], "data.sqlite"),
+      path.join(old, "data.sqlite"),
+    );
+    const before = fs.readFileSync(path.join(old, "data.sqlite"));
+    process.env.CREDENTIALS_KEY = KEY_B;
+    process.env.CREDENTIALS_KEY_PREVIOUS = KEY_A;
+    await boot();
+    expect(fs.readFileSync(path.join(old, "data.sqlite")).equals(before)).toBe(true);
+  });
+
+  it("retries sealing the backups next boot when it fails", async () => {
+    const dirs = await olderBackups();
+    fs.writeFileSync(path.join(dirs[0], "data.sqlite"), "not a database");
+    let db = await boot();
+    expect(db.get("SELECT value FROM _meta WHERE key = 'credentialsBackupsSealed'").value).toBe(
+      "0",
+    );
+    fs.rmSync(dirs[0], { recursive: true });
+    db = await boot();
+    expect(db.get("SELECT value FROM _meta WHERE key = 'credentialsBackupsSealed'").value).toBe(
+      "1",
+    );
+    expect(secretsIn(path.join(dirs[1], "data.sqlite"))).toBe(0);
+  });
+
+  it("purge-plaintext-backups lists, then deletes only the restore points with --yes", async () => {
+    const dirs = await olderBackups();
+    await boot();
+    const { execFileSync } = await import("node:child_process");
+    const script = path.join(import.meta.dirname, "../../scripts/purge-plaintext-backups.mjs");
+    const env = { ...process.env, DATA_DIR: tempDir };
+    expect(execFileSync(process.execPath, [script], { env }).toString()).toMatch(/plaintext/);
+    expect(list(pinnedDir()).some((d) => d.startsWith("pre-encrypt-credentials-"))).toBe(true);
+    execFileSync(process.execPath, [script, "--yes"], { env });
+    expect(list(pinnedDir()).some((d) => d.startsWith("pre-encrypt-credentials-"))).toBe(false);
+    for (const d of dirs) expect(fs.existsSync(d)).toBe(true);
+    expect(execFileSync(process.execPath, [script], { env }).toString()).toMatch(/No plaintext/);
   });
 
   it("heals plaintext written by an older version after a downgrade", async () => {
@@ -407,6 +577,12 @@ describe("migration 006", () => {
       },
     ).toString();
     expect(out).toMatch(/CREDENTIALS_KEY_PREVIOUS/);
+    // Env mode never prints the key: it is in a 0600 file named in the output.
+    const newFile = out.match(/written to (\S+) \(mode 0600\)/)[1];
+    const written = fs.readFileSync(newFile, "utf8").trim();
+    expect(out).not.toContain(written);
+    expect(parseKey(written, "t")).toHaveLength(32);
+    if (process.platform !== "win32") expect(fs.statSync(newFile).mode & 0o777).toBe(0o600);
   });
 
   it("applies on an empty DB", async () => {

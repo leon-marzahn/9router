@@ -81,6 +81,7 @@ export default defineConfig({
       "!/scripts/release.mjs",
       "!/scripts/backport.mjs",
       "!/scripts/rotate-credentials-key.mjs",
+      "!/scripts/purge-plaintext-backups.mjs",
       "!/scripts/ci",
       "!/scripts/pr-shots",
       "!/scripts/pr-shots.mjs",

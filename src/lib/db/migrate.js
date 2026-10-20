@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { LEGACY_FILES, DB_DIR } from "./paths.js";
+import { LEGACY_FILES, DB_DIR, DATA_FILE } from "./paths.js";
 import { TABLES, buildCreateTableSql, SCHEMA_VERSION } from "./schema.js";
 import { MIGRATIONS, latestVersion } from "./migrations/index.js";
 import { getMetaSync, setMetaSync } from "./helpers/metaStore.js";
@@ -10,13 +10,17 @@ import {
   backupDbLite,
   backupFile,
   makeBackupDir,
+  isPlaintextRestorePoint,
+  listBackupDirs,
+  lockDownBackup,
   pruneOldBackups,
-  purgeUnpinnedBackups,
   requiredBackup,
 } from "./backup.js";
 import {
   KEY_ID_META,
   loadCredentialsKey,
+  needsBackupSeal,
+  sealBackups,
   needsCredentialsScrub,
   needsCredentialsSeal,
   scanCredentials,
@@ -269,7 +273,12 @@ function importLegacyDetails(adapter, data) {
 export async function runMigrationOnce(adapter) {
   if (_migratedAdapters.has(adapter)) return;
   _migratedAdapters.add(adapter);
-  const bootStartedMs = Date.now();
+  // The DB holds credentials (encrypted) and usage: owner-only, like the key file.
+  if (process.platform !== "win32") {
+    for (const f of [DATA_FILE, `${DATA_FILE}-wal`, `${DATA_FILE}-shm`]) {
+      try { if (fs.existsSync(f)) fs.chmodSync(f, 0o600); } catch {}
+    }
+  }
 
   // Capture freshness BEFORE migrations stamp _meta (otherwise we'd misclassify
   // a brand-new DB as non-fresh once schemaVersion is written).
@@ -324,7 +333,7 @@ export async function runMigrationOnce(adapter) {
   }
 
   // 1. Always run versioned migrations chain (skip-version safe)
-  const migInfo = runVersionedMigrations(adapter);
+  runVersionedMigrations(adapter);
 
   // 2. Additive sync (auto add missing columns/indexes declared in TABLES)
   syncSchemaFromTables(adapter);
@@ -371,7 +380,7 @@ export async function runMigrationOnce(adapter) {
       const dir = requiredCredentialsBackup(adapter, PRE_ENCRYPT_CREDENTIALS);
       pruneOldBackups();
       backedUp = true;
-      console.log(`[DB][migrate] pre-credentials-heal backup (verified, pinned): ${dir}`);
+      console.log(`[DB][migrate] ${PRE_ENCRYPT_CREDENTIALS} backup before re-encrypting (verified, pinned, holds plaintext credentials): ${dir}`);
     }
     const n = adapter.transaction(() => sealAllCredentials(adapter, ring));
     console.log(`[DB][migrate] credentials encrypted (${n ?? 0} rows)`);
@@ -381,16 +390,34 @@ export async function runMigrationOnce(adapter) {
   }
   // The rewrite leaves plaintext in free pages and the WAL until a VACUUM; the seal sets
   // credentialsScrubbed = 0 in its transaction and it turns 1 only after the VACUUM, so a
-  // crash in between retries. Older unpinned backups hold the same plaintext: removed too
-  // (the pinned pre-encrypt-credentials backup is the newer copy).
+  // crash in between retries.
   if (needsCredentialsScrub(adapter)) {
     try {
       scrubCredentials(adapter);
-      const removed = purgeUnpinnedBackups(bootStartedMs);
-      console.log(`[DB][migrate] vacuumed after encrypting credentials; removed ${removed} older unencrypted backup(s)`);
+      console.log("[DB][migrate] vacuumed the database after encrypting credentials");
     } catch (e) {
       console.warn(`[DB][migrate] vacuum after encrypting credentials failed (retried next boot): ${e.message}`);
     }
+  }
+  // Older backups hold the same plaintext. Each is sealed in place (and vacuumed), except
+  // the pre-encrypt-credentials restore points, which stay plaintext on purpose. Only after
+  // a plaintext seal (credentialsBackupsSealed = 0), never after a rekey-only pass; a
+  // failure leaves the flag at 0 and retries next boot. No backup is ever deleted here.
+  if (!needsCredentialsScrub(adapter) && needsBackupSeal(adapter)) {
+    try {
+      const changed = sealBackups(adapter, ring, listBackupDirs(), isPlaintextRestorePoint);
+      for (const { dir, rows } of changed) console.log(`[DB][migrate] encrypted credentials in backup ${dir} (${rows} rows)`);
+    } catch (e) {
+      console.warn(`[DB][migrate] encrypting credentials in older backups failed (retried next boot): ${e.message}`);
+    }
+  }
+  for (const dir of listBackupDirs()) lockDownBackup(dir);
+  const restorePoints = listBackupDirs().filter((d) => isPlaintextRestorePoint(path.basename(d)));
+  if (restorePoints.length) {
+    console.warn(
+      `[DB][migrate] ${restorePoints.length} backup(s) still hold provider credentials in PLAINTEXT (restore points from before encryption): ` +
+        `${restorePoints.join(", ")}. Once this version is known good, remove them with: vp run purge-plaintext-backups`,
+    );
   }
 
   // Stamp the schema version we just reached so future boots skip re-backup.

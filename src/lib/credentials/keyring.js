@@ -38,6 +38,13 @@ export function parseKey(text, source) {
       `${source}: not a 32-byte key (expected 64 hex chars or 44 base64 chars)`,
     );
   }
+  // A random 32-byte key has ~28 distinct byte values; fewer than 16 means a hand-made
+  // key such as all zeros or a repeated pattern. Generate one: openssl rand -base64 32
+  if (new Set(buf).size < 16) {
+    throw new CredentialsKeyError(
+      `${source}: weak key (${new Set(buf).size} distinct bytes). Use 32 random bytes, e.g. \`openssl rand -base64 32\``,
+    );
+  }
   return buf;
 }
 
@@ -101,6 +108,18 @@ export function readKeyring() {
   return { current, currentId: current ? keyIdOf(current) : null, keys, source };
 }
 
+// The other process may not have written its key yet when we see the file: retry briefly.
+function readWinnerKeyring() {
+  for (let i = 0; ; i++) {
+    try {
+      return readKeyring();
+    } catch (e) {
+      if (i >= 20) throw e;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 25);
+    }
+  }
+}
+
 /** Writes a new key file (0600, exclusive create). */
 export function writeKeyFile(file, text) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -125,16 +144,24 @@ export function ensureCredentialsKey(storedKeyIds = new Set()) {
           `from your backup. Nothing was changed.`,
       );
     }
-    writeKeyFile(KEY_FILE, generateKeyText());
-    ring = readKeyring();
-    console.warn(
-      `[Credentials] ==================================================================\n` +
-        `[Credentials] Generated a new credentials encryption key: ${KEY_FILE}\n` +
-        `[Credentials] Provider credentials in the database are encrypted with it.\n` +
-        `[Credentials] BACK IT UP TOGETHER WITH THE DATABASE: without it the stored\n` +
-        `[Credentials] credentials can't be read. (Or set CREDENTIALS_KEY instead.)\n` +
-        `[Credentials] ==================================================================`,
-    );
+    let created = true;
+    try {
+      writeKeyFile(KEY_FILE, generateKeyText());
+    } catch (e) {
+      // Another process (e.g. a second Next worker) created it first: use the winner's key.
+      if (e?.code !== "EEXIST") throw e;
+      created = false;
+    }
+    ring = created ? readKeyring() : readWinnerKeyring();
+    if (created)
+      console.warn(
+        `[Credentials] ==================================================================\n` +
+          `[Credentials] Generated a new credentials encryption key: ${KEY_FILE}\n` +
+          `[Credentials] Provider credentials in the database are encrypted with it.\n` +
+          `[Credentials] BACK IT UP TOGETHER WITH THE DATABASE: without it the stored\n` +
+          `[Credentials] credentials can't be read. (Or set CREDENTIALS_KEY instead.)\n` +
+          `[Credentials] ==================================================================`,
+      );
   }
   const missing = [...storedKeyIds].filter((id) => !ring.keys.has(id));
   if (missing.length) {

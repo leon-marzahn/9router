@@ -40,8 +40,16 @@ async function seedConnection(id, data) {
   });
   // Credentials are encrypted bound to the row id: re-seal them under the new id.
   const row = db.get(`SELECT data FROM providerConnections WHERE id = ?`, [conn.id]);
-  const data2 = sealRow("providerConnections", id, openRow("providerConnections", conn.id, JSON.parse(row.data)));
-  db.run(`UPDATE providerConnections SET id = ?, data = ? WHERE id = ?`, [id, JSON.stringify(data2), conn.id]);
+  const data2 = sealRow(
+    "providerConnections",
+    id,
+    openRow("providerConnections", conn.id, JSON.parse(row.data)),
+  );
+  db.run(`UPDATE providerConnections SET id = ?, data = ? WHERE id = ?`, [
+    id,
+    JSON.stringify(data2),
+    conn.id,
+  ]);
   return { ...conn, id };
 }
 
