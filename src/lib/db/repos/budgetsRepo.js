@@ -43,13 +43,13 @@ export async function claimAlert(scope, periodKey, threshold) {
   return (res?.changes ?? 0) > 0;
 }
 
-/** Sum of usage (upstream cost and customer charge) since `sinceIso`; `apiKey` null = every request. */
-export async function sumUsageSince(apiKey, sinceIso) {
+/** Sum of usage (upstream cost and customer charge) since `sinceIso`; `keyRef` (a usage key reference) null = every request. */
+export async function sumUsageSince(keyRef, sinceIso) {
   const db = await getAdapter();
-  const row = apiKey
+  const row = keyRef
     ? db.get(
         `SELECT COALESCE(SUM(cost), 0) AS cost, COALESCE(SUM(COALESCE(charge, cost)), 0) AS charge, COALESCE(SUM(promptTokens + completionTokens), 0) AS tokens, COUNT(*) AS requests FROM usageHistory WHERE apiKey = ? AND timestamp >= ?`,
-        [apiKey, sinceIso],
+        [keyRef, sinceIso],
       )
     : db.get(
         `SELECT COALESCE(SUM(cost), 0) AS cost, COALESCE(SUM(COALESCE(charge, cost)), 0) AS charge, COALESCE(SUM(promptTokens + completionTokens), 0) AS tokens, COUNT(*) AS requests FROM usageHistory WHERE timestamp >= ?`,
@@ -62,11 +62,11 @@ export async function sumUsageSince(apiKey, sinceIso) {
  * Provider/model pairs with tokens but nothing recorded since `sinceIso` (max 20):
  * no upstream cost, or with `basis` "charge" no customer charge (a custom rate prices it).
  */
-export async function zeroCostModelsSince(apiKey, sinceIso, { basis = "cost" } = {}) {
+export async function zeroCostModelsSince(keyRef, sinceIso, { basis = "cost" } = {}) {
   const col = basis === "charge" ? "COALESCE(charge, cost)" : "cost";
   const db = await getAdapter();
-  const where = apiKey ? "apiKey = ? AND timestamp >= ?" : "timestamp >= ?";
-  const params = apiKey ? [apiKey, sinceIso] : [sinceIso];
+  const where = keyRef ? "apiKey = ? AND timestamp >= ?" : "timestamp >= ?";
+  const params = keyRef ? [keyRef, sinceIso] : [sinceIso];
   return db.all(
     `SELECT provider, model FROM usageHistory WHERE ${where} AND provider IS NOT NULL AND model IS NOT NULL GROUP BY provider, model HAVING COALESCE(SUM(${col}), 0) = 0 AND SUM(promptTokens + completionTokens) > 0 LIMIT 20`,
     params,

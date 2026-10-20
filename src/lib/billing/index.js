@@ -16,6 +16,7 @@
 //   getKeySpend(keyId, {from, to}) → totals + per-model breakdown for one key.
 import { calculateCostFromTokens } from "open-sse/providers/pricing.js";
 import { resolveProviderAlias } from "open-sse/services/model.js";
+import { keyRefForId } from "@/lib/db/helpers/usageKeyRef.js";
 import { getApiKeyById, getApiKeyByKey } from "@/lib/db/repos/apiKeysRepo.js";
 import { getProviderNodes } from "@/lib/db/repos/nodesRepo.js";
 import { AI_PROVIDERS } from "@/shared/constants/providers.js";
@@ -225,7 +226,7 @@ export async function getKeySpend(keyId, { from, to } = {}) {
   if (!key) return null;
   const fromIso = from ? new Date(from).toISOString() : "0000";
   const toIso = to ? new Date(to).toISOString() : "9999";
-  const rows = await sumKeyUsage(key.key, fromIso, toIso);
+  const rows = await sumKeyUsage(keyRefForId(key.id), fromIso, toIso);
   const out = {
     cost: 0,
     charge: 0,

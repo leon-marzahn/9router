@@ -12,12 +12,12 @@ import {
 export const dynamic = "force-dynamic";
 const NO_STORE = { "Cache-Control": "no-store" };
 
-/** "global" or an existing API key id → { scope, apiKey } (raw key stays server-side). */
+/** "global" or an existing API key id → { scope }. */
 async function resolveScope(params) {
   const { scope } = await params;
-  if (scope === GLOBAL_SCOPE) return { scope: GLOBAL_SCOPE, apiKey: null };
+  if (scope === GLOBAL_SCOPE) return { scope: GLOBAL_SCOPE };
   const key = await getApiKeyById(String(scope));
-  return key ? { scope: keyScope(key.id), apiKey: key.key } : null;
+  return key ? { scope: keyScope(key.id) } : null;
 }
 
 /** Saves the budget for "global" or one API key id. */
@@ -29,7 +29,7 @@ export async function PUT(request, { params }) {
   if (error) return NextResponse.json({ error }, { status: 400 });
   await setBudget(target.scope, value);
   invalidateBudgetCache();
-  const status = await budgetStatus(target.scope, value, target.apiKey);
+  const status = await budgetStatus(target.scope, value);
   return NextResponse.json({ budget: value, status }, { headers: NO_STORE });
 }
 

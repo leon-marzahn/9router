@@ -6,6 +6,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { usageKeyRef } from "@/lib/db/helpers/usageKeyRef.js";
 
 vi.mock("@/lib/notify/index.js", () => ({ notify: vi.fn(async () => ({ ok: true })) }));
 
@@ -319,7 +320,7 @@ describe("getKeySpend", () => {
     const at = (iso, model, cost, charge) =>
       adapter.run(
         "INSERT INTO usageHistory(timestamp, provider, model, apiKey, promptTokens, completionTokens, cost, charge, status) VALUES(?, ?, ?, ?, 100, 50, ?, ?, 'ok')",
-        [iso, P, model, keyA.key, cost, charge],
+        [iso, P, model, usageKeyRef(adapter, keyA.key), cost, charge],
       );
     at("2026-10-01T00:00:00.000Z", "m1", 1, 2);
     at("2026-10-02T00:00:00.000Z", "m1", 1, 2);
@@ -349,7 +350,7 @@ describe("budgets enforce on charge for keys, cost globally", () => {
   const row = (apiKey, cost, charge) =>
     adapter.run(
       "INSERT INTO usageHistory(timestamp, provider, model, apiKey, promptTokens, completionTokens, cost, charge, status) VALUES(?, ?, 'm1', ?, 10, 0, ?, ?, 'ok')",
-      [NOW.toISOString(), P, apiKey, cost, charge],
+      [NOW.toISOString(), P, usageKeyRef(adapter, apiKey), cost, charge],
     );
   async function setBudget(scope, input) {
     const { value } = budgets.validateBudget(input, { isKey: scope !== "global" });
@@ -377,14 +378,14 @@ describe("budgets enforce on charge for keys, cost globally", () => {
     row(keyA.key, 0.6, 1.2);
     const scope = budgetsRepo.keyScope(keyA.id);
     const b = await setBudget(scope, { spendLimit: 2 });
-    const s = await budgets.budgetStatus(scope, b, keyA.key);
+    const s = await budgets.budgetStatus(scope, b);
     expect(s.spendBasis).toBe("charge");
     close(s.cost, 0.6);
     close(s.charge, 1.2);
     close(s.spend, 1.2);
     close(s.ratio, 0.6);
     const g = await setBudget("global", { spendLimit: 2 });
-    const gs = await budgets.budgetStatus("global", g, null);
+    const gs = await budgets.budgetStatus("global", g);
     expect(gs.spendBasis).toBe("cost");
     close(gs.spend, 0.6);
   });

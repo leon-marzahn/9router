@@ -58,16 +58,16 @@ export async function setKeyPlanId(keyId, planId) {
 }
 
 /**
- * Usage totals for one raw key string between two ISO timestamps, overall and per model.
+ * Usage totals for one key reference ("id:<keyId>", see helpers/usageKeyRef.js) between two ISO timestamps, per model.
  * Rows from before per-key pricing have charge = cost (migration 004).
  */
-export async function sumKeyUsage(apiKey, fromIso, toIso) {
+export async function sumKeyUsage(keyRef, fromIso, toIso) {
   const db = await getAdapter();
   return db.all(
     `SELECT provider, model, COALESCE(SUM(cost), 0) AS cost, COALESCE(SUM(COALESCE(charge, cost)), 0) AS charge,
        COALESCE(SUM(promptTokens), 0) AS promptTokens, COALESCE(SUM(completionTokens), 0) AS completionTokens, COUNT(*) AS requests
      FROM usageHistory WHERE apiKey = ? AND timestamp >= ? AND timestamp < ?
      GROUP BY provider, model ORDER BY charge DESC`,
-    [apiKey, fromIso, toIso],
+    [keyRef, fromIso, toIso],
   );
 }

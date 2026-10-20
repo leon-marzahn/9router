@@ -6,6 +6,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { usageKeyRef } from "@/lib/db/helpers/usageKeyRef.js";
 
 let tempDir;
 const originalDataDir = process.env.DATA_DIR;
@@ -59,7 +60,7 @@ beforeEach(async () => {
 function usage(apiKey, { cost = 1, charge = cost, model = "gpt-x", tokens = 100, status = "ok" } = {}) {
   adapter.run(
     "INSERT INTO usageHistory(timestamp, provider, model, connectionId, apiKey, endpoint, promptTokens, completionTokens, cost, charge, status, meta) VALUES(?, 'secret-provider', 'resolved-secret-model', 'conn-secret', ?, '/v1/chat/completions', ?, 10, ?, ?, ?, ?)",
-    [new Date().toISOString(), apiKey, tokens, cost, charge, status, JSON.stringify({ traceId: "trace-secret", requestedModel: model })],
+    [new Date().toISOString(), usageKeyRef(adapter, apiKey), tokens, cost, charge, status, JSON.stringify({ traceId: "trace-secret", requestedModel: model })],
   );
 }
 
@@ -177,7 +178,7 @@ describe("GET /api/customer/usage", () => {
     try {
       adapter.run(
         "INSERT INTO usageHistory(timestamp, provider, model, apiKey, promptTokens, completionTokens, cost, status, meta) VALUES(?, 'p', 'm', ?, 10, 10, 2.5, 'ok', ?)",
-        [new Date().toISOString(), keyA.key, JSON.stringify({ requestedModel: "old-model" })],
+        [new Date().toISOString(), usageKeyRef(adapter, keyA.key), JSON.stringify({ requestedModel: "old-model" })],
       );
       adapter.transaction(() => m004.up(adapter));
       cv.resetSchemaCache();
@@ -263,7 +264,7 @@ describe("combo requests", () => {
     // A row from before requestedModel was recorded.
     adapter.run(
       "INSERT INTO usageHistory(timestamp, provider, model, apiKey, promptTokens, completionTokens, cost, status, meta) VALUES(?, 'p', 'legacy-upstream-hidden', ?, 1, 1, 0, 'ok', '{}')",
-      [new Date().toISOString(), keyA.key],
+      [new Date().toISOString(), usageKeyRef(adapter, keyA.key)],
     );
 
     const res = await get(keyA.key);

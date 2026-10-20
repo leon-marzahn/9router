@@ -5,6 +5,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { usageKeyRef } from "@/lib/db/helpers/usageKeyRef.js";
 
 // Periods are UTC: run in a zone far from it so a local-time slip shows up.
 const sent = vi.hoisted(() => {
@@ -67,7 +68,7 @@ beforeEach(() => {
 function usage(apiKey, cost, { at = NOW.toISOString(), tokens = 100 } = {}) {
   adapter.run(
     "INSERT INTO usageHistory(timestamp, provider, model, apiKey, promptTokens, completionTokens, cost, status) VALUES(?, 'p', 'm', ?, ?, 0, ?, 'ok')",
-    [at, apiKey, tokens, cost],
+    [at, usageKeyRef(adapter, apiKey), tokens, cost],
   );
 }
 
@@ -246,19 +247,19 @@ describe("unpriced models", () => {
   it("lists models used this period with no price, only when a spend limit is set", async () => {
     adapter.run(
       "INSERT INTO usageHistory(timestamp, provider, model, apiKey, promptTokens, completionTokens, cost, status) VALUES(?, 'nobody', 'mystery-model', ?, 500, 0, 0, 'ok')",
-      [NOW.toISOString(), keyA.key],
+      [NOW.toISOString(), usageKeyRef(adapter, keyA.key)],
     );
     usage(keyA.key, 0.5); // provider 'p' model 'm' with a cost: priced
     const spend = budgets.validateBudget({ spendLimit: 5 }).value;
-    const st = await budgets.budgetStatus(repo.keyScope(keyA.id), spend, keyA.key, { now: NOW });
+    const st = await budgets.budgetStatus(repo.keyScope(keyA.id), spend, { now: NOW });
     expect(st.unpricedModels).toEqual(["nobody/mystery-model"]);
     const tokensOnly = budgets.validateBudget({ tokenLimit: 5000 }).value;
     budgets.invalidateBudgetCache({ counters: true });
-    const st2 = await budgets.budgetStatus(repo.keyScope(keyA.id), tokensOnly, keyA.key, {
+    const st2 = await budgets.budgetStatus(repo.keyScope(keyA.id), tokensOnly, {
       now: NOW,
     });
     expect(st2.unpricedModels).toEqual([]);
-    const other = await budgets.budgetStatus(repo.keyScope(keyB.id), spend, keyB.key, { now: NOW });
+    const other = await budgets.budgetStatus(repo.keyScope(keyB.id), spend, { now: NOW });
     expect(other.unpricedModels).toEqual([]);
   });
 
@@ -266,17 +267,32 @@ describe("unpriced models", () => {
     const { createProviderNode } = await import("@/lib/db/repos/nodesRepo.js");
     const withPrefix = "openai-compatible-chat-11111111-1111-4111-8111-111111111111";
     const nameOnly = "openai-compatible-chat-22222222-2222-4222-8222-222222222222";
-    await createProviderNode({ id: withPrefix, type: "openai-compatible", name: "My Proxy", prefix: "mine", apiType: "chat", baseUrl: "https://example.test/v1" });
-    await createProviderNode({ id: nameOnly, type: "openai-compatible", name: "Unprefixed", apiType: "chat", baseUrl: "https://example.test/v1" });
+    await createProviderNode({
+      id: withPrefix,
+      type: "openai-compatible",
+      name: "My Proxy",
+      prefix: "mine",
+      apiType: "chat",
+      baseUrl: "https://example.test/v1",
+    });
+    await createProviderNode({
+      id: nameOnly,
+      type: "openai-compatible",
+      name: "Unprefixed",
+      apiType: "chat",
+      baseUrl: "https://example.test/v1",
+    });
     for (const provider of [withPrefix, nameOnly]) {
       adapter.run(
         "INSERT INTO usageHistory(timestamp, provider, model, apiKey, promptTokens, completionTokens, cost, status) VALUES(?, ?, 'local-model', ?, 500, 0, 0, 'ok')",
-        [NOW.toISOString(), provider, keyA.key],
+        [NOW.toISOString(), provider, usageKeyRef(adapter, keyA.key)],
       );
     }
     const spend = budgets.validateBudget({ spendLimit: 5 }).value;
-    const st = await budgets.budgetStatus(repo.keyScope(keyA.id), spend, keyA.key, { now: NOW });
-    expect(st.unpricedModels.toSorted()).toEqual(["Unprefixed/local-model", "mine/local-model"].toSorted());
+    const st = await budgets.budgetStatus(repo.keyScope(keyA.id), spend, { now: NOW });
+    expect(st.unpricedModels.toSorted()).toEqual(
+      ["Unprefixed/local-model", "mine/local-model"].toSorted(),
+    );
   });
 });
 

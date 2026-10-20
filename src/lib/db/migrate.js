@@ -7,6 +7,7 @@ import { getMetaSync, setMetaSync } from "./helpers/metaStore.js";
 import { makeBackupDir, backupFile, backupDbLite, pruneOldBackups } from "./backup.js";
 import { getAppVersion } from "./version.js";
 import { stringifyJson } from "./helpers/jsonCol.js";
+import { backfillUsageKeyRefs, hasRawUsageKeys } from "./helpers/usageKeyRef.js";
 
 // Marker file: prevents re-importing legacy JSON when user wipes data.sqlite.
 const MIGRATED_MARKER = path.join(DB_DIR, ".migrated-from-json");
@@ -249,6 +250,17 @@ export async function runMigrationOnce(adapter) {
   // 2. Additive sync (auto add missing columns/indexes declared in TABLES)
   syncSchemaFromTables(adapter);
 
+  // Usage rows hold key references, never raw keys (migration 005). Rows written by an
+  // older version after a downgrade bring raw keys back: convert them again.
+  try {
+    if (hasRawUsageKeys(adapter)) {
+      const healed = adapter.transaction(() => backfillUsageKeyRefs(adapter));
+      console.log(`[DB][migrate] usage key refs restored (${healed?.history ?? 0} history rows, ${healed?.daily ?? 0} days)`);
+    }
+  } catch (e) {
+    console.warn(`[DB][migrate] usage key ref backfill failed: ${e.message}`);
+  }
+
   // Stamp the schema version we just reached so future boots skip re-backup.
   setMetaSync(adapter, "backupSchemaVersion", SCHEMA_VERSION);
 
@@ -271,6 +283,7 @@ export async function runMigrationOnce(adapter) {
         importLegacyUsage(adapter, legacyUsage);
         importLegacyDisabled(adapter, legacyDisabled);
         importLegacyDetails(adapter, legacyDetails);
+        backfillUsageKeyRefs(adapter);
         setMetaSync(adapter, "appVersion", getAppVersion());
         setMetaSync(adapter, "backupSchemaVersion", SCHEMA_VERSION);
         setMetaSync(adapter, "migratedAt", new Date().toISOString());

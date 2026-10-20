@@ -219,6 +219,7 @@ export default defineConfig({
       "!/tests/unit/budgets.test.js",
       "!/tests/unit/key-pricing.test.js",
       "!/tests/unit/key-pricing-guard.test.js",
+      "!/tests/unit/usage-key-refs.test.js",
     ],
   },
   lint: {
