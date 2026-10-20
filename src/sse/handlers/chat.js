@@ -14,7 +14,7 @@ import { getModelInfo, getComboModels, stripComboPrefix } from "../services/mode
 import { isStepReady } from "../services/stepReadiness.js";
 import { handleChatCore } from "open-sse/handlers/chatCore.js";
 import { DEFAULT_HEADROOM_URL } from "@/lib/headroom/detect";
-import { getTransform as getPxpipeTransform } from "@/lib/pxpipe/loader.js";
+import { getTransform as getPxpipeTransform, getUnavailableReason as getPxpipeUnavailableReason } from "@/lib/pxpipe/loader.js";
 import { appendPxpipeEvent } from "@/lib/pxpipe/events.js";
 import { errorResponse, unavailableResponse } from "open-sse/utils/error.js";
 import { upstreamResponseHeaders } from "open-sse/utils/upstreamHeaders.js";
@@ -368,6 +368,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       pxpipeTimeoutMs: chatSettings.pxpipeTimeoutMs,
       // Lazily warms the in-process module on first use; null when not installed (fail-open)
       pxpipeTransform: chatSettings.pxpipeEnabled ? await getPxpipeTransform() : null,
+      pxpipeUnavailableReason: chatSettings.pxpipeEnabled ? getPxpipeUnavailableReason() : null,
       onPxpipeEvent: appendPxpipeEvent,
       providerThinking,
       // Per-provider user overrides (custom headers / connect timeout) from settings
