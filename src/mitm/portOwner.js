@@ -280,13 +280,23 @@ function lookupListeningPids(port, opts) {
     else anyReliableNone = true;
   } else notes.push(ns.reason);
 
-  const fu = runTool(ctx.run, "fuser", [`${port}/tcp`]); // busybox and psmisc both accept PORT/tcp;
-  if (fu.ok) {
+  // `PORT/tcp` works on busybox and psmisc; busybox only checks IPv4 there and needs
+  // `PORT/tcp6` for IPv6 listeners (psmisc rejects tcp6, which is fine).
+  const fuserPids = [];
+  let fuserJunk = false;
+  for (const spec of [`${port}/tcp`, `${port}/tcp6`]) {
+    const fu = runTool(ctx.run, "fuser", [spec]);
+    if (!fu.ok) {
+      notes.push(fu.reason);
+      continue;
+    }
     const pids = parseFuser(fu.out);
-    if (pids && pids.length) return { status: "found", pids, method: "fuser" };
-    if (!pids) notes.push("fuser printed something other than PIDs");
-    // fuser prints nothing both for "free" and for "not allowed to see": not proof of none
-  } else notes.push(fu.reason);
+    if (pids) fuserPids.push(...pids);
+    else fuserJunk = true;
+  }
+  // fuser prints nothing both for "free" and for "not allowed to see": not proof of none
+  if (fuserJunk) notes.push("fuser printed something other than PIDs");
+  else if (fuserPids.length) return { status: "found", pids: uniq(fuserPids), method: "fuser" };
 
   const inodes = [];
   let procReadable = false;

@@ -181,11 +181,20 @@ describe("findListeningPids", () => {
   it("uses fuser (PORT/tcp form, busybox-compatible) before /proc", () => {
     const run = fakeRun({
       lsof: BUSYBOX_LSOF,
-      fuser: (args) => (args.join(" ") === "443/tcp" ? " 57" : ""),
+      fuser: (args) => (args.join(" ") === "443/tcp6" ? " 57" : ""),
     });
     expect(
       po.findListeningPids(443, { platform: "linux", run, fs: fakeFs(busyboxProc) }).method,
     ).toBe("fuser");
+    // junk from fuser is never trusted; /proc decides instead
+    const junk = fakeRun({ lsof: BUSYBOX_LSOF, fuser: "57c 12" });
+    expect(
+      po.findListeningPids(443, { platform: "linux", run: junk, fs: fakeFs(busyboxProc) }),
+    ).toMatchObject({
+      status: "found",
+      pids: [57],
+      method: "/proc",
+    });
   });
 
   it("reports none when /proc shows no listener on the port", () => {
