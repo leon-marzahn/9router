@@ -79,6 +79,7 @@ export default defineConfig({
       "!/scripts",
       "/scripts/*",
       "!/scripts/release.mjs",
+      "!/scripts/backport.mjs",
       "!/scripts/ci",
       "!/scripts/pr-shots",
       "!/scripts/pr-shots.mjs",
@@ -235,6 +236,8 @@ export default defineConfig({
       "!/tests/unit/usage-key-backup.test.js",
       "!/tests/unit/mitm-port-owner.test.js",
       "!/tests/unit/dockerfile-mitm-copy.test.js",
+      "!/tests/unit/release-backport.test.js",
+      "!/tests/unit/changelog-section.test.js",
     ],
   },
   lint: {
