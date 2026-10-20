@@ -215,7 +215,10 @@ export function Pxpipe() {
         <h1 className="font-display text-3xl tracking-tight">PXPIPE</h1>
         <p className="mt-1 text-sm text-text-muted">
           Renders large Claude-format prompts as images to cut input tokens.{" "}
-          <Link href="/dashboard/token-saver" className="text-accent-text underline underline-offset-2">
+          <Link
+            href="/dashboard/token-saver"
+            className="text-accent-text underline underline-offset-2"
+          >
             Token Saver settings
           </Link>
         </p>

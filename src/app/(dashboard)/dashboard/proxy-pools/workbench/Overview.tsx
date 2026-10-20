@@ -1,7 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { Button, Checkbox, EmptyState, Eyebrow, Panel, StatGrid, StatusDot, Tag, needsAttention } from "@/ui";
+import {
+  Button,
+  Checkbox,
+  EmptyState,
+  Eyebrow,
+  Panel,
+  StatGrid,
+  StatusDot,
+  Tag,
+  needsAttention,
+} from "@/ui";
 import { cn } from "@/ui/cn";
 import { RELAY_LABEL, poolStatus, type ProxyPool } from "./pools";
 import type { ProxyPoolsApi } from "./useProxyPools";
