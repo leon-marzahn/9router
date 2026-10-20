@@ -39,6 +39,8 @@ interface PxpipeStatus {
   running?: boolean;
   uptimeMs?: number;
   enabled?: boolean;
+  pinnedVersion?: string;
+  pinMismatch?: boolean;
 }
 
 interface HealthCheck {
@@ -112,6 +114,7 @@ const REASON_LABELS: Record<string, string> = {
   passthrough: "Passthrough",
   disabled: "Disabled",
   not_installed: "Not installed",
+  pin_mismatch: "Not the pinned release",
 };
 
 const fmtTokens = (n: number | undefined) => {
@@ -134,6 +137,9 @@ function overallStatus(
 ): { status: Status; label: string } {
   if (!status) return { status: "pending", label: "Checking" };
   if (!status.installed) return { status: "none", label: "Not installed" };
+  if (status.pinMismatch || health?.code === "PIN_MISMATCH") {
+    return { status: "error", label: "Pin mismatch" };
+  }
   if (health?.healthy) return { status: "ok", label: "Healthy" };
   if (status.running) return { status: "degraded", label: "Running" };
   return { status: "error", label: "Stopped" };
@@ -254,7 +260,10 @@ export function Pxpipe() {
           {
             label: "Version",
             value: status?.version ? `v${status.version}` : "—",
-            sub: "pxpipe-proxy",
+            sub:
+              overall.label === "Pin mismatch"
+                ? `Does not match pinned v${status?.pinnedVersion}`
+                : "pxpipe-proxy",
           },
           { label: "Uptime", value: fmtUptime(status?.uptimeMs), sub: "module loaded" },
           { label: "Requests", value: w ? w.requests : "—" },

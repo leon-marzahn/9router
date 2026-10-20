@@ -3,6 +3,7 @@ import path from "path";
 import { spawn, execSync } from "child_process";
 import { DATA_DIR } from "@/lib/dataDir.js";
 import { PXPIPE_PACKAGE, PXPIPE_REGISTRY, PXPIPE_SPEC, defaultPin, verifyPinnedInstall } from "./pin.js";
+import { clearPinFailure } from "./loader.js";
 
 export { PXPIPE_PACKAGE };
 export const PXPIPE_DIR = path.join(DATA_DIR, "pxpipe");
@@ -121,6 +122,7 @@ async function runInstall() {
   fs.rmSync(path.join(PXPIPE_DIR, "node_modules"), { recursive: true, force: true });
   fs.rmSync(path.join(PXPIPE_DIR, "package-lock.json"), { force: true });
 
+  clearPinFailure();
   const args = installArgs();
   const outFd = fs.openSync(INSTALL_LOG, "a");
   fs.writeSync(outFd, `\n[${new Date().toISOString()}] npm ${args.join(" ")}\n`);

@@ -11,6 +11,9 @@ import path from "node:path";
 //   2. `npm pack pxpipe-proxy@<v> --ignore-scripts --registry=https://registry.npmjs.org/`, extract
 //      it and review the diff against the current pin (at least everything
 //      dist/core/library.js imports: no network, fs writes, eval, child_process).
+//      gpt-tokenizer is installed but not imported by library.js today; if a
+//      future version imports it (or any bare/node: specifier, see
+//      tests/unit/pxpipe-pin.test.js), pin and hash that dependency too.
 //   3. Set PXPIPE_VERSION, PXPIPE_INTEGRITY (dist.integrity) and
 //      PXPIPE_TREE_SHA256 (`node scripts/pxpipe-tree-hash.mjs <extracted>/package`).
 //   4. Install through the dashboard and confirm the health check passes.
@@ -91,7 +94,7 @@ export function verifyPinnedInstall({ hostDir, packageRoot, pin }) {
   }
   if (actual !== pin.treeSha256) return fail("package files differ from the pinned release");
 
-  return { ok: true, reason: null };
+  return { ok: true, reason: null, treeSha256: actual };
 }
 
 export function defaultPin() {

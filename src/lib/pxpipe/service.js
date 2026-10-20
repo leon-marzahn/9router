@@ -1,5 +1,5 @@
 import { getInstallInfo, isInstalling, findNpm, verifyInstall } from "./install.js";
-import { getLoadedInfo, loadPxpipe, selfTest, unloadPxpipe } from "./loader.js";
+import { clearPinFailure, getLoadedInfo, getUnavailableReason, loadPxpipe, rememberPinFailure, selfTest } from "./loader.js";
 import { PXPIPE_VERSION } from "./pin.js";
 
 // Aggregate status for the Token Saver card and /api/pxpipe/status.
@@ -12,6 +12,8 @@ export function getPxpipeStatus() {
     installing: isInstalling(),
     version: install.version,
     pinnedVersion: PXPIPE_VERSION,
+    // Only a failure already seen by a load/health run; status never re-hashes.
+    pinMismatch: getUnavailableReason() === "pin_mismatch",
     path: install.path,
     running: loaded.loaded,
     loadedAt: loaded.loadedAt || null,
@@ -33,11 +35,13 @@ export async function runHealthCheck() {
 
   // Re-verified on every health run, so a copy changed on disk after it was
   // loaded is also caught and dropped from the request path.
+  clearPinFailure();
   const pin = verifyInstall();
   checks.push({ id: "pinned", label: `Matches pinned release v${PXPIPE_VERSION}`, ok: pin.ok, detail: pin.reason });
   if (!pin.ok) {
-    unloadPxpipe();
-    return fail(`Installed copy does not match the pinned release (${pin.reason}). Reinstall the pinned version.`, "PIN_MISMATCH");
+    // Drops a loaded module and makes requests skip without re-hashing.
+    rememberPinFailure(pin.reason);
+    return fail("Installed copy does not match the pinned release. Reinstall the pinned version.", "PIN_MISMATCH");
   }
 
   try {

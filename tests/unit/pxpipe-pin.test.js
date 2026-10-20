@@ -28,6 +28,8 @@ vi.mock("../../src/lib/pxpipe/pin.js", async (orig) => {
   return { ...actual, defaultPin: () => state.pin };
 });
 
+import { importGraph } from "./helpers/pxpipeImportGraph.js";
+
 const pinMod = await import("../../src/lib/pxpipe/pin.js");
 const install = await import("../../src/lib/pxpipe/install.js");
 const loader = await import("../../src/lib/pxpipe/loader.js");
@@ -67,6 +69,7 @@ function pinTo(root) {
 beforeEach(() => {
   fs.rmSync(install.PXPIPE_DIR, { recursive: true, force: true });
   loader.unloadPxpipe();
+  loader.clearPinFailure();
   state.spawnCalls = [];
   state.onSpawn = null;
 });
@@ -179,5 +182,88 @@ describe("loader refuses anything but the pinned release", () => {
   it("reports not-installed with a code the UI can offer an install for", async () => {
     const health = await service.runHealthCheck();
     expect(health).toMatchObject({ healthy: false, code: "NOT_INSTALLED", pinnedVersion: VERSION });
+  });
+});
+
+describe("pin details", () => {
+  it("library.js's static import graph stays inside the package", () => {
+    const root = writeFakeInstall(install.PXPIPE_DIR);
+    const core = path.join(root, "dist", "core");
+    fs.writeFileSync(path.join(core, "render.js"), "export const r = 1;\n");
+    fs.writeFileSync(
+      path.join(core, "library.js"),
+      'import { r } from "./render.js";\nexport async function transformAnthropicMessages() { return r; }\n',
+    );
+    expect(importGraph(path.join(core, "library.js")).external).toEqual([]);
+
+    // The check itself catches a bare or node: import.
+    fs.appendFileSync(
+      path.join(core, "render.js"),
+      'import fs from "node:fs";\nimport t from "gpt-tokenizer";\n',
+    );
+    expect(importGraph(path.join(core, "library.js")).external).toEqual([
+      "node:fs <- render.js",
+      "gpt-tokenizer <- render.js",
+    ]);
+  });
+
+  it("refuses an unreadable package.json", () => {
+    const root = writeFakeInstall(install.PXPIPE_DIR);
+    pinTo(root);
+    fs.writeFileSync(path.join(root, "package.json"), "{not json");
+    expect(install.verifyInstall()).toEqual({
+      ok: false,
+      reason: "package.json missing or unreadable",
+    });
+  });
+
+  it("refuses when the package files cannot be hashed", () => {
+    const root = writeFakeInstall(install.PXPIPE_DIR);
+    pinTo(root);
+    const locked = path.join(root, "dist", "locked");
+    fs.mkdirSync(locked);
+    fs.chmodSync(locked, 0o000);
+    try {
+      const res = install.verifyInstall();
+      expect(res.ok).toBe(false);
+      expect(res.reason).toMatch(/^cannot hash package files/);
+    } finally {
+      fs.chmodSync(locked, 0o755);
+    }
+  });
+
+  it("caches a failed verify until the next health run, and logs pin_mismatch", async () => {
+    const root = writeFakeInstall(install.PXPIPE_DIR);
+    pinTo(root);
+    const lib = path.join(root, "dist", "core", "library.js");
+    const original = fs.readFileSync(lib, "utf8");
+    fs.appendFileSync(lib, "\n// tampered\n");
+    expect(await loader.getTransform()).toBeNull();
+    expect(loader.getUnavailableReason()).toBe("pin_mismatch");
+    expect(service.getPxpipeStatus().pinMismatch).toBe(true);
+
+    // Restored on disk, but requests keep skipping without re-hashing...
+    fs.writeFileSync(lib, original);
+    await expect(loader.loadPxpipe()).rejects.toMatchObject({ code: "PIN_MISMATCH" });
+    // ...until a health run re-verifies.
+    const health = await service.runHealthCheck();
+    expect(health.healthy).toBe(true);
+    expect(loader.getUnavailableReason()).toBeNull();
+
+    const { compressWithPxpipe } = await import("../../open-sse/rtk/pxpipe.js");
+    const res = await compressWithPxpipe(
+      { messages: [] },
+      { enabled: true, transform: null, unavailableReason: "pin_mismatch" },
+    );
+    expect(res.summary.reason).toBe("pin_mismatch");
+  });
+
+  it("health error text does not repeat the check detail", async () => {
+    const root = writeFakeInstall(install.PXPIPE_DIR);
+    pinTo(root);
+    fs.appendFileSync(path.join(root, "dist", "core", "library.js"), "\n// x\n");
+    const health = await service.runHealthCheck();
+    expect(health.error).not.toContain("package files differ");
+    expect(health.checks.find((c) => c.id === "pinned").detail).toContain("package files differ");
   });
 });
