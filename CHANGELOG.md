@@ -1,4 +1,12 @@
 
+# v101.0.1 (2026-10-20)
+
+## Fixes
+- **pxpipe**: Pin pxpipe-proxy and refuse to load an unverified copy (#127)
+
+## Build & CI
+- **release**: Only move floating tags and GitHub Latest for the highest release (#128)
+
 # v101.0.0 (2026-10-20)
 
 ## Breaking
