@@ -586,7 +586,7 @@ export async function handleChatCore({ traceAttempt = null, body, modelInfo, cre
     const result = await handleNonStreamingResponse({ ...sharedCtx, providerResponse, sourceFormat, targetFormat: providerResponseFormat, reqLogger, toolNameMap, customToolNames, trackDone, appendLog });
     streamController.handleComplete();
     // The client asked to stream: replay the JSON answer as SSE in its format.
-    if (upstreamIsJson && clientRequestedStreaming) return replayJsonResultAsSSE(result, sourceFormat, providerResponse.headers);
+    if (upstreamIsJson && clientRequestedStreaming) return replayJsonResultAsSSE(result, sourceFormat, providerResponse.headers, { includeUsage: clientRequestedStreamUsage(body) });
     return result;
   }
 

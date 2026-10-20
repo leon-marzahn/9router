@@ -313,6 +313,9 @@ export async function handleNonStreamingResponse({ traceAttempt, providerRespons
     }
   }
 
+  // The upstream's real usage in the client's format, before the context buffer:
+  // a streaming replay sends it on the usage-only trailer (jsonToSSE).
+  const clientUsage = translatedResponse?.usage ? filterUsageForFormat(translatedResponse.usage, sourceFormat) : null;
   if (translatedResponse?.usage) {
     translatedResponse.usage = filterUsageForFormat(addBufferToUsage(translatedResponse.usage), sourceFormat);
   }
@@ -351,6 +354,7 @@ export async function handleNonStreamingResponse({ traceAttempt, providerRespons
 
   return {
     success: true,
+    clientUsage,
     response: new Response(JSON.stringify(restoreToolNames(translatedResponse, toolNameMap)), {
       headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*", ...upstreamResponseHeaders(providerResponse.headers) }
     })
