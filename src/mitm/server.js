@@ -12,6 +12,7 @@ const { DATA_DIR, MITM_DIR } = require("./paths");
 const { generateCert, getCertForDomain } = require("./cert/generate");
 const { getMitmAlias } = require("./dbReader");
 const { applyAntigravityIdeVersionOverride } = require("./antigravityIdeVersion");
+const { killPortListeners } = require("./portOwner");
 const LOCAL_PORT = 443;
 const IS_WIN = process.platform === "win32";
 const ENABLE_FILE_LOG = IS_DEV;
@@ -353,20 +354,21 @@ function killPort(port) {
       if (!out) return;
       pidList = out.split(/\r?\n/).map(s => s.trim()).filter(p => p && Number(p) !== process.pid && Number(p) > 4);
     } else {
-      const out = execSync(`${LSOF_BIN} -nP -iTCP:${port} -sTCP:LISTEN -t`, { encoding: "utf-8", windowsHide: true }).trim();
-      if (!out) return;
-      pidList = out.split("\n").filter(p => p && Number(p) !== process.pid);
+      // Shared helper: strict PID parsing, busybox fallbacks, never kills itself/ancestors.
+      killPortListeners(port, { opts: { lsofBin: LSOF_BIN }, log, err });
+      return;
     }
     if (pidList.length === 0) return;
+    let killed = 0;
     pidList.forEach(pid => {
       try {
-        if (IS_WIN) execSync(`taskkill /F /PID ${pid}`, { windowsHide: true });
-        else process.kill(Number(pid), "SIGKILL");
+        execSync(`taskkill /F /PID ${pid}`, { windowsHide: true });
+        killed++;
       } catch (e) {
         err(`Failed to kill PID ${pid}: ${e.message}`);
       }
     });
-    log(`Killed ${pidList.length} process(es) on port ${port}`);
+    log(`Killed ${killed} process(es) on port ${port}`);
   } catch (e) {
     if (e.status !== 1) throw e;
   }
