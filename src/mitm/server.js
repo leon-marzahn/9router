@@ -12,7 +12,7 @@ const { DATA_DIR, MITM_DIR } = require("./paths");
 const { generateCert, getCertForDomain } = require("./cert/generate");
 const { getMitmAlias } = require("./dbReader");
 const { applyAntigravityIdeVersionOverride } = require("./antigravityIdeVersion");
-const { findListeningPids, killPids } = require("./portOwner");
+const { killPortListeners } = require("./portOwner");
 const LOCAL_PORT = 443;
 const IS_WIN = process.platform === "win32";
 const ENABLE_FILE_LOG = IS_DEV;
@@ -355,17 +355,7 @@ function killPort(port) {
       pidList = out.split(/\r?\n/).map(s => s.trim()).filter(p => p && Number(p) !== process.pid && Number(p) > 4);
     } else {
       // Shared helper: strict PID parsing, busybox fallbacks, never kills itself/ancestors.
-      const found = findListeningPids(port, { lsofBin: LSOF_BIN });
-      if (found.status === "none") return;
-      if (found.status === "unknown") {
-        // Never guess a PID; if the port really is held, listen() reports it.
-        err(`Not killing anything on port ${port}: could not identify its listener (${found.reason})`);
-        return;
-      }
-      const res = killPids(found.pids, (pid) => process.kill(pid, "SIGKILL"));
-      res.refused.forEach(({ pid, reason }) => err(`Not killing PID ${pid}: ${reason}`));
-      res.failed.forEach(({ pid, error }) => err(`Failed to kill PID ${pid}: ${error}`));
-      if (res.killed.length) log(`Killed ${res.killed.length} process(es) on port ${port}`);
+      killPortListeners(port, { opts: { lsofBin: LSOF_BIN }, log, err });
       return;
     }
     if (pidList.length === 0) return;

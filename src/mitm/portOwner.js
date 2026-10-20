@@ -11,7 +11,7 @@
 //   - a PID is a line matching /^\d+$/; any other line means "unknown", never a guess
 //   - busybox lsof is skipped for ss → netstat → fuser → /proc/net/tcp{,6}
 //   - unknown owners and protected PIDs (≤1, ourselves, our parent, our
-//     ancestors, our process group) are never killed
+//     ancestors) are never killed
 // Windows keeps its own PowerShell paths in the callers.
 
 const fs = require("fs");
@@ -97,7 +97,7 @@ function parseNetstat(stdout, port) {
   return { pids: uniq(pids), listenerWithoutPid };
 }
 
-/** `fuser -n tcp PORT` stdout → PIDs, or null when any token is not a bare PID. */
+/** `fuser PORT/tcp` stdout → PIDs, or null when any token is not a bare PID. */
 function parseFuser(stdout) {
   const tokens = String(stdout ?? "")
     .replace(/^\s*\d+\/tcp:/, "")
@@ -222,6 +222,19 @@ function pidsForInodes(ctx, inodes) {
  * "unknown" means the port may be held but we can't say by whom — callers must not kill.
  */
 function findListeningPids(port, opts = {}) {
+  const r = lookupListeningPids(port, opts);
+  // The caller already knows the port is taken (bind failed): "nobody" just means
+  // the tools can't see the listener (e.g. another user's process without sudo).
+  if (r.status === "none" && opts.portBusy) {
+    return {
+      status: "unknown",
+      reason: `port ${port} is in use but ${r.method} cannot see its listener`,
+    };
+  }
+  return r;
+}
+
+function lookupListeningPids(port, opts) {
   const ctx = makeCtx(opts);
   if (!Number.isInteger(port) || port <= 0 || port > 65535)
     return { status: "unknown", reason: `invalid port ${port}` };
@@ -267,7 +280,7 @@ function findListeningPids(port, opts = {}) {
     else anyReliableNone = true;
   } else notes.push(ns.reason);
 
-  const fu = runTool(ctx.run, "fuser", ["-n", "tcp", String(port)]);
+  const fu = runTool(ctx.run, "fuser", [`${port}/tcp`]); // busybox and psmisc both accept PORT/tcp;
   if (fu.ok) {
     const pids = parseFuser(fu.out);
     if (pids && pids.length) return { status: "found", pids, method: "fuser" };
@@ -346,10 +359,8 @@ function protectedReason(pid, opts = {}) {
   if (pid === ctx.selfPid) return `PID ${pid} is this regent process`;
   const prot = opts.protectedPids || getProtectedPids(opts);
   if (prot.has(pid)) return `PID ${pid} is a parent of this regent process`;
-  const mine = procStat(ctx, ctx.selfPid);
-  const theirs = procStat(ctx, pid);
-  if (mine && theirs && mine.pgrp === theirs.pgrp)
-    return `PID ${pid} is in regent's own process group`;
+  // No process-group rule: a stale MITM child (spawned detached:false) shares our group
+  // and must stay killable.
   return null;
 }
 
@@ -362,6 +373,30 @@ function getPortOwner(port, opts = {}) {
   if (r.status === "none") return null;
   if (r.status === "unknown") return { unknown: true, reason: r.reason };
   return { pid: r.pids[0], pids: r.pids, name: getProcessName(r.pids[0], opts), method: r.method };
+}
+
+/**
+ * server.js boot step: free `port` by SIGKILLing its listeners, never guessing.
+ * `deps` (find, kill, log, err) are injectable for tests.
+ * @returns {{ status: string, killed: number[] }}
+ */
+function killPortListeners(port, deps = {}) {
+  const find = deps.find || ((p) => findListeningPids(p, deps.opts));
+  const kill = deps.kill || ((pid) => process.kill(pid, "SIGKILL"));
+  const log = deps.log || (() => {});
+  const err = deps.err || (() => {});
+  const found = find(port);
+  if (found.status === "none") return { status: "none", killed: [] };
+  if (found.status === "unknown") {
+    // Never guess a PID; if the port really is held, listen() reports it.
+    err(`Not killing anything on port ${port}: could not identify its listener (${found.reason})`);
+    return { status: "unknown", killed: [] };
+  }
+  const res = killPids(found.pids, kill, deps.opts);
+  res.refused.forEach(({ pid, reason }) => err(`Not killing PID ${pid}: ${reason}`));
+  res.failed.forEach(({ pid, error }) => err(`Failed to kill PID ${pid}: ${error}`));
+  if (res.killed.length) log(`Killed ${res.killed.length} process(es) on port ${port}`);
+  return { status: "found", killed: res.killed };
 }
 
 /**
@@ -416,6 +451,7 @@ module.exports = {
   protectedReason,
   killPids,
   forceKillRefusal,
+  killPortListeners,
   // parsers, for tests
   parseLsofPids,
   looksLikeBusyboxOutput,

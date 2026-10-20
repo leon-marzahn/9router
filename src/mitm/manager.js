@@ -283,7 +283,7 @@ function checkPort443Free() {
   });
 }
 
-function getPort443Owner(sudoPassword) {
+function getPort443Owner(sudoPassword, portBusy = false) {
   return new Promise((resolve) => {
     if (IS_WIN) {
       const psCmd = `powershell -NonInteractive -WindowStyle Hidden -Command "` +
@@ -301,7 +301,7 @@ function getPort443Owner(sudoPassword) {
     } else {
       // Only the process LISTENING on TCP 443. Returns null (free), { pid, pids, name },
       // or { unknown: true, reason }; never a guessed PID (busybox lsof lists every open file).
-      resolve(portOwner.getPortOwner(MITM_PORT, { lsofBin: LSOF_BIN }));
+      resolve(portOwner.getPortOwner(MITM_PORT, { lsofBin: LSOF_BIN, portBusy }));
     }
   });
 }
@@ -456,6 +456,30 @@ async function killPort443Owner(owner, sudoPassword) {
 }
 
 /**
+ * Port 443 is held by `owner` (unix). Kill it when forced and allowed; otherwise throw.
+ * PORT_443_BUSY (which makes the dashboard offer force-kill) is only thrown when a
+ * force-kill would actually be allowed; unknown or protected owners get a plain error.
+ */
+async function resolvePort443Conflict(owner, forceKillPort443, sudoPassword) {
+  const refusal = portOwner.forceKillRefusal(owner, MITM_PORT);
+  if (refusal) {
+    throw new Error(owner.unknown
+      ? `Port 443 is already in use by a process regent could not identify (${owner.reason}). Stop it manually.`
+      : refusal);
+  }
+  const shortName = owner.name.includes("/") ? owner.name.split("/").filter(Boolean).pop() : owner.name;
+  if (forceKillPort443) {
+    log(`Killing process on port 443 (PID ${owner.pid}, name=${shortName})...`);
+    await killUnixPortOwner(owner, sudoPassword);
+    return;
+  }
+  const e = new Error(`Port 443 is already in use by "${shortName}" (PID ${owner.pid}).`);
+  e.code = "PORT_443_BUSY";
+  e.portOwner = { pid: owner.pid, name: shortName };
+  throw e;
+}
+
+/**
  * SIGKILL every listener on 443 after re-checking the guards (never PID <= 1, regent itself,
  * its ancestors or its process group). Throws when the owner is unknown or protected.
  */
@@ -523,26 +547,8 @@ async function startServer(apiKey, sudoPassword, forceKillPort443 = false) {
   if (!IS_WIN) {
     const portStatus = await checkPort443Free();
     if (portStatus === "in-use" || portStatus === "no-permission") {
-      const owner = await getPort443Owner(sudoPassword);
-      if (owner && owner.unknown) {
-        // Never offer (or perform) a force-kill when we can't say who holds the port.
-        if (forceKillPort443) await killPort443Owner(owner, sudoPassword); // throws a clear refusal
-        throw new Error(`Port 443 is already in use by a process regent could not identify (${owner.reason}). Stop it manually.`);
-      }
-      if (owner) {
-        const shortName = owner.name.includes("/")
-          ? owner.name.split("/").filter(Boolean).pop()
-          : owner.name;
-        if (forceKillPort443) {
-          log(`Killing process on port 443 (PID ${owner.pid}, name=${shortName})...`);
-          await killPort443Owner(owner, sudoPassword);
-        } else {
-          const e = new Error(`Port 443 is already in use by "${shortName}" (PID ${owner.pid}).`);
-          e.code = "PORT_443_BUSY";
-          e.portOwner = { pid: owner.pid, name: shortName };
-          throw e;
-        }
-      }
+      const owner = await getPort443Owner(sudoPassword, portStatus === "in-use");
+      if (owner) await resolvePort443Conflict(owner, forceKillPort443, sudoPassword);
     }
   }
 
@@ -889,6 +895,9 @@ module.exports = {
   getCachedPassword,
   setCachedPassword,
   loadEncryptedPassword,
+  // for tests
+  resolvePort443Conflict,
+  killUnixPortOwner,
   clearEncryptedPassword,
   isSudoPasswordRequired,
   initDbHooks,

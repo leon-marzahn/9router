@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vite-plus/test";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { createRequire } from "module";
 
 // portOwner.js is CJS so the standalone MITM server.js can require it.
@@ -14,7 +14,8 @@ const BUSYBOX_LSOF = [
   "57\t/bin/busybox\t3\tsocket:[99123]",
   "212\t/usr/bin/sleep\t1\tpipe:[5555]",
 ].join("\n");
-const SS = 'LISTEN 0      1            0.0.0.0:443        0.0.0.0:*    users:(("nc",pid=57,fd=3))\n';
+const SS =
+  'LISTEN 0      1            0.0.0.0:443        0.0.0.0:*    users:(("nc",pid=57,fd=3))\n';
 const SS_OTHER_PORT = 'LISTEN 0 511 0.0.0.0:4430 0.0.0.0:* users:(("node",pid=1,fd=21))\n';
 const SS_NO_PID = "LISTEN 0 1 0.0.0.0:443 0.0.0.0:*\n";
 const NETSTAT = [
@@ -30,7 +31,8 @@ const PROC_TCP = [
   "   1: 00000000:01BB 00000000:0000 0A 00000000:00000000 00:00000000 00000000     0        0 99123 1 0000000000000000 100 0 0 10 0",
   "   2: 0100007F:01BB 0100007F:C350 01 00000000:00000000 00:00000000 00000000     0        0 77777 1 0000000000000000 100 0 0 10 0",
 ].join("\n");
-const PROC_TCP6_HEADER = "  sl  local_address                         remote_address                        st ...\n";
+const PROC_TCP6_HEADER =
+  "  sl  local_address                         remote_address                        st ...\n";
 
 const enoent = (cmd) => Object.assign(new Error(`spawn ${cmd} ENOENT`), { code: "ENOENT" });
 
@@ -100,7 +102,9 @@ describe("portOwner parsers", () => {
     expect(po.parseSs(SS, 443)).toEqual({ pids: [57], listenerWithoutPid: false });
     expect(po.parseSs(SS_OTHER_PORT, 443)).toEqual({ pids: [], listenerWithoutPid: false });
     expect(po.parseSs(SS_NO_PID, 443)).toEqual({ pids: [], listenerWithoutPid: true });
-    expect(po.parseSs('LISTEN 0 1 [::]:443 [::]:* users:(("a",pid=7,fd=3),("a",pid=8,fd=3))', 443).pids).toEqual([7, 8]);
+    expect(
+      po.parseSs('LISTEN 0 1 [::]:443 [::]:* users:(("a",pid=7,fd=3),("a",pid=8,fd=3))', 443).pids,
+    ).toEqual([7, 8]);
   });
 
   it("parses netstat -tlnp", () => {
@@ -139,7 +143,9 @@ describe("findListeningPids", () => {
 
   it("lsof exit 1 with no output means nobody listens", () => {
     const run = fakeRun({ lsof: Object.assign(new Error("exit 1"), { status: 1, stdout: "" }) });
-    expect(po.findListeningPids(443, { platform: "darwin", run, fs: fakeFs() }).status).toBe("none");
+    expect(po.findListeningPids(443, { platform: "darwin", run, fs: fakeFs() }).status).toBe(
+      "none",
+    );
   });
 
   it("busybox lsof output never yields a PID; falls back to ss", () => {
@@ -162,14 +168,31 @@ describe("findListeningPids", () => {
     expect(r).toEqual({ status: "found", pids: [57], method: "/proc" });
   });
 
-  it("uses fuser before /proc", () => {
-    const run = fakeRun({ lsof: BUSYBOX_LSOF, fuser: " 57" });
-    expect(po.findListeningPids(443, { platform: "linux", run, fs: fakeFs(busyboxProc) }).method).toBe("fuser");
+  it("treats none as unknown when the caller knows the port is busy", () => {
+    const run = fakeRun({ lsof: "" });
+    expect(po.findListeningPids(443, { platform: "darwin", run, fs: fakeFs() }).status).toBe(
+      "none",
+    );
+    const r = po.findListeningPids(443, { platform: "darwin", run, fs: fakeFs(), portBusy: true });
+    expect(r).toMatchObject({ status: "unknown" });
+    expect(r.reason).toMatch(/in use but lsof cannot see/);
+  });
+
+  it("uses fuser (PORT/tcp form, busybox-compatible) before /proc", () => {
+    const run = fakeRun({
+      lsof: BUSYBOX_LSOF,
+      fuser: (args) => (args.join(" ") === "443/tcp" ? " 57" : ""),
+    });
+    expect(
+      po.findListeningPids(443, { platform: "linux", run, fs: fakeFs(busyboxProc) }).method,
+    ).toBe("fuser");
   });
 
   it("reports none when /proc shows no listener on the port", () => {
     const run = fakeRun({ lsof: BUSYBOX_LSOF });
-    expect(po.findListeningPids(8443, { platform: "linux", run, fs: fakeFs(busyboxProc) }).status).toBe("none");
+    expect(
+      po.findListeningPids(8443, { platform: "linux", run, fs: fakeFs(busyboxProc) }).status,
+    ).toBe("none");
   });
 
   it("is unknown (never guesses) when the listener's process is not visible", () => {
@@ -182,15 +205,25 @@ describe("findListeningPids", () => {
 
   it("is unknown when real lsof prints non-PID junk and no fallback applies", () => {
     const run = fakeRun({ lsof: "COMMAND PID\nnc 57" });
-    expect(po.findListeningPids(443, { platform: "linux", run, fs: fakeFs() }).status).toBe("unknown");
+    expect(po.findListeningPids(443, { platform: "linux", run, fs: fakeFs() }).status).toBe(
+      "unknown",
+    );
   });
 
   it("is unknown when nothing can be inspected", () => {
     const run = fakeRun({});
-    expect(po.findListeningPids(443, { platform: "linux", run, fs: fakeFs() }).status).toBe("unknown");
-    expect(po.findListeningPids(0, { platform: "linux", run, fs: fakeFs() }).status).toBe("unknown");
-    expect(po.findListeningPids(443, { platform: "darwin", run, fs: fakeFs() }).status).toBe("unknown");
-    expect(po.findListeningPids(443, { platform: "win32", run, fs: fakeFs() }).status).toBe("unknown");
+    expect(po.findListeningPids(443, { platform: "linux", run, fs: fakeFs() }).status).toBe(
+      "unknown",
+    );
+    expect(po.findListeningPids(0, { platform: "linux", run, fs: fakeFs() }).status).toBe(
+      "unknown",
+    );
+    expect(po.findListeningPids(443, { platform: "darwin", run, fs: fakeFs() }).status).toBe(
+      "unknown",
+    );
+    expect(po.findListeningPids(443, { platform: "win32", run, fs: fakeFs() }).status).toBe(
+      "unknown",
+    );
   });
 
   it("an empty ss answer counts as none only when nothing contradicts it", () => {
@@ -211,7 +244,9 @@ describe("getPortOwner / getProcessName", () => {
   });
 
   it("falls back to busybox-compatible `ps -o pid,comm`, then macOS `ps -p`", () => {
-    const run = fakeRun({ ps: (args) => (args.includes("-p") ? "Safari\n" : "PID COMMAND\n 99 nginx\n") });
+    const run = fakeRun({
+      ps: (args) => (args.includes("-p") ? "Safari\n" : "PID COMMAND\n 99 nginx\n"),
+    });
     expect(po.getProcessName(99, { platform: "linux", run, fs: fakeFs() })).toBe("nginx");
     expect(po.getProcessName(98, { platform: "linux", run, fs: fakeFs() })).toBe("unknown");
     expect(po.getProcessName(99, { platform: "darwin", run, fs: fakeFs() })).toBe("Safari");
@@ -221,7 +256,9 @@ describe("getPortOwner / getProcessName", () => {
     const none = fakeRun({ lsof: "" });
     expect(po.getPortOwner(443, { platform: "darwin", run: none, fs: fakeFs() })).toBeNull();
     const junk = fakeRun({ lsof: "garbage" });
-    expect(po.getPortOwner(443, { platform: "linux", run: junk, fs: fakeFs() })).toMatchObject({ unknown: true });
+    expect(po.getPortOwner(443, { platform: "linux", run: junk, fs: fakeFs() })).toMatchObject({
+      unknown: true,
+    });
   });
 });
 
@@ -231,7 +268,7 @@ describe("kill guards", () => {
     "/proc/30/stat": "30 (node) S 20 20 1 0",
     "/proc/20/stat": "20 (node) S 10 20 1 0",
     "/proc/10/stat": "10 (sh) S 1 10 1 0",
-    "/proc/40/stat": "40 (node) S 20 20 1 0", // sibling in our process group
+    "/proc/40/stat": "40 (node) S 20 20 1 0", // stale MITM child sharing our process group
     "/proc/57/stat": "57 (nc) S 1 57 1 0",
   };
   const ctx = { platform: "linux", selfPid: 30, selfPpid: 20, fs: fakeFs(tree), run: fakeRun({}) };
@@ -249,13 +286,20 @@ describe("kill guards", () => {
     expect(po.protectedReason(30, ctx)).toMatch(/this regent process/);
     expect(po.protectedReason(20, ctx)).toMatch(/parent/);
     expect(po.protectedReason(10, ctx)).toMatch(/parent/);
-    expect(po.protectedReason(40, ctx)).toMatch(/process group/);
+    // same process group is NOT protected: a stale detached:false MITM child must stay killable
+    expect(po.protectedReason(40, ctx)).toBeNull();
     expect(po.protectedReason(57, ctx)).toBeNull();
   });
 
   it("uses ps for ancestry when there is no procfs (macOS)", () => {
     const run = fakeRun({ ps: (args) => ({ 20: "10 20", 10: "1 10" })[args.at(-1)] ?? "" });
-    const set = po.getProtectedPids({ platform: "darwin", selfPid: 30, selfPpid: 20, fs: fakeFs(), run });
+    const set = po.getProtectedPids({
+      platform: "darwin",
+      selfPid: 30,
+      selfPpid: 20,
+      fs: fakeFs(),
+      run,
+    });
     expect([...set].sort((a, b) => a - b)).toEqual([0, 1, 10, 20, 30]);
   });
 
@@ -266,9 +310,9 @@ describe("kill guards", () => {
       signalled.push(pid);
     };
     const res = po.killPids([57, 1, 30, 20, 40, 58], kill, ctx);
-    expect(signalled).toEqual([57]);
-    expect(res.killed).toEqual([57]);
-    expect(res.refused.map((r) => r.pid)).toEqual([1, 30, 20, 40]);
+    expect(signalled).toEqual([57, 40]);
+    expect(res.killed).toEqual([57, 40]);
+    expect(res.refused.map((r) => r.pid)).toEqual([1, 30, 20]);
     expect(res.failed).toEqual([{ pid: 58, error: "EPERM" }]);
   });
 
@@ -280,7 +324,9 @@ describe("kill guards", () => {
     );
     expect(po.forceKillRefusal({ pid: 1, pids: [1] }, 443, ctx)).toMatch(/Refusing/);
     expect(po.forceKillRefusal({ pid: 20, pids: [20] }, 443, ctx)).toMatch(/parent/);
-    expect(po.forceKillRefusal({ pid: 57, pids: [57, 30] }, 443, ctx)).toMatch(/this regent process/);
+    expect(po.forceKillRefusal({ pid: 57, pids: [57, 30] }, 443, ctx)).toMatch(
+      /this regent process/,
+    );
     expect(po.forceKillRefusal({ pid: 57, pids: [57] }, 443, ctx)).toBeNull();
     expect(po.forceKillRefusal({ pid: 57 }, 443, ctx)).toBeNull();
   });
@@ -288,5 +334,118 @@ describe("kill guards", () => {
   it("the real process is protected from itself", () => {
     expect(po.protectedReason(process.pid)).toMatch(/this regent process/);
     expect(po.protectedReason(process.ppid)).toMatch(/parent|not a killable/);
+  });
+});
+
+describe("killPortListeners (server.js boot)", () => {
+  it("returns early on unknown without killing", () => {
+    const kill = vi.fn();
+    const err = vi.fn();
+    const r = po.killPortListeners(443, {
+      find: () => ({ status: "unknown", reason: "busybox" }),
+      kill,
+      err,
+    });
+    expect(r).toEqual({ status: "unknown", killed: [] });
+    expect(kill).not.toHaveBeenCalled();
+    expect(err).toHaveBeenCalledWith(expect.stringMatching(/Not killing anything on port 443/));
+  });
+
+  it("does nothing when free, and reports only successful kills", () => {
+    const kill = vi.fn();
+    expect(po.killPortListeners(443, { find: () => ({ status: "none" }), kill })).toEqual({
+      status: "none",
+      killed: [],
+    });
+    expect(kill).not.toHaveBeenCalled();
+    const log = vi.fn();
+    const err = vi.fn();
+    const failing = (pid) => {
+      if (pid === 58) throw new Error("EPERM");
+    };
+    const r = po.killPortListeners(443, {
+      find: () => ({ status: "found", pids: [57, 58, 1, process.pid] }),
+      kill: failing,
+      log,
+      err,
+    });
+    expect(r.killed).toEqual([57]);
+    expect(log).toHaveBeenCalledWith("Killed 1 process(es) on port 443");
+    const errs = err.mock.calls.flat().join("\n");
+    expect(errs).toMatch(/Failed to kill PID 58: EPERM/);
+    expect(errs).toMatch(/Not killing PID 1:/);
+    expect(errs).toMatch(new RegExp(`Not killing PID ${process.pid}:`));
+  });
+});
+
+describe("manager port-443 conflict (portOwner mocked)", () => {
+  const manager = require("../../src/mitm/manager.js");
+  const dns = require("../../src/mitm/dns/dnsConfig.js");
+  afterEach(() => vi.restoreAllMocks());
+
+  function spies() {
+    const exec = vi.spyOn(dns, "execWithPassword").mockResolvedValue("");
+    const kill = vi.spyOn(process, "kill").mockImplementation(() => true);
+    return { exec, kill };
+  }
+
+  it("unknown owner: throws a plain error (no PORT_443_BUSY) and never kills, forced or not", async () => {
+    const { exec, kill } = spies();
+    const owner = { unknown: true, reason: "lsof is busybox" };
+    for (const force of [false, true]) {
+      const e = await manager.resolvePort443Conflict(owner, force, "pw").catch((x) => x);
+      expect(e).toBeInstanceOf(Error);
+      expect(e.code).toBeUndefined();
+      expect(e.message).toMatch(/could not identify .*Stop it manually/);
+    }
+    expect(exec).not.toHaveBeenCalled();
+    expect(kill).not.toHaveBeenCalled();
+  });
+
+  it("protected owner: no PORT_443_BUSY offer, no kill", async () => {
+    const { exec, kill } = spies();
+    const e = await manager
+      .resolvePort443Conflict({ pid: process.pid, pids: [process.pid], name: "node" }, false, "pw")
+      .catch((x) => x);
+    expect(e.code).toBeUndefined();
+    expect(e.message).toMatch(/Refusing/);
+    expect(exec).not.toHaveBeenCalled();
+    expect(kill).not.toHaveBeenCalled();
+  });
+
+  it("killable owner: PORT_443_BUSY when not forced", async () => {
+    spies();
+    vi.spyOn(po, "forceKillRefusal").mockReturnValue(null);
+    const e = await manager
+      .resolvePort443Conflict({ pid: 4242, pids: [4242], name: "/usr/bin/nc" }, false, "pw")
+      .catch((x) => x);
+    expect(e.code).toBe("PORT_443_BUSY");
+    expect(e.portOwner).toEqual({ pid: 4242, name: "nc" });
+  });
+
+  it("killUnixPortOwner throws before execWithPassword for unknown or protected owners", async () => {
+    const { exec, kill } = spies();
+    await expect(manager.killUnixPortOwner({ unknown: true, reason: "x" }, "pw")).rejects.toThrow(
+      /could not identify/,
+    );
+    await expect(manager.killUnixPortOwner({ pid: 1, pids: [1] }, "pw")).rejects.toThrow(
+      /Refusing/,
+    );
+    await expect(
+      manager.killUnixPortOwner({ pid: process.ppid, pids: [process.ppid] }, "pw"),
+    ).rejects.toThrow(/Refusing/);
+    expect(exec).not.toHaveBeenCalled();
+    expect(kill).not.toHaveBeenCalled();
+  });
+
+  it("killUnixPortOwner kills an allowed owner via sudo", async () => {
+    const { exec } = spies();
+    vi.spyOn(po, "forceKillRefusal").mockReturnValue(null);
+    vi.useFakeTimers();
+    const p = manager.killUnixPortOwner({ pid: 4242, pids: [4242] }, "pw");
+    await vi.runAllTimersAsync();
+    await p;
+    vi.useRealTimers();
+    expect(exec).toHaveBeenCalledWith("kill -9 4242", "pw");
   });
 });
