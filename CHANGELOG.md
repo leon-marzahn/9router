@@ -1,4 +1,13 @@
 
+# v101.0.2 (2026-10-20)
+
+## Fixes
+- **security**: Require the real CLI token for DB export and redact secrets in API responses (#132)
+- **release**: Pass git-cliff the range from the newest tag on the branch (#133)
+
+## Build & CI
+- **release**: Backport workflow with support-branch releases and CHANGELOG release notes (#131)
+
 # v101.0.1 (2026-10-20)
 
 ## Fixes
