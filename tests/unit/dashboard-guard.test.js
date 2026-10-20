@@ -415,3 +415,32 @@ describe("dashboard guard headroom process routes are local-only", () => {
     });
   }
 });
+
+// The guard once kept an unused PROTECTED_API_PATHS list; deny-by-default for /api/*
+// is what actually protects these. Pin that so removing the list hid nothing.
+describe("dashboard guard formerly-listed protected API paths", () => {
+  const PATHS = [
+    "/api/settings", "/api/keys", "/api/providers", "/api/provider-nodes", "/api/proxy-pools",
+    "/api/combos", "/api/models", "/api/usage", "/api/oauth/codex/authorize", "/api/cloud",
+    "/api/media-providers", "/api/pricing", "/api/tags", "/api/cli-tools/all-statuses",
+    "/api/mcp/x", "/api/translator", "/api/tunnel",
+  ];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.NINEROUTER_PEER_TOKEN = PEER_TOKEN;
+    mocks.getSettings.mockResolvedValue({ requireLogin: true });
+    mocks.getConsistentMachineId.mockResolvedValue("cli-token");
+    mocks.verifyDashboardAuthToken.mockResolvedValue(false);
+  });
+
+  for (const path of PATHS) {
+    it(`${path} rejects a request without a session, remote and loopback`, async () => {
+      for (const req of [request(path), localRequest(path, { host: "localhost:20128" })]) {
+        const res = await proxy(req);
+        expect(res).not.toBe(mocks.nextResponse);
+        expect([401, 403]).toContain(res.status);
+      }
+    });
+  }
+});

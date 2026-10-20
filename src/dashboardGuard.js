@@ -35,27 +35,6 @@ const ALWAYS_PROTECTED = [
   "/api/oauth/zed/auto-import",
 ];
 
-// Require auth, but allow through if requireLogin is disabled
-const PROTECTED_API_PATHS = [
-  "/api/settings",
-  "/api/keys",
-  "/api/providers",
-  "/api/provider-nodes",
-  "/api/proxy-pools",
-  "/api/combos",
-  "/api/models",
-  "/api/usage",
-  "/api/oauth",
-  "/api/cloud",
-  "/api/media-providers",
-  "/api/pricing",
-  "/api/tags",
-  "/api/cli-tools",
-  "/api/mcp",
-  "/api/translator",
-  "/api/tunnel",
-];
-
 // Routes that spawn child processes or read host secrets — restrict to localhost.
 // All of /api/cli-tools/ is local-only, GETs included: the handlers write config files
 // in the user's home, exec `which`, and the status GETs read those files back (they can
