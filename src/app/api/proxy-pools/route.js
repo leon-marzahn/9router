@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createProxyPool, getProviderConnections, getProxyPools } from "@/models";
-import { redactSecrets } from "@/lib/secretRedaction";
+import { isMaskedUrl, MaskedUrlError, redactSecrets } from "@/lib/secretRedaction";
 
 function toBoolean(value) {
   if (value === "true") return true;
@@ -24,6 +24,10 @@ function normalizeProxyPoolInput(body = {}) {
 
   if (!proxyUrl) {
     return { error: "Proxy URL is required" };
+  }
+
+  if (isMaskedUrl(proxyUrl)) {
+    return { error: new MaskedUrlError().message };
   }
 
   return { name, proxyUrl, noProxy, isActive, strictProxy, type };

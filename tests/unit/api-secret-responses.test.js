@@ -140,4 +140,51 @@ describe("dashboard API responses carry no secrets", () => {
     expectClean(await saved.json());
     expect((await (await import("@/lib/localDb")).getSettings()).outboundProxyUrl).toBe(outbound);
   });
+
+  it("a masked URL keeps the password on a host change and is refused for another user", async () => {
+    const getOutbound = async () => (await (await import("@/lib/localDb")).getSettings()).outboundProxyUrl;
+
+    // settings
+    await api.settings.PATCH(req("PATCH", "/api/settings", { outboundProxyUrl: "http://carol:out-SEEDED@out.example:1" }));
+    await api.settings.PATCH(req("PATCH", "/api/settings", { outboundProxyUrl: "http://carol:***@moved.example:2" }));
+    expect(await getOutbound()).toBe("http://carol:out-SEEDED@moved.example:2");
+    const badSettings = await api.settings.PATCH(req("PATCH", "/api/settings", { outboundProxyUrl: "http://eve:***@x:1" }));
+    expect(badSettings.status).toBe(400);
+    expect((await badSettings.json()).error).toMatch(/hidden password/);
+    expect(await getOutbound()).toBe("http://carol:out-SEEDED@moved.example:2");
+
+    // proxy pool
+    const { proxyPool } = await (await api.pools.POST(req("POST", "/api/proxy-pools", { name: "p", proxyUrl: POOL }))).json();
+    await api.pool.PUT(req("PUT", `/api/proxy-pools/${proxyPool.id}`, { proxyUrl: "http://bob:***@moved:1" }), ctx(proxyPool.id));
+    expect((await models.getProxyPoolById(proxyPool.id)).proxyUrl).toBe("http://bob:pool-SEEDED@moved:1");
+    const badPool = await api.pool.PUT(
+      req("PUT", `/api/proxy-pools/${proxyPool.id}`, { proxyUrl: "http://eve:***@moved:1" }),
+      ctx(proxyPool.id)
+    );
+    expect(badPool.status).toBe(400);
+    const badNewPool = await api.pools.POST(req("POST", "/api/proxy-pools", { name: "q", proxyUrl: "http://bob:***@h" }));
+    expect(badNewPool.status).toBe(400);
+
+    // connection proxy
+    const conn = await models.createProviderConnection({
+      provider: "openai", authType: "apikey", apiKey: "k",
+      providerSpecificData: { connectionProxyEnabled: true, connectionProxyUrl: PROXY },
+    });
+    await api.provider.PUT(
+      req("PUT", `/api/providers/${conn.id}`, { connectionProxyEnabled: true, connectionProxyUrl: "http://alice:***@new:9" }),
+      ctx(conn.id)
+    );
+    expect((await models.getProviderConnectionById(conn.id)).providerSpecificData.connectionProxyUrl).toBe(
+      "http://alice:pw-SEEDED@new:9"
+    );
+    const badConn = await api.provider.PUT(
+      req("PUT", `/api/providers/${conn.id}`, { connectionProxyEnabled: true, connectionProxyUrl: "http://eve:***@new:9" }),
+      ctx(conn.id)
+    );
+    expect(badConn.status).toBe(400);
+    const badNewConn = await api.providers.POST(
+      req("POST", "/api/providers", { provider: "openai", apiKey: "k2", connectionProxyEnabled: true, connectionProxyUrl: "http://a:***@h" })
+    );
+    expect(badNewConn.status).toBe(400);
+  });
 });

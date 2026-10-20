@@ -416,6 +416,41 @@ describe("dashboard guard headroom process routes are local-only", () => {
   }
 });
 
+describe("dashboard guard auto-import routes (host credential readers)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.NINEROUTER_PEER_TOKEN = PEER_TOKEN;
+    mocks.getConsistentMachineId.mockResolvedValue("cli-token");
+    mocks.verifyDashboardAuthToken.mockResolvedValue(false);
+  });
+
+  const withJwt = (req) => {
+    req.cookies.get = vi.fn(() => ({ value: "jwt" }));
+    return req;
+  };
+
+  for (const path of [
+    "/api/oauth/xiaomi-mimo/auto-import",
+    "/api/oauth/cursor/auto-import",
+    "/api/oauth/kiro/auto-import",
+    "/api/oauth/zed/auto-import",
+    "/api/oauth/some-new-ide/auto-import",
+  ]) {
+    it(`${path}: remote session gets 403, loopback without session 401 even with requireLogin off`, async () => {
+      mocks.verifyDashboardAuthToken.mockResolvedValue(true);
+      expect((await proxy(withJwt(request(path, { host: "regent.example.com" })))).status).toBe(403);
+
+      mocks.verifyDashboardAuthToken.mockResolvedValue(false);
+      mocks.getSettings.mockResolvedValue({ requireLogin: false });
+      expect((await proxy(localRequest(path, { host: "localhost:20128" }))).status).toBe(401);
+
+      mocks.verifyDashboardAuthToken.mockResolvedValue(true);
+      mocks.getSettings.mockResolvedValue({ requireLogin: true });
+      expect(await proxy(withJwt(localRequest(path, { host: "localhost:20128" })))).toBe(mocks.nextResponse);
+    });
+  }
+});
+
 // The guard once kept an unused PROTECTED_API_PATHS list; deny-by-default for /api/*
 // is what actually protects these. Pin that so removing the list hid nothing.
 describe("dashboard guard formerly-listed protected API paths", () => {

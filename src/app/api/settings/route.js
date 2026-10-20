@@ -7,7 +7,7 @@ import { validatePipelines } from "@/lib/request-pipelines/config.js";
 import { UPDATE_STATE_KEYS, webhookHost } from "@/lib/updates/webhook.js";
 import { NOTIFY_KEYS } from "@/lib/notify/config.js";
 import { validateCustomerViewPatch } from "@/lib/customerView/index.js";
-import { maskUrlCredentials, restoreMaskedUrl } from "@/lib/secretRedaction";
+import { MaskedUrlError, maskUrlCredentials, restoreMaskedUrl } from "@/lib/secretRedaction";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -22,7 +22,7 @@ const SETTINGS_RESPONSE_HEADERS = {
 const PROTECTED_SETTING_KEYS = ["password", "mitmSudoEncrypted", ...UPDATE_STATE_KEYS, ...NOTIFY_KEYS];
 
 /** Drop secrets; say only whether the redeploy hook is set and where it points. */
-function toPublicSettings({ password, oidcClientSecret, updateWebhookUrl, updateWebhookToken, mitmSudoEncrypted: _mitmSudo, ...safe }) {
+function toPublicSettings({ password, oidcClientSecret, updateWebhookUrl, updateWebhookToken: _webhookToken, mitmSudoEncrypted: _mitmSudo, ...safe }) {
   safe.oidcConfigured = !!(safe.oidcIssuerUrl && safe.oidcClientId && oidcClientSecret);
   safe.updateWebhookSet = !!updateWebhookUrl;
   safe.updateWebhookHost = updateWebhookUrl ? webhookHost(updateWebhookUrl) : null;
@@ -182,6 +182,9 @@ export async function PATCH(request) {
     const { safe: safeSettings } = toPublicSettings(settings);
     return NextResponse.json(safeSettings, { headers: SETTINGS_RESPONSE_HEADERS });
   } catch (error) {
+    if (error instanceof MaskedUrlError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
     console.log("Error updating settings:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

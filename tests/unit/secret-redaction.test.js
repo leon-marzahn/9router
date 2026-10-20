@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vite-plus/test";
 import {
+  isMaskedUrl,
   isSecretKey,
+  MaskedUrlError,
   maskUrlCredentials,
   redactSecrets,
   restoreMaskedUrl,
@@ -85,7 +87,7 @@ describe("redactSecrets", () => {
     expect(out.providerSpecificData.connectionProxyUrl).toBe("http://alice:***@proxy.example:8080");
     expect(maskUrlCredentials("socks5://u:p@h:1/x")).toBe("socks5://u:***@h:1/x");
     expect(maskUrlCredentials("http://h:1")).toBe("http://h:1");
-    expect(maskUrlCredentials("http://user@h")).toBe("http://user@h");
+    expect(maskUrlCredentials("http://user@h")).toBe("http://***@h");
     expect(redactSecrets({ proxyPools: [{ proxyUrl: "http://a:b@h" }] })).toEqual({
       proxyPools: [{ proxyUrl: "http://a:***@h" }],
     });
@@ -117,13 +119,64 @@ describe("restoreRedacted (update without resending the secret)", () => {
     expect(restoreRedacted({ clientSecret: "new" }, stored)).toEqual({ clientSecret: "new" });
   });
 
-  it("a masked URL for another host is kept as typed", () => {
-    expect(restoreRedacted({ connectionProxyUrl: "http://alice:***@other" }, stored)).toEqual({
-      connectionProxyUrl: "http://alice:***@other",
+  it("a masked URL on a new host keeps the saved password when the user is unchanged", () => {
+    expect(restoreRedacted({ connectionProxyUrl: "http://alice:***@other:1" }, stored)).toEqual({
+      connectionProxyUrl: "http://alice:pw-secret@other:1",
     });
     expect(restoreMaskedUrl("http://a:***@h", "http://a:b@h")).toBe("http://a:b@h");
     expect(restoreMaskedUrl("http://a:c@h", "http://a:b@h")).toBe("http://a:c@h");
     expect(restoreMaskedUrl(undefined, "http://a:b@h")).toBe(undefined);
+    expect(restoreMaskedUrl("http://***@new", "http://ghp_TOKEN@old")).toBe("http://ghp_TOKEN@new");
     expect(restoreRedacted(null, stored)).toBe(null);
   });
+
+  it("an unresolvable mask is refused instead of storing ***", () => {
+    expect(() => restoreMaskedUrl("http://mallory:***@h", "http://a:b@h")).toThrow(MaskedUrlError);
+    expect(() => restoreMaskedUrl("http://a:***@h", undefined)).toThrow(/hidden password/);
+    expect(() => restoreRedacted({ connectionProxyUrl: "http://bob:***@h" }, stored)).toThrow(MaskedUrlError);
+  });
+
+  it("recurses into arrays", () => {
+    const prev = { accounts: [{ refreshToken: "rt-1", id: "a" }, { refreshToken: "rt-2", id: "b" }] };
+    const echoed = redactSecrets(prev);
+    expect(echoed.accounts[0]).toEqual({ hasRefreshToken: true, id: "a" });
+    expect(restoreRedacted(echoed, prev)).toEqual(prev);
+    expect(restoreRedacted({ list: [{ hasRefreshToken: true }] }, {})).toEqual({ list: [{}] });
+    expect(restoreRedacted({ urls: ["http://u:***@h", "x"] }, { urls: ["http://u:p@h"] })).toEqual({
+      urls: ["http://u:p@h", "x"],
+    });
+  });
+});
+
+describe("URL userinfo edge cases", () => {
+  it.each([
+    ["http://carol:p@SECRETPW3@h/x", "http://carol:***@h/x"],
+    ["http://dave@SECRETPW4:x@h", "http://***@h"],
+    ["http://ghp_TOKEN@github.com/repo", "http://***@github.com/repo"],
+    ["  http://u:pw@h", "  http://u:***@h"],
+    ["http://h/path@notuserinfo", "http://h/path@notuserinfo"],
+    ["http://h?q=a@b", "http://h?q=a@b"],
+    ["http://:pw@h", "http://***@h"],
+    ["not a url", "not a url"],
+  ])("%s -> %s", (input, expected) => {
+    expect(maskUrlCredentials(input)).toBe(expected);
+    expect(maskUrlCredentials(input)).not.toMatch(/SECRETPW|ghp_TOKEN/);
+  });
+
+  it("isMaskedUrl only matches masked userinfo", () => {
+    expect(isMaskedUrl("http://u:***@h")).toBe(true);
+    expect(isMaskedUrl("http://***@h")).toBe(true);
+    expect(isMaskedUrl("http://u:p@h")).toBe(false);
+    expect(isMaskedUrl("http://h/***@")).toBe(false);
+  });
+});
+
+describe("extra secret names", () => {
+  it.each(["key", "sessionKey", "session_key", "credentials", "googleCredentials", "bearer", "jwt", "idJwt"])(
+    "%s is secret",
+    (k) => expect(isSecretKey(k)).toBe(true)
+  );
+  it.each(["modelKey", "i18nKey", "sortKey", "keyId", "accessKeyId"])("%s is not", (k) =>
+    expect(isSecretKey(k)).toBe(false)
+  );
 });

@@ -33,6 +33,7 @@ const ALWAYS_PROTECTED = [
   "/api/oauth/cursor/auto-import",
   "/api/oauth/kiro/auto-import",
   "/api/oauth/zed/auto-import",
+  "/api/oauth/xiaomi-mimo/auto-import",
 ];
 
 // Routes that spawn child processes or read host secrets — restrict to localhost.
@@ -51,6 +52,7 @@ const LOCAL_ONLY_PATHS = [
   "/api/oauth/cursor/auto-import",
   "/api/oauth/kiro/auto-import",
   "/api/oauth/zed/auto-import",
+  "/api/oauth/xiaomi-mimo/auto-import",
   "/api/auth/reset-password",
   "/api/headroom/start",
   "/api/headroom/stop",
@@ -59,6 +61,13 @@ const LOCAL_ONLY_PATHS = [
   "/api/headroom/extras",
   "/api/headroom/restart",
 ];
+
+// Every /api/oauth/<provider>/auto-import reads IDE or desktop credentials from this
+// host's files and returns them, so one added later is local-only and always
+// protected even if nobody lists it above.
+const AUTO_IMPORT_RE = /^\/api\/oauth\/[^/]+\/auto-import(\/|$)/;
+const isLocalOnlyPath = (p) => LOCAL_ONLY_PATHS.some((x) => p.startsWith(x)) || AUTO_IMPORT_RE.test(p);
+const isAlwaysProtectedPath = (p) => ALWAYS_PROTECTED.some((x) => p.startsWith(x)) || AUTO_IMPORT_RE.test(p);
 
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
 
@@ -186,14 +195,14 @@ export async function proxy(request) {
   const { pathname } = request.nextUrl;
 
   // Local-only gate for spawn-capable / host-secret routes.
-  if (LOCAL_ONLY_PATHS.some((p) => pathname.startsWith(p))) {
+  if (isLocalOnlyPath(pathname)) {
     if (!(await canAccessLocalOnlyRoute(request))) {
       return NextResponse.json({ error: "Local only: CLI token required" }, { status: 403 });
     }
   }
 
   // Always protected - require valid JWT or local CLI token (machineId-based)
-  if (ALWAYS_PROTECTED.some((p) => pathname.startsWith(p))) {
+  if (isAlwaysProtectedPath(pathname)) {
     if (await hasValidCliToken(request) || await hasValidToken(request))
       return NextResponse.next();
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

@@ -5,7 +5,7 @@ import {
   getProxyPoolById,
   updateProxyPool,
 } from "@/models";
-import { redactSecrets, restoreMaskedUrl } from "@/lib/secretRedaction";
+import { MaskedUrlError, redactSecrets, restoreMaskedUrl } from "@/lib/secretRedaction";
 
 function normalizeProxyPoolUpdate(body = {}) {
   const updates = {};
@@ -91,6 +91,9 @@ export async function PUT(request, { params }) {
     const updated = await updateProxyPool(id, normalized.updates);
     return NextResponse.json({ proxyPool: redactSecrets(updated) });
   } catch (error) {
+    if (error instanceof MaskedUrlError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
     console.log("Error updating proxy pool:", error);
     return NextResponse.json({ error: "Failed to update proxy pool" }, { status: 500 });
   }

@@ -7,7 +7,7 @@ import {
 } from "@/models";
 import { normalizeTlsImpersonation } from "open-sse/config/tlsImpersonation.js";
 import { toProviderConnectionResponse, usesAwsCredentialForm } from "@/lib/providerConnectionResponse";
-import { restoreMaskedUrl, restoreRedacted } from "@/lib/secretRedaction";
+import { MaskedUrlError, restoreMaskedUrl, restoreRedacted } from "@/lib/secretRedaction";
 
 function normalizeProxyConfig(body = {}) {
   const hasAnyProxyField =
@@ -144,7 +144,7 @@ export async function PUT(request, { params }) {
         delete incomingProviderSpecificData.sessionToken;
       }
       updateData.providerSpecificData = {
-        ...(existing.providerSpecificData || {}),
+        ...existing.providerSpecificData,
         ...incomingProviderSpecificData,
       };
       if (isAwsCredential && incomingProviderSpecificData.sessionToken === null) {
@@ -179,6 +179,9 @@ export async function PUT(request, { params }) {
 
     return NextResponse.json({ connection: toProviderConnectionResponse(updated) });
   } catch (error) {
+    if (error instanceof MaskedUrlError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
     console.log("Error updating connection:", error);
     return NextResponse.json({ error: "Failed to update connection" }, { status: 500 });
   }
