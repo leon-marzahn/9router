@@ -10,6 +10,7 @@ import { APIKEY_PROVIDERS } from "@/shared/constants/config";
 import { AI_PROVIDERS, FREE_TIER_PROVIDERS, WEB_COOKIE_PROVIDERS, isOpenAICompatibleProvider, isAnthropicCompatibleProvider, isCustomEmbeddingProvider } from "@/shared/constants/providers";
 import { normalizeProviderId, normalizeProviderSpecificData } from "@/lib/providerNormalization";
 import { toProviderConnectionResponse } from "@/lib/providerConnectionResponse";
+import { isMaskedUrl, MaskedUrlError } from "@/lib/secretRedaction";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,7 @@ function normalizeProxyConfig(body = {}) {
   if (enabled && !url) {
     return { error: "Connection proxy URL is required when connection proxy is enabled" };
   }
+  if (isMaskedUrl(url)) return { error: new MaskedUrlError().message };
 
   return {
     connectionProxyEnabled: enabled,

@@ -7,6 +7,7 @@ import {
 } from "@/models";
 import { normalizeTlsImpersonation } from "open-sse/config/tlsImpersonation.js";
 import { toProviderConnectionResponse, usesAwsCredentialForm } from "@/lib/providerConnectionResponse";
+import { MaskedUrlError, restoreMaskedUrl, restoreRedacted } from "@/lib/secretRedaction";
 
 function normalizeProxyConfig(body = {}) {
   const hasAnyProxyField =
@@ -131,7 +132,11 @@ export async function PUT(request, { params }) {
         proxyPoolResult.hasProxyPoolField || hasTlsField
       )
     ) {
-      const incomingProviderSpecificData = { ...(providerSpecificData || {}) };
+      // Responses redact secrets, so a form built from one echoes back blanks, has<Field>
+      // flags and masked URLs. Those must not overwrite what is stored.
+      const incomingProviderSpecificData = {
+        ...restoreRedacted(providerSpecificData || {}, existing.providerSpecificData),
+      };
       const isAwsCredential = usesAwsCredentialForm(existing.provider);
       // The edit form cannot read the stored token back. An empty password field means
       // keep the saved credential; null explicitly removes it.
@@ -139,7 +144,7 @@ export async function PUT(request, { params }) {
         delete incomingProviderSpecificData.sessionToken;
       }
       updateData.providerSpecificData = {
-        ...(existing.providerSpecificData || {}),
+        ...existing.providerSpecificData,
         ...incomingProviderSpecificData,
       };
       if (isAwsCredential && incomingProviderSpecificData.sessionToken === null) {
@@ -148,7 +153,10 @@ export async function PUT(request, { params }) {
 
       if (proxyConfig.hasAnyProxyField) {
         updateData.providerSpecificData.connectionProxyEnabled = proxyConfig.connectionProxyEnabled;
-        updateData.providerSpecificData.connectionProxyUrl = proxyConfig.connectionProxyUrl;
+        updateData.providerSpecificData.connectionProxyUrl = restoreMaskedUrl(
+          proxyConfig.connectionProxyUrl,
+          existing.providerSpecificData?.connectionProxyUrl
+        );
         updateData.providerSpecificData.connectionNoProxy = proxyConfig.connectionNoProxy;
       }
 
@@ -171,6 +179,9 @@ export async function PUT(request, { params }) {
 
     return NextResponse.json({ connection: toProviderConnectionResponse(updated) });
   } catch (error) {
+    if (error instanceof MaskedUrlError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
     console.log("Error updating connection:", error);
     return NextResponse.json({ error: "Failed to update connection" }, { status: 500 });
   }

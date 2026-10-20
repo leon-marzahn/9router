@@ -415,3 +415,67 @@ describe("dashboard guard headroom process routes are local-only", () => {
     });
   }
 });
+
+describe("dashboard guard auto-import routes (host credential readers)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.NINEROUTER_PEER_TOKEN = PEER_TOKEN;
+    mocks.getConsistentMachineId.mockResolvedValue("cli-token");
+    mocks.verifyDashboardAuthToken.mockResolvedValue(false);
+  });
+
+  const withJwt = (req) => {
+    req.cookies.get = vi.fn(() => ({ value: "jwt" }));
+    return req;
+  };
+
+  for (const path of [
+    "/api/oauth/xiaomi-mimo/auto-import",
+    "/api/oauth/cursor/auto-import",
+    "/api/oauth/kiro/auto-import",
+    "/api/oauth/zed/auto-import",
+    "/api/oauth/some-new-ide/auto-import",
+  ]) {
+    it(`${path}: remote session gets 403, loopback without session 401 even with requireLogin off`, async () => {
+      mocks.verifyDashboardAuthToken.mockResolvedValue(true);
+      expect((await proxy(withJwt(request(path, { host: "regent.example.com" })))).status).toBe(403);
+
+      mocks.verifyDashboardAuthToken.mockResolvedValue(false);
+      mocks.getSettings.mockResolvedValue({ requireLogin: false });
+      expect((await proxy(localRequest(path, { host: "localhost:20128" }))).status).toBe(401);
+
+      mocks.verifyDashboardAuthToken.mockResolvedValue(true);
+      mocks.getSettings.mockResolvedValue({ requireLogin: true });
+      expect(await proxy(withJwt(localRequest(path, { host: "localhost:20128" })))).toBe(mocks.nextResponse);
+    });
+  }
+});
+
+// The guard once kept an unused PROTECTED_API_PATHS list; deny-by-default for /api/*
+// is what actually protects these. Pin that so removing the list hid nothing.
+describe("dashboard guard formerly-listed protected API paths", () => {
+  const PATHS = [
+    "/api/settings", "/api/keys", "/api/providers", "/api/provider-nodes", "/api/proxy-pools",
+    "/api/combos", "/api/models", "/api/usage", "/api/oauth/codex/authorize", "/api/cloud",
+    "/api/media-providers", "/api/pricing", "/api/tags", "/api/cli-tools/all-statuses",
+    "/api/mcp/x", "/api/translator", "/api/tunnel",
+  ];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.NINEROUTER_PEER_TOKEN = PEER_TOKEN;
+    mocks.getSettings.mockResolvedValue({ requireLogin: true });
+    mocks.getConsistentMachineId.mockResolvedValue("cli-token");
+    mocks.verifyDashboardAuthToken.mockResolvedValue(false);
+  });
+
+  for (const path of PATHS) {
+    it(`${path} rejects a request without a session, remote and loopback`, async () => {
+      for (const req of [request(path), localRequest(path, { host: "localhost:20128" })]) {
+        const res = await proxy(req);
+        expect(res).not.toBe(mocks.nextResponse);
+        expect([401, 403]).toContain(res.status);
+      }
+    });
+  }
+});

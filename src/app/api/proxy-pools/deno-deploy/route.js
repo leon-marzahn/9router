@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createProxyPool } from "@/models";
+import { redactSecrets } from "@/lib/secretRedaction";
 
 const DENO_V2_API = "https://api.deno.com/v2";
 
@@ -167,7 +168,7 @@ export async function POST(request) {
       strictProxy: false,
     });
 
-    return NextResponse.json({ proxyPool, deployUrl }, { status: 201 });
+    return NextResponse.json({ proxyPool: redactSecrets(proxyPool), deployUrl }, { status: 201 });
   } catch (error) {
     console.log("Error deploying Deno Deploy relay:", error);
     return NextResponse.json({ error: error.message || "Deploy failed" }, { status: 500 });

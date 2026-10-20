@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createProxyPool } from "@/models";
+import { redactSecrets } from "@/lib/secretRedaction";
 
 const VERCEL_API = "https://api.vercel.com";
 
@@ -135,7 +136,7 @@ export async function POST(request) {
       strictProxy: false,
     });
 
-    return NextResponse.json({ proxyPool, deployUrl }, { status: 201 });
+    return NextResponse.json({ proxyPool: redactSecrets(proxyPool), deployUrl }, { status: 201 });
   } catch (error) {
     console.log("Error deploying Vercel relay:", error);
     return NextResponse.json({ error: error.message || "Deploy failed" }, { status: 500 });
