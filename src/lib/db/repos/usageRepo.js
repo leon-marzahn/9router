@@ -4,6 +4,7 @@ import { getAdapter } from "../driver.js";
 import { parseJson, stringifyJson } from "../helpers/jsonCol.js";
 import { getMeta, setMeta } from "../helpers/metaStore.js";
 import { currentTrace, getTrace } from "@/lib/requestTrace.js";
+import { withProviderNames } from "@/lib/providerName.js";
 
 function maskApiKey(key) {
   if (!key || typeof key !== "string") return null;
@@ -269,7 +270,13 @@ export async function getActiveRequests() {
     .slice(0, 20);
 
   const errorProvider = (Date.now() - lastErrorProvider.ts < 10000) ? lastErrorProvider.provider : "";
-  return { activeRequests, recentRequests, errorProvider };
+  // Live list labels: custom nodes by name, never their internal id.
+  const names = new Map();
+  return {
+    activeRequests: await withProviderNames(activeRequests, names),
+    recentRequests: await withProviderNames(recentRequests, names),
+    errorProvider,
+  };
 }
 
 /** The model name the client asked for: explicit, else from the request's routing trace. */
@@ -752,6 +759,9 @@ export async function getUsageStats(period = "all") {
 
   stats.totalRequests = Object.values(stats.byProvider).reduce((sum, p) => sum + (p.requests || 0), 0);
   stats.byApiKey = redactApiKeyBucketIds(stats.byApiKey);
+  const names = new Map();
+  stats.activeRequests = await withProviderNames(stats.activeRequests, names);
+  stats.recentRequests = await withProviderNames(stats.recentRequests, names);
   return stats;
 }
 

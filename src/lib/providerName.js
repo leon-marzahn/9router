@@ -31,3 +31,16 @@ export async function providerName(id, cache = new Map(), { prefix = false } = {
   cache.set(id, name);
   return name;
 }
+
+/**
+ * Copies of `items` with a `providerName` label next to their `provider` id, for
+ * dashboard lists (Live requests), so custom nodes show their name, not their id.
+ * @template {{ provider?: string }} T
+ * @param {T[]} items
+ * @param {Map<string, string>} [cache]
+ * @returns {Promise<(T & { providerName?: string })[]>}
+ */
+export async function withProviderNames(items, cache = new Map()) {
+  if (!Array.isArray(items)) return [];
+  return Promise.all(items.map(async (it) => ({ ...it, providerName: await providerName(it?.provider, cache) })));
+}

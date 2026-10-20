@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getRequestDetails } from "@/lib/usageDb";
+import { withProviderNames } from "@/lib/providerName.js";
 
 /**
  * GET /api/usage/request-details
@@ -56,6 +57,8 @@ export async function GET(request) {
         return lean;
       });
     }
+    // Custom nodes by name in the Live list, never their internal id.
+    result.details = await withProviderNames(result.details);
 
     // Dashboard access is enforced by dashboardGuard. Return the captured
     // payloads for inspection; credential headers are sanitized before storage.
