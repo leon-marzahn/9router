@@ -168,3 +168,54 @@ describe("JSON answer replayed as an OpenAI stream", () => {
     expect(text.trimEnd().endsWith("data: [DONE]")).toBe(true);
   });
 });
+
+describe("OpenAI passthrough: held finish chunks", () => {
+  const pass = (onStreamComplete = null) =>
+    createPassthroughStreamWithLogger("test", null, "m", null, body, onStreamComplete, null, { awaitTrailer: true, dropTrailer: true });
+  const dataChunks = (text) =>
+    text
+      .split("\n")
+      .filter((l) => l.startsWith("data: {"))
+      .map((l) => JSON.parse(l.slice(6)));
+  const choice = (index, delta, finish_reason = null) => line({ ...base, choices: [{ index, delta, finish_reason }] });
+
+  it("keeps every choice's finish chunk when n>1", async () => {
+    const s = drive(pass());
+    s.send(choice(0, { content: "a" }) + choice(1, { content: "b" }) + choice(0, {}, "stop") + choice(1, {}, "length") + "data: [DONE]\n\n");
+    s.end();
+    const finishes = dataChunks(await s.readAll()).filter((c) => c.choices[0]?.finish_reason);
+    expect(finishes.map((c) => [c.choices[0].index, c.choices[0].finish_reason])).toEqual([
+      [0, "stop"],
+      [1, "length"],
+    ]);
+  });
+
+  it("sends content riding on the finish chunk immediately and holds only the empty finish", async () => {
+    vi.useFakeTimers();
+    const s = drive(pass());
+    s.send(choice(0, { content: "Hello" }, "stop"));
+    await vi.advanceTimersByTimeAsync(10);
+    const early = dataChunks(s.text);
+    expect(early).toHaveLength(1);
+    expect(early[0].choices[0]).toMatchObject({ delta: { content: "Hello" }, finish_reason: null });
+    await vi.advanceTimersByTimeAsync(3000);
+    const finish = dataChunks(s.text).find((c) => c.choices[0]?.finish_reason);
+    expect(finish.choices[0]).toMatchObject({ delta: {}, finish_reason: "stop" });
+    s.end();
+    await s.readAll();
+  });
+
+  it("records usage once when the client cancels while a finish is held", async () => {
+    vi.useFakeTimers();
+    const onStreamComplete = vi.fn();
+    const transform = pass(onStreamComplete);
+    const writer = transform.writable.getWriter();
+    const reader = transform.readable.getReader();
+    writer.write(new TextEncoder().encode(contentChunk + finishChunk)).catch(() => {});
+    await reader.read();
+    await reader.cancel("client gone");
+    expect(onStreamComplete).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(onStreamComplete).toHaveBeenCalledTimes(1);
+  });
+});

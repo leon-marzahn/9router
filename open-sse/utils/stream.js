@@ -79,6 +79,7 @@ export function createSSEStream(options = {}) {
   // True while `usage` (or state.usage) holds a length-based estimate: real
   // upstream usage arriving later replaces it instead of max-merging with it.
   let usageEstimated = false;
+  // Finish chunks (one per choice index when n>1) held for the usage trailer.
   let heldFinish = null;
   let heldFinishTimer = null;
   const awaitUsageTrailer = mode === STREAM_MODE.PASSTHROUGH && streamUsage?.awaitTrailer === true;
@@ -226,16 +227,29 @@ export function createSSEStream(options = {}) {
   const emitHeldFinish = (controller) => {
     if (heldFinishTimer) { clearTimeout(heldFinishTimer); heldFinishTimer = null; }
     if (!heldFinish) return;
-    const parsed = heldFinish;
+    const held = heldFinish;
     heldFinish = null;
     if (!hasValidUsage(usage)) {
       usage = estimateUsage(body, totalContentLength, FORMATS.OPENAI);
       usageEstimated = true;
     }
-    parsed.usage = filterUsageForFormat(addBufferToUsage(usage), FORMATS.OPENAI);
-    const output = `data: ${JSON.stringify(parsed)}\n\n`;
-    reqLogger?.appendConvertedChunk?.(output);
-    controller.enqueue(sharedEncoder.encode(output));
+    for (const parsed of held) {
+      parsed.usage = filterUsageForFormat(addBufferToUsage(usage), FORMATS.OPENAI);
+      const output = `data: ${JSON.stringify(parsed)}\n\n`;
+      reqLogger?.appendConvertedChunk?.(output);
+      controller.enqueue(sharedEncoder.encode(output));
+    }
+  };
+
+  // The client went away: stop every pending timer and record usage now, once.
+  const cancelPending = () => {
+    if (heldFinishTimer) { clearTimeout(heldFinishTimer); heldFinishTimer = null; }
+    if (heldTailTimer) { clearTimeout(heldTailTimer); heldTailTimer = null; }
+    heldFinish = null;
+    heldTail = null;
+    if (finalized) return;
+    trackPendingRequest(model, provider, connectionId, false);
+    finalizeStream();
   };
 
   return new TransformStream({
@@ -341,13 +355,25 @@ export function createSSEStream(options = {}) {
 
               const isFinishChunk = parsed.choices?.[0]?.finish_reason;
               if (isFinishChunk && !hasValidUsage(parsed.usage) && awaitUsageTrailer) {
-                heldFinish = parsed;
+                // Content (or a tool-call delta) riding on the finish chunk goes out
+                // now; only the empty finish waits for the trailer.
+                const finishChoice = parsed.choices[0];
+                if (finishChoice.delta && Object.keys(finishChoice.delta).length > 0) {
+                  const contentNow = { ...parsed, choices: [{ ...finishChoice, finish_reason: null }] };
+                  const contentOutput = `data: ${JSON.stringify(contentNow)}\n\n`;
+                  reqLogger?.appendConvertedChunk?.(contentOutput);
+                  controller.enqueue(sharedEncoder.encode(contentOutput));
+                  parsed.choices = [{ ...finishChoice, delta: {} }];
+                }
+                (heldFinish ||= []).push(parsed);
                 // Bounded wait: a stalled upstream must not delay finish_reason.
                 // A trailer arriving later still replaces the recorded estimate.
-                heldFinishTimer = setTimeout(() => {
-                  heldFinishTimer = null;
-                  try { emitHeldFinish(controller); } catch { /* controller already closed */ }
-                }, PENDING_COMPLETION_FLUSH_MS);
+                if (!heldFinishTimer) {
+                  heldFinishTimer = setTimeout(() => {
+                    heldFinishTimer = null;
+                    try { emitHeldFinish(controller); } catch { /* controller already closed */ }
+                  }, PENDING_COMPLETION_FLUSH_MS);
+                }
                 continue;
               } else if (isFinishChunk && !hasValidUsage(parsed.usage)) {
                 const estimated = estimateUsage(body, totalContentLength, FORMATS.OPENAI);
@@ -551,6 +577,12 @@ export function createSSEStream(options = {}) {
           }, PENDING_COMPLETION_FLUSH_MS);
         }
       }
+    },
+
+    // Client disconnect (pipeWithDisconnect cancels the reader): flush() never runs.
+    cancel() {
+      if (completionFlushTimer) { clearTimeout(completionFlushTimer); completionFlushTimer = null; }
+      cancelPending();
     },
 
     flush(controller) {
