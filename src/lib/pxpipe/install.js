@@ -115,6 +115,11 @@ async function runInstall() {
   );
   // A project .npmrc here would sit above the user config; never honour one.
   fs.rmSync(path.join(PXPIPE_DIR, ".npmrc"), { force: true });
+  // Start clean: npm treats an already-present pxpipe-proxy@<pin> as satisfied
+  // and would keep files edited on disk, and an edited lockfile could point
+  // `resolved` at another host. Both are rebuilt from the registry.
+  fs.rmSync(path.join(PXPIPE_DIR, "node_modules"), { recursive: true, force: true });
+  fs.rmSync(path.join(PXPIPE_DIR, "package-lock.json"), { force: true });
 
   const args = installArgs();
   const outFd = fs.openSync(INSTALL_LOG, "a");

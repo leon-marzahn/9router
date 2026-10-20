@@ -106,6 +106,21 @@ describe("pinned install command", () => {
     expect(fs.existsSync(path.join(install.PXPIPE_DIR, ".npmrc"))).toBe(false);
   });
 
+  it("reinstall wipes a tampered copy and lockfile before npm runs", async () => {
+    const root = writeFakeInstall(install.PXPIPE_DIR);
+    fs.appendFileSync(path.join(root, "dist", "core", "library.js"), "\n// tampered\n");
+    let sawOld = null;
+    state.onSpawn = (cwd) => {
+      sawOld =
+        fs.existsSync(path.join(cwd, "node_modules")) ||
+        fs.existsSync(path.join(cwd, "package-lock.json"));
+      pinTo(writeFakeInstall(cwd));
+    };
+    await install.installPxpipe();
+    expect(sawOld).toBe(false);
+    expect(install.verifyInstall().ok).toBe(true);
+  });
+
   it("fails the install when npm leaves a different version behind", async () => {
     state.onSpawn = (cwd) => {
       const root = writeFakeInstall(cwd);
