@@ -5,6 +5,7 @@ import { extractUsage, mergeUsage, hasValidUsage, estimateUsage, logUsage, addBu
 import { parseSSELine, hasValuableContent, fixInvalidId, formatSSE } from "./streamHelpers.js";
 import { getOpenAIResponsesEventName, isOpenAIResponsesTerminalEvent, formatIncompleteOpenAIResponsesStreamFailure } from "./responsesStreamHelpers.js";
 import { dbg, isDebugEnabled } from "./debugLog.js";
+import { clientRequestedStreamUsage } from "../translator/concerns/streamUsage.js";
 
 import { SSE_DONE, SSE_HEADERS, SSE_HEADERS_NO_BUFFER } from "./sseConstants.js";
 
@@ -112,6 +113,13 @@ export function createSSEStream(options = {}) {
   let finalized = false;
   let completionFlushTimer = null;
 
+  // Translate mode, OpenAI chat client: the stream must end with data: [DONE],
+  // preceded by the usage-only trailer when the client asked for it.
+  const endsWithOpenAIDone = mode === STREAM_MODE.TRANSLATE && sourceFormat === FORMATS.OPENAI;
+  const clientWantsUsageTrailer = endsWithOpenAIDone && clientRequestedStreamUsage(body);
+  let openAIChunkBase = null;
+  let openAIDoneSent = false;
+
   // Usage/logging tail, callable from transform() as well as flush(): a client that
   // closes right after the terminal event cancels the reader, and flush() never runs.
   const finalizeStream = () => {
@@ -153,6 +161,45 @@ export function createSSEStream(options = {}) {
       sseEmittedCount++;
     }
     finalizeStream();
+  };
+
+  // Translate mode: the client's finish chunk carries the real usage plus the
+  // context buffer, or an estimate when the upstream sent none.
+  const applyFinishUsage = (item) => {
+    const isFinishChunk = item.type === "message_delta" || item.choices?.[0]?.finish_reason;
+    if (!state.finishReason || !isFinishChunk) return;
+    if (!hasValidUsage(item.usage) && totalContentLength > 0) {
+      const estimated = estimateUsage(body, totalContentLength, sourceFormat);
+      item.usage = filterUsageForFormat(addBufferToUsage(estimated), sourceFormat); // client copy gets the context buffer
+      state.usage = estimated;
+      usageEstimated = true;
+    } else if (state.usage) {
+      // Add buffer and filter usage for client (but keep original in state.usage for logging)
+      item.usage = filterUsageForFormat(addBufferToUsage(state.usage), sourceFormat);
+    }
+  };
+
+  const emitTranslated = (item, controller) => {
+    if (endsWithOpenAIDone && item.object === "chat.completion.chunk" && !openAIChunkBase) {
+      openAIChunkBase = { id: item.id, object: item.object, created: item.created, model: item.model };
+    }
+    const output = formatSSE(withClientUsageBuffer(item), sourceFormat);
+    reqLogger?.appendConvertedChunk?.(output);
+    controller.enqueue(sharedEncoder.encode(output));
+    sseEmittedCount++;
+  };
+
+  const emitOpenAIDone = (controller) => {
+    if (!endsWithOpenAIDone || openAIDoneSent) return;
+    openAIDoneSent = true;
+    let output = "";
+    if (clientWantsUsageTrailer && hasValidUsage(state.usage) && !usageEstimated) {
+      const base = openAIChunkBase || { object: "chat.completion.chunk", created: Math.floor(Date.now() / 1000), model };
+      output += formatSSE({ ...base, choices: [], usage: filterUsageForFormat(state.usage, FORMATS.OPENAI) }, FORMATS.OPENAI);
+    }
+    output += SSE_DONE;
+    reqLogger?.appendConvertedChunk?.(output);
+    controller.enqueue(sharedEncoder.encode(output));
   };
 
   // Passthrough: release a finish chunk held for the usage trailer, carrying
@@ -455,23 +502,8 @@ export function createSSEStream(options = {}) {
               continue; // Skip this empty chunk
             }
 
-            // Inject estimated usage if finish chunk has no valid usage
-            const isFinishChunk = item.type === "message_delta" || item.choices?.[0]?.finish_reason;
-            if (state.finishReason && isFinishChunk && !hasValidUsage(item.usage) && totalContentLength > 0) {
-              const estimated = estimateUsage(body, totalContentLength, sourceFormat);
-              item.usage = filterUsageForFormat(addBufferToUsage(estimated), sourceFormat); // client copy gets the context buffer
-              state.usage = estimated;
-              usageEstimated = true;
-            } else if (state.finishReason && isFinishChunk && state.usage) {
-              // Add buffer and filter usage for client (but keep original in state.usage for logging)
-              const buffered = addBufferToUsage(state.usage);
-              item.usage = filterUsageForFormat(buffered, sourceFormat);
-            }
-
-            const output = formatSSE(withClientUsageBuffer(item), sourceFormat);
-            reqLogger?.appendConvertedChunk?.(output);
-            controller.enqueue(sharedEncoder.encode(output));
-            sseEmittedCount++;
+            applyFinishUsage(item);
+            emitTranslated(item, controller);
           }
         }
 
@@ -610,6 +642,7 @@ export function createSSEStream(options = {}) {
           streamDoneSent = true;
         }
 
+        emitOpenAIDone(controller);
         finalizeStream();
       } catch (error) {
         console.log("Error in flush:", error);

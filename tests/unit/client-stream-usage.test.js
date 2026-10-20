@@ -75,6 +75,35 @@ describe("OpenAI client, passthrough stream", () => {
   });
 });
 
+describe("OpenAI client behind a Responses-API stream", () => {
+  const responses = (events) => events.map(([type, data]) => `event: ${type}\ndata: ${JSON.stringify({ type, ...data })}\n\n`).join("");
+  const done = { id: "resp_1", object: "response", model: "m", status: "completed", output: [], usage: { input_tokens: 1234, output_tokens: 567, total_tokens: 1801 } };
+  const upstream = responses([
+    ["response.created", { response: { ...done, status: "in_progress", usage: null } }],
+    ["response.output_text.delta", { output_index: 0, content_index: 0, item_id: "msg_1", delta: "Hello" }],
+    ["response.completed", { response: done }],
+  ]);
+
+  for (const includeUsage of [false, true]) {
+    it(`ends with [DONE]${includeUsage ? " after the requested usage trailer" : ""}`, async () => {
+      const clientBody = { ...body, stream: true, ...(includeUsage && { stream_options: { include_usage: true } }) };
+      const s = drive(createSSETransformStreamWithLogger(FORMATS.OPENAI_RESPONSES, FORMATS.OPENAI, "test", null, null, "m", null, clientBody));
+      s.send(upstream);
+      s.end();
+      const text = await s.readAll();
+      expect(text.split("data: [DONE]").length - 1).toBe(1);
+      expect(text.trimEnd().endsWith("data: [DONE]")).toBe(true);
+      const trailers = text
+        .split("\n")
+        .filter((l) => l.startsWith("data: {"))
+        .map((l) => JSON.parse(l.slice(6)))
+        .filter((c) => c.usage && !c.choices?.length);
+      expect(trailers).toHaveLength(includeUsage ? 1 : 0);
+      if (includeUsage) expect(trailers[0].usage).toMatchObject({ prompt_tokens: 1234, completion_tokens: 567 });
+    });
+  }
+});
+
 describe("JSON answer replayed as an OpenAI stream", () => {
   const json = { id: "c1", object: "chat.completion", created: 1, model: "m", choices: [{ index: 0, message: { role: "assistant", content: "Hi" }, finish_reason: "stop" }], usage: { prompt_tokens: 3234, completion_tokens: 567, total_tokens: 3801 } };
   const trailers = (text) =>

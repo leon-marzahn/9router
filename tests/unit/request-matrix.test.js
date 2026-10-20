@@ -475,15 +475,6 @@ const KNOWN_BROKEN = {
   "fb-503 | claude | stream=true | accept=none": CLAUDE_ESTIMATED_USAGE,
   "fb-strict | claude | stream=omitted | accept=text/event-stream": CLAUDE_ESTIMATED_USAGE,
   "fb-strict | claude | stream=true | accept=none": CLAUDE_ESTIMATED_USAGE,
-  "openai | resp | stream=omitted | accept=text/event-stream": RESP_NO_DONE,
-  "openai | resp | stream=true | accept=none": RESP_NO_DONE,
-  "openai | resp | stream=true | accept=application/json": RESP_NO_DONE,
-  "openai | resp | stream=true | accept=text/event-stream": RESP_NO_DONE,
-  "openai | resp | stream=true | accept=application/json, text/event-stream": RESP_NO_DONE,
-  "openai | resp | stream=true | accept=none | include_usage": RESP_NO_DONE_NO_TRAILER,
-  "openai | resp | stream=true | accept=application/json | include_usage": RESP_NO_DONE_NO_TRAILER,
-  "openai | resp | stream=true | accept=text/event-stream | include_usage": RESP_NO_DONE_NO_TRAILER,
-  "openai | resp | stream=true | accept=application/json, text/event-stream | include_usage": RESP_NO_DONE_NO_TRAILER,
 };
 
 /** Registers a cell: known-broken checks may fail, and must still be failing. */
