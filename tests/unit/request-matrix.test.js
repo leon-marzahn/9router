@@ -2,6 +2,8 @@
 // Accept header, wire format) against every way an upstream answers. Real /v1 route
 // handlers, real DB (temp DATA_DIR), real translators, usage, billing and budgets;
 // only the network is faked (proxyAwareFetch). The tables below are the spec.
+// Upstreams cover OpenAI-compatible chat nodes (honors stream, always JSON, always SSE,
+// strict, 503), a forceStream provider (SSE aggregated to JSON) and a Responses-API node.
 //
 // Born from a hand-built matrix that found requests omitting `stream` were never
 // billed (#111): a regression in any cell here is a billing or protocol bug.
@@ -50,29 +52,81 @@ function sseBody() {
   return chunks.map((c) => `data: ${JSON.stringify(c)}\n\n`).join("") + "data: [DONE]\n\n";
 }
 
-const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { "content-type": "application/json" } });
-const sse = () => new Response(sseBody(), { headers: { "content-type": "text/event-stream" } });
+/** OpenAI Responses API object (what a Responses upstream returns). */
+const responseObject = () => ({
+  id: "resp_fake",
+  object: "response",
+  created_at: 1700000000,
+  status: "completed",
+  model: MODEL,
+  output: [
+    {
+      type: "message",
+      id: "msg_fake",
+      role: "assistant",
+      status: "completed",
+      content: [{ type: "output_text", text: "Hello", annotations: [] }],
+    },
+  ],
+  usage: { input_tokens: USAGE.prompt_tokens, output_tokens: USAGE.completion_tokens, total_tokens: USAGE.total_tokens },
+});
 
+/** Responses API SSE, usage on response.completed. */
+function responsesSseBody() {
+  const done = responseObject();
+  const item = done.output[0];
+  /** @type {[string, object][]} */
+  const events = [
+    ["response.created", { response: { ...done, status: "in_progress", output: [], usage: null } }],
+    ["response.output_item.added", { output_index: 0, item: { ...item, status: "in_progress", content: [] } }],
+    ["response.content_part.added", { output_index: 0, item_id: item.id, content_index: 0, part: { type: "output_text", text: "", annotations: [] } }],
+    ["response.output_text.delta", { output_index: 0, item_id: item.id, content_index: 0, delta: "Hello" }],
+    ["response.output_text.done", { output_index: 0, item_id: item.id, content_index: 0, text: "Hello" }],
+    ["response.content_part.done", { output_index: 0, item_id: item.id, content_index: 0, part: item.content[0] }],
+    ["response.output_item.done", { output_index: 0, item }],
+    ["response.completed", { response: done }],
+  ];
+  return events.map(([type, data], i) => `event: ${type}\ndata: ${JSON.stringify({ type, sequence_number: i, ...data })}\n\n`).join("");
+}
+
+const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { "content-type": "application/json" } });
+const sse = (text = sseBody()) => new Response(text, { headers: { "content-type": "text/event-stream" } });
+const honors = (body) => (body.stream === true ? sse() : json(completion()));
+
+/**
+ * Upstream modes. Each is an OpenAI-compatible node (apiType chat unless set), except
+ * `forced`, which is the built-in `openai` provider: its registry entry has forceStream,
+ * so the proxy always streams upstream and aggregates SSE back to JSON clients.
+ * `alwaysStreamed(format)`: the proxy sends stream:true whatever a client of that format asked.
+ */
 const UPSTREAMS = {
-  honors: (body) => (body.stream === true ? sse() : json(completion())),
-  json: () => json(completion()),
-  sse: () => sse(),
-  strict: (body) => {
-    const unknown = Object.keys(body).filter((k) => !STRICT_FIELDS.has(k));
-    if (unknown.length) return json({ error: { message: `unknown fields: ${unknown.join(",")}` } }, 422);
-    return body.stream === true ? sse() : json(completion());
+  honors: { handle: honors },
+  json: { handle: () => json(completion()) },
+  sse: { handle: () => sse() },
+  strict: {
+    handle: (body) => {
+      const unknown = Object.keys(body).filter((k) => !STRICT_FIELDS.has(k));
+      if (unknown.length) return json({ error: { message: `unknown fields: ${unknown.join(",")}` } }, 422);
+      return honors(body);
+    },
   },
-  down: () => json({ error: { message: "upstream unavailable" } }, 503),
+  down: { handle: () => json({ error: { message: "upstream unavailable" } }, 503) },
+  forced: { provider: "openai", alwaysStreamed: () => true, handle: honors },
+  // Responses-API node: passthrough for Responses clients; translated requests always stream.
+  resp: { apiType: "responses", alwaysStreamed: (format) => format !== "responses", handle: (body) => (body.stream === true ? sse(responsesSseBody()) : json(responseObject())) },
 };
 const MODES = Object.keys(UPSTREAMS);
+const providerOf = (mode) => UPSTREAMS[mode].provider || `openai-compatible-${UPSTREAMS[mode].apiType || "chat"}-${mode}`;
 
 /** Upstream bodies seen, in order: { mode, body }. */
 let calls = [];
 function fakeFetch(url, init) {
-  const mode = new URL(String(url)).hostname.split(".")[0];
+  const host = new URL(String(url)).hostname;
+  // Compatible nodes live on <mode>.upstream.test; the built-in openai provider keeps its own host.
+  const mode = host.endsWith(".upstream.test") ? host.split(".")[0] : "forced";
   const body = JSON.parse(init.body);
   calls.push({ mode, body });
-  return UPSTREAMS[mode](body);
+  return UPSTREAMS[mode].handle(body);
 }
 
 // ---------- app under test ----------
@@ -86,6 +140,8 @@ let clientKey;
 let db;
 const connectionIds = [];
 let budgetScope;
+let retryConfig;
+let originalRetry503;
 
 beforeAll(async () => {
   tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "regent-matrix-"));
@@ -100,31 +156,38 @@ beforeAll(async () => {
   const budgetsRepo = await import("@/lib/db/repos/budgetsRepo.js");
   budgets = await import("@/lib/budgets/index.js");
   // Keep the 503 retry (one extra attempt) but without the real 2 s wait.
-  const { DEFAULT_RETRY_CONFIG } = await import("open-sse/config/runtimeConfig.js");
-  DEFAULT_RETRY_CONFIG[503] = { attempts: 1, delayMs: 0 };
+  ({ DEFAULT_RETRY_CONFIG: retryConfig } = await import("open-sse/config/runtimeConfig.js"));
+  originalRetry503 = retryConfig[503];
+  retryConfig[503] = { attempts: 1, delayMs: 0 };
   adapter = await (await import("@/lib/db/driver.js")).getAdapter();
 
   // One OpenAI-compatible node per upstream mode; the base URL host picks the mode.
   const pricing = {};
   for (const mode of MODES) {
-    const node = await db.createProviderNode({
-      id: `openai-compatible-chat-${mode}`,
-      type: "openai-compatible",
-      name: `Fake ${mode}`,
-      prefix: mode,
-      apiType: "chat",
-      baseUrl: `http://${mode}.upstream.test/v1`,
-    });
+    const provider = providerOf(mode);
+    let providerSpecificData = {};
+    if (!UPSTREAMS[mode].provider) {
+      const apiType = UPSTREAMS[mode].apiType || "chat";
+      const node = await db.createProviderNode({
+        id: provider,
+        type: "openai-compatible",
+        name: `Fake ${mode}`,
+        prefix: mode,
+        apiType,
+        baseUrl: `http://${mode}.upstream.test/v1`,
+      });
+      providerSpecificData = { prefix: mode, apiType, baseUrl: node.baseUrl, nodeName: node.name };
+    }
     const conn = await db.createProviderConnection({
-      provider: node.id,
+      provider,
       authType: "apikey",
       name: `${mode}-key`,
       apiKey: `sk-upstream-${mode}`,
       isActive: true,
-      providerSpecificData: { prefix: mode, apiType: "chat", baseUrl: node.baseUrl, nodeName: node.name },
+      providerSpecificData,
     });
     connectionIds.push(conn.id);
-    pricing[node.id] = { [MODEL]: PRICE };
+    pricing[provider] = { [MODEL]: PRICE };
   }
   await db.updatePricing(pricing);
   await db.createCombo({ name: "fb-503", models: [`down/${MODEL}`, `honors/${MODEL}`] });
@@ -150,6 +213,7 @@ beforeAll(async () => {
 });
 
 afterAll(() => {
+  if (retryConfig) retryConfig[503] = originalRetry503;
   try {
     global._dbAdapter?.instance?.close?.();
   } catch {}
@@ -213,13 +277,40 @@ async function send({ format, model, stream, accept, includeUsage }) {
 }
 
 const count = (text, needle) => text.split(needle).length - 1;
-const check = expect.soft; // report every broken property of a cell, not just the first
+
+// ---------- checks ----------
+//
+// Every property is a soft, labelled check so a cell reports all of its broken
+// properties. A known-broken cell names the labels that are wrong on master today
+// (KNOWN_BROKEN below); only those are allowed to fail, and the cell fails if any of
+// them starts passing, so the entry gets removed with the fix.
+
+let allowedWrong = new Set();
+let seenWrong = new Set();
+
+function check(value, label) {
+  if (!allowedWrong.has(label)) return expect.soft(value, label);
+  const real = expect(value, label);
+  return new Proxy(
+    {},
+    {
+      get: (_, matcher) =>
+        (...args) => {
+          try {
+            real[matcher](...args);
+          } catch {
+            seenWrong.add(label);
+          }
+        },
+    },
+  );
+}
 
 /** One usage row with the upstream's real tokens, cost and the key's marked-up charge. */
-function expectBilled({ rows, before, after }, provider) {
+function expectBilled({ rows, before, after }, mode) {
   check(rows, "usage rows").toHaveLength(1);
   const [row = {}] = rows;
-  check(row.provider, "provider").toBe(`openai-compatible-chat-${provider}`);
+  check(row.provider, "provider").toBe(providerOf(mode));
   check(row.apiKey, "api key").toBe(clientKey);
   check(row.promptTokens, "prompt tokens (real, no buffer/estimate)").toBe(USAGE.prompt_tokens);
   check(row.completionTokens, "completion tokens").toBe(USAGE.completion_tokens);
@@ -228,6 +319,27 @@ function expectBilled({ rows, before, after }, provider) {
   check((after?.requests ?? 0) - (before.requests || 0), "budget requests").toBe(1);
   check((after?.charge ?? 0) - (before.charge || 0), "budget charge").toBeCloseTo(CHARGE, 10);
 }
+
+/** Failed request: an error in JSON, no usage row, budget untouched. */
+function expectNotBilled({ res, rows, before, after }, status) {
+  check(res.status, "status").toBe(status);
+  check(res.headers.get("content-type"), "content-type").toContain("application/json");
+  check(rows, "usage rows").toHaveLength(0);
+  check((after?.requests ?? 0) - (before.requests || 0), "budget requests").toBe(0);
+  check((after?.charge ?? 0) - (before.charge || 0), "budget charge").toBe(0);
+}
+
+/** `event:` + `data:` blocks of a named-event SSE body. */
+const sseEvents = (text) =>
+  text
+    .split("\n\n")
+    .map((block) => {
+      const lines = block.split("\n");
+      const event = lines.find((l) => l.startsWith("event: "))?.slice(7);
+      const data = lines.find((l) => l.startsWith("data: "))?.slice(6);
+      return event ? { event, data: parseJson(data) } : null;
+    })
+    .filter(Boolean);
 
 function parseJson(text) {
   try {
@@ -256,33 +368,46 @@ function expectShape({ res, text }, { format, wantSSE, includeUsage }) {
       .split("\n")
       .filter((l) => l.startsWith("data: {"))
       .map((l) => parseJson(l.slice(6)) || {});
-    // Usage is always folded into the finish chunk (buffered, see CLIENT_PROMPT_BUFFER);
-    // the usage-only trailer chunk (choices: []) is for clients that asked for it.
+    // Usage is always folded into the finish chunk with the client buffer; the
+    // usage-only trailer (choices: []) is the upstream's real count, sent only to
+    // clients that asked for it with stream_options.include_usage.
     const finish = chunks.filter((c) => c.choices?.[0]?.finish_reason);
     const trailers = chunks.filter((c) => c.usage && !c.choices?.length);
     check(finish, "finish chunks").toHaveLength(1);
     check(finish[0]?.usage?.completion_tokens, "finish-chunk completion tokens").toBe(USAGE.completion_tokens);
     check(finish[0]?.usage?.prompt_tokens, "finish-chunk prompt tokens").toBe(USAGE.prompt_tokens + CLIENT_PROMPT_BUFFER);
     if (includeUsage) {
-      check(trailers, "usage trailer (include_usage)").toHaveLength(1);
+      check(trailers, "usage trailer (requested)").toHaveLength(1);
       check(trailers[0]?.usage?.completion_tokens, "trailer completion tokens").toBe(USAGE.completion_tokens);
-      check([USAGE.prompt_tokens, USAGE.prompt_tokens + CLIENT_PROMPT_BUFFER], "trailer prompt tokens").toContain(trailers[0]?.usage?.prompt_tokens);
+      check(trailers[0]?.usage?.prompt_tokens, "trailer prompt tokens").toBe(USAGE.prompt_tokens);
     } else {
       check(trailers, "usage trailer (not requested)").toHaveLength(0);
     }
-  } else if (format === "claude") {
-    check(count(text, "event: message_stop"), "message_stop count").toBe(1);
-    check(count(text, "[DONE]"), "[DONE] count").toBe(0);
   } else {
-    check(count(text, "event: response.completed"), "response.completed count").toBe(1);
-    check(count(text, "[DONE]"), "[DONE] count").toBeLessThanOrEqual(1);
+    // Named-event SSE: every event's name matches its payload type, one terminal event, last.
+    const events = sseEvents(text);
+    const terminal = format === "claude" ? "message_stop" : "response.completed";
+    check(events.filter((e) => e.event !== e.data?.type).map((e) => e.event), "event names match payload type").toEqual([]);
+    check(events.filter((e) => e.event === terminal), `${terminal} count`).toHaveLength(1);
+    check(events.at(-1)?.event, `${terminal} is last`).toBe(terminal);
+    // Claude never sends [DONE]; a Responses passthrough may keep one trailing sentinel.
+    check(count(text, "[DONE]"), "[DONE] count").toBeLessThanOrEqual(format === "claude" ? 0 : 1);
+    const outputTokens =
+      format === "claude"
+        ? events.findLast((e) => e.event === "message_delta")?.data?.usage?.output_tokens
+        : events.find((e) => e.event === terminal)?.data?.response?.usage?.output_tokens;
+    check(outputTokens, "client output tokens").toBe(USAGE.completion_tokens);
   }
 }
 
 /** A non-streaming client never makes the proxy stream upstream or add stream_options. */
-function expectNoLeak({ sent }, { wantSSE }) {
+function expectNoLeak({ sent }, { wantSSE, format }) {
   if (wantSSE || sent.stream_options) return;
   for (const { mode, body } of calls) {
+    if (UPSTREAMS[mode].alwaysStreamed?.(format)) {
+      check(body.stream, `${mode} upstream stream`).toBe(true);
+      continue;
+    }
     check(body.stream_options, `${mode} upstream stream_options`).toBeUndefined();
     check(body.stream === true, `${mode} upstream stream:true`).toBe(false);
   }
@@ -307,45 +432,100 @@ const label = (c) =>
   `${c.format} | ${c.mode} | stream=${c.stream ?? "omitted"} | accept=${c.accept ?? "none"}${c.includeUsage ? " | include_usage" : ""}`;
 
 /**
- * Cells that fail on master: real bugs. They run as it.fails, so the fix turns them
- * red here; then delete the entry.
+ * Cells that are wrong on master: real bugs, not fixed here. Each lists the checks
+ * that are wrong today; every other check in the cell is still enforced.
  */
-const KNOWN_BROKEN = [
-  {
-    // An always-JSON upstream replayed as SSE folds usage into the finish chunk but
-    // never emits the usage-only trailer the client asked for with include_usage.
-    match: /^openai \| json \| stream=true \| .* \| include_usage$/,
-  },
-  {
-    // The strict upstream 422s the proxy's own stream_options; on the retry without it
-    // the client's finish chunk carries an estimate instead of the real usage, and the
-    // upstream's usage trailer reaches a client that didn't ask for it. (Billing is right.)
-    match: /^(openai \| strict|fb-strict \| openai) \| (stream=true|stream=omitted \| accept=text\/event-stream)(?!.*include_usage)/,
-  },
-];
-const isKnownBroken = (name) => KNOWN_BROKEN.some(({ match }) => match.test(name));
+// An always-JSON upstream replayed as SSE folds usage into the finish chunk but never
+// emits the usage-only trailer the client asked for.
+const NO_REQUESTED_TRAILER = ["usage trailer (requested)", "trailer completion tokens", "trailer prompt tokens"];
+// The strict upstream 422s the proxy's own stream_options; on the retry without it the
+// client's finish chunk carries an estimate instead of the real usage, and the
+// upstream's trailer reaches a client that didn't ask for it. (The usage row is right.)
+const STRICT_RETRY_USAGE = ["finish-chunk completion tokens", "finish-chunk prompt tokens", "usage trailer (not requested)"];
+// A Responses-API upstream streamed to an OpenAI chat client: the SSE never ends with
+// data: [DONE], and a requested usage trailer is missing.
+const RESP_NO_DONE = ["[DONE] count", "[DONE] is last"];
+const RESP_NO_DONE_NO_TRAILER = [...RESP_NO_DONE, ...NO_REQUESTED_TRAILER];
+// A Claude streaming client behind an OpenAI chat upstream that streams: the final
+// message_delta carries an estimate ("estimated": true, output_tokens 1) because the
+// usage trailer arrives after the finish chunk. (The usage row is right.)
+const CLAUDE_ESTIMATED_USAGE = ["client output tokens"];
+const KNOWN_BROKEN = {
+  "claude | honors | stream=omitted | accept=text/event-stream": CLAUDE_ESTIMATED_USAGE,
+  "claude | honors | stream=true | accept=none": CLAUDE_ESTIMATED_USAGE,
+  "claude | honors | stream=true | accept=application/json": CLAUDE_ESTIMATED_USAGE,
+  "claude | honors | stream=true | accept=text/event-stream": CLAUDE_ESTIMATED_USAGE,
+  "claude | honors | stream=true | accept=application/json, text/event-stream": CLAUDE_ESTIMATED_USAGE,
+  "claude | sse | stream=omitted | accept=text/event-stream": CLAUDE_ESTIMATED_USAGE,
+  "claude | sse | stream=true | accept=none": CLAUDE_ESTIMATED_USAGE,
+  "claude | sse | stream=true | accept=application/json": CLAUDE_ESTIMATED_USAGE,
+  "claude | sse | stream=true | accept=text/event-stream": CLAUDE_ESTIMATED_USAGE,
+  "claude | sse | stream=true | accept=application/json, text/event-stream": CLAUDE_ESTIMATED_USAGE,
+  "claude | strict | stream=omitted | accept=text/event-stream": CLAUDE_ESTIMATED_USAGE,
+  "claude | strict | stream=true | accept=none": CLAUDE_ESTIMATED_USAGE,
+  "claude | strict | stream=true | accept=application/json": CLAUDE_ESTIMATED_USAGE,
+  "claude | strict | stream=true | accept=text/event-stream": CLAUDE_ESTIMATED_USAGE,
+  "claude | strict | stream=true | accept=application/json, text/event-stream": CLAUDE_ESTIMATED_USAGE,
+  "claude | forced | stream=omitted | accept=text/event-stream": CLAUDE_ESTIMATED_USAGE,
+  "claude | forced | stream=true | accept=none": CLAUDE_ESTIMATED_USAGE,
+  "claude | forced | stream=true | accept=application/json": CLAUDE_ESTIMATED_USAGE,
+  "claude | forced | stream=true | accept=text/event-stream": CLAUDE_ESTIMATED_USAGE,
+  "claude | forced | stream=true | accept=application/json, text/event-stream": CLAUDE_ESTIMATED_USAGE,
+  "fb-503 | claude | stream=omitted | accept=text/event-stream": CLAUDE_ESTIMATED_USAGE,
+  "fb-503 | claude | stream=true | accept=none": CLAUDE_ESTIMATED_USAGE,
+  "fb-strict | claude | stream=omitted | accept=text/event-stream": CLAUDE_ESTIMATED_USAGE,
+  "fb-strict | claude | stream=true | accept=none": CLAUDE_ESTIMATED_USAGE,
+  "openai | resp | stream=omitted | accept=text/event-stream": RESP_NO_DONE,
+  "openai | resp | stream=true | accept=none": RESP_NO_DONE,
+  "openai | resp | stream=true | accept=application/json": RESP_NO_DONE,
+  "openai | resp | stream=true | accept=text/event-stream": RESP_NO_DONE,
+  "openai | resp | stream=true | accept=application/json, text/event-stream": RESP_NO_DONE,
+  "openai | resp | stream=true | accept=none | include_usage": RESP_NO_DONE_NO_TRAILER,
+  "openai | resp | stream=true | accept=application/json | include_usage": RESP_NO_DONE_NO_TRAILER,
+  "openai | resp | stream=true | accept=text/event-stream | include_usage": RESP_NO_DONE_NO_TRAILER,
+  "openai | resp | stream=true | accept=application/json, text/event-stream | include_usage": RESP_NO_DONE_NO_TRAILER,
+  "openai | json | stream=true | accept=none | include_usage": NO_REQUESTED_TRAILER,
+  "openai | json | stream=true | accept=application/json | include_usage": NO_REQUESTED_TRAILER,
+  "openai | json | stream=true | accept=text/event-stream | include_usage": NO_REQUESTED_TRAILER,
+  "openai | json | stream=true | accept=application/json, text/event-stream | include_usage": NO_REQUESTED_TRAILER,
+  "openai | strict | stream=omitted | accept=text/event-stream": STRICT_RETRY_USAGE,
+  "openai | strict | stream=true | accept=none": STRICT_RETRY_USAGE,
+  "openai | strict | stream=true | accept=application/json": STRICT_RETRY_USAGE,
+  "openai | strict | stream=true | accept=text/event-stream": STRICT_RETRY_USAGE,
+  "openai | strict | stream=true | accept=application/json, text/event-stream": STRICT_RETRY_USAGE,
+  "fb-strict | openai | stream=omitted | accept=text/event-stream": STRICT_RETRY_USAGE,
+  "fb-strict | openai | stream=true | accept=none": STRICT_RETRY_USAGE,
+};
+
+/** Registers a cell: known-broken checks may fail, and must still be failing. */
+function cell(name, fn) {
+  it(name, async () => {
+    allowedWrong = new Set(KNOWN_BROKEN[name] || []);
+    seenWrong = new Set();
+    await fn();
+    const sorted = (set) => [...set].sort((a, b) => a.localeCompare(b));
+    expect(sorted(seenWrong), "known-broken checks still broken (fixed? update KNOWN_BROKEN)").toEqual(sorted(allowedWrong));
+  });
+}
 
 describe("request matrix", () => {
-  for (const cell of cells) {
-    const name = label(cell);
-    (isKnownBroken(name) ? it.fails : it)(name, async () => {
-      const r = await send({ ...cell, model: `${cell.mode}/${MODEL}` });
-      if (cell.mode === "down") {
+  for (const c of cells) {
+    cell(label(c), async () => {
+      const r = await send({ ...c, model: `${UPSTREAMS[c.mode].provider || c.mode}/${MODEL}` });
+      if (c.mode === "down") {
         // Retried once, then the upstream's 503 reaches the client; nothing billed.
-        check(r.res.status, "status").toBe(503);
         check(calls.length, "attempts").toBe(2);
-        check(r.rows.filter((row) => row.promptTokens || row.completionTokens || row.cost), "billed rows").toHaveLength(0);
+        expectNotBilled(r, 503);
         return;
       }
-      if (cell.mode === "strict" && cell.includeUsage) {
+      if (c.mode === "strict" && c.includeUsage) {
         // The client's own stream_options is forwarded as sent; the strict upstream's 422 is the answer.
-        check(r.res.status, "status").toBe(422);
-        check(r.rows.filter((row) => row.cost), "billed rows").toHaveLength(0);
+        expectNotBilled(r, 422);
         return;
       }
-      expectShape(r, cell);
-      expectBilled(r, cell.mode);
-      expectNoLeak(r, cell);
+      expectShape(r, c);
+      expectBilled(r, c.mode);
+      expectNoLeak(r, c);
     });
   }
 });
@@ -369,10 +549,10 @@ describe("combo fallback", () => {
     for (const format of Object.keys(FORMATS))
       for (const v of variants) {
         if (v.includeUsage && (format !== "openai" || first === "strict")) continue;
-        const cell = { format, ...v, wantSSE: wantsSSE(v.stream, v.accept) };
+        const c = { format, ...v, wantSSE: wantsSSE(v.stream, v.accept) };
         const name = `${combo} | ${format} | stream=${v.stream ?? "omitted"} | accept=${v.accept ?? "none"}${v.includeUsage ? " | include_usage" : ""}`;
-        (isKnownBroken(name) ? it.fails : it)(name, async () => {
-          const r = await send({ ...cell, model: combo });
+        cell(name, async () => {
+          const r = await send({ ...c, model: combo });
           check(calls[0]?.mode, "first target").toBe(first);
           check(calls.at(-1)?.mode, "served by").toBe(served);
           if (first === "down") {
@@ -380,9 +560,9 @@ describe("combo fallback", () => {
             const flags = (b) => JSON.stringify([b.stream, b.stream_options]);
             check(flags(calls.at(-1).body), "fallback body stream flags").toBe(flags(calls[0].body));
           }
-          expectShape(r, cell);
+          expectShape(r, c);
           expectBilled(r, served);
-          expectNoLeak(r, cell);
+          expectNoLeak(r, c);
         });
       }
 });
