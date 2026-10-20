@@ -69,11 +69,13 @@ function getLocalDateKey(timestamp) {
 }
 
 function addToCounter(target, key, values) {
-  if (!target[key]) target[key] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, credits: 0, creditCost: 0 };
+  if (!target[key]) target[key] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, charge: 0, credits: 0, creditCost: 0 };
   target[key].requests += values.requests || 1;
   target[key].promptTokens += values.promptTokens || 0;
   target[key].completionTokens += values.completionTokens || 0;
   target[key].cachedTokens += values.cachedTokens || 0;
+  // Buckets rolled up before per-key pricing have no charge: it equals their cost.
+  target[key].charge = (target[key].charge ?? target[key].cost) + (values.charge ?? values.cost ?? 0);
   target[key].cost += values.cost || 0;
   target[key].credits = (target[key].credits || 0) + (values.credits || 0);
   target[key].creditCost = (target[key].creditCost || 0) + (values.creditCost || 0);
@@ -87,12 +89,14 @@ function aggregateEntryToDay(day, entry) {
   const cost = entry.cost || 0;
   const credits = entry.tokens?.credits || 0;
   const creditCost = credits > 0 ? cost : 0;
-  const vals = { promptTokens, completionTokens, cachedTokens, cost, credits, creditCost };
+  const charge = entry.charge ?? cost;
+  const vals = { promptTokens, completionTokens, cachedTokens, cost, charge, credits, creditCost };
 
   day.requests = (day.requests || 0) + 1;
   day.promptTokens = (day.promptTokens || 0) + promptTokens;
   day.completionTokens = (day.completionTokens || 0) + completionTokens;
   day.cachedTokens = (day.cachedTokens || 0) + cachedTokens;
+  day.charge = (day.charge ?? day.cost ?? 0) + charge;
   day.cost = (day.cost || 0) + cost;
   day.credits = (day.credits || 0) + credits;
   day.creditCost = (day.creditCost || 0) + creditCost;
@@ -297,6 +301,9 @@ export async function saveRequestUsage(entry) {
     const dedupe = Boolean(entry.timestamp);
     if (!entry.timestamp) entry.timestamp = new Date().toISOString();
     entry.cost = await calculateCost(entry.provider, entry.model, entry.tokens);
+    // What the key's customer pays, fixed now so later plan edits don't rewrite history.
+    const { chargeFor } = await import("@/lib/billing/index.js");
+    entry.charge = await chargeFor(entry);
 
     const tokens = entry.tokens || {};
     const promptTokens = tokens.prompt_tokens || tokens.input_tokens || 0;
@@ -332,11 +339,11 @@ export async function saveRequestUsage(entry) {
       }
 
       db.run(
-        `INSERT INTO usageHistory(timestamp, provider, model, connectionId, apiKey, endpoint, promptTokens, completionTokens, cost, status, tokens, meta) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO usageHistory(timestamp, provider, model, connectionId, apiKey, endpoint, promptTokens, completionTokens, cost, charge, status, tokens, meta) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           entry.timestamp, entry.provider || null, entry.model || null,
           entry.connectionId || null, entry.apiKey || null, entry.endpoint || null,
-          promptTokens, completionTokens, entry.cost || 0, entry.status || "ok",
+          promptTokens, completionTokens, entry.cost || 0, entry.charge ?? entry.cost ?? 0, entry.status || "ok",
           stringifyJson(tokens),
           // meta.traceId links the row to its in-memory routing trace (Usage inspector).
           // meta.requestedModel is the name the client sent (combo/alias), shown to customers.
@@ -581,13 +588,14 @@ export async function getUsageStats(period = "all") {
         const keyName = keyInfo?.name || (apiKeyVal ? (apiKeyMasked || apiKeyVal.slice(0, 8) + "...") : "Local (No API Key)");
         const apiKeyKey = apiKeyMasked || "local-no-key";
         if (!stats.byApiKey[akKey]) {
-          stats.byApiKey[akKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, credits: 0, creditCost: 0, rawModel, provider: providerDisplayName, apiKeyMasked, keyName, apiKeyKey, lastUsed: dateKey };
+          stats.byApiKey[akKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, charge: 0, credits: 0, creditCost: 0, rawModel, provider: providerDisplayName, apiKeyMasked, keyName, keyId: keyInfo?.id || null, apiKeyKey, lastUsed: dateKey };
         }
         stats.byApiKey[akKey].requests += ak.requests || 0;
         stats.byApiKey[akKey].promptTokens += ak.promptTokens || 0;
         stats.byApiKey[akKey].completionTokens += ak.completionTokens || 0;
         stats.byApiKey[akKey].cachedTokens += ak.cachedTokens || 0;
         stats.byApiKey[akKey].cost += ak.cost || 0;
+        stats.byApiKey[akKey].charge += ak.charge ?? ak.cost ?? 0;
         stats.byApiKey[akKey].credits += ak.credits || 0;
         stats.byApiKey[akKey].creditCost += ak.creditCost || 0;
         if (dateKey > (stats.byApiKey[akKey].lastUsed || "")) stats.byApiKey[akKey].lastUsed = dateKey;
@@ -656,7 +664,7 @@ export async function getUsageStats(period = "all") {
       cutoff = new Date(Date.now() - PERIOD_MS["24h"]).toISOString();
     }
     const filtered = db.all(
-      `SELECT timestamp, provider, model, connectionId, apiKey, endpoint, promptTokens, completionTokens, cost, tokens FROM usageHistory WHERE timestamp >= ?`,
+      `SELECT timestamp, provider, model, connectionId, apiKey, endpoint, promptTokens, completionTokens, cost, charge, tokens FROM usageHistory WHERE timestamp >= ?`,
       [cutoff]
     );
 
@@ -717,17 +725,17 @@ export async function getUsageStats(period = "all") {
         // — masking here collided all keys sharing a prefix into one bucket.
         const akKey = `${r.apiKey}|${r.model}|${r.provider || "unknown"}`;
         if (!stats.byApiKey[akKey]) {
-          stats.byApiKey[akKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, credits: 0, creditCost: 0, rawModel: r.model, provider: providerDisplayName, apiKeyMasked, keyName, apiKeyKey: apiKeyMasked, lastUsed: r.timestamp };
+          stats.byApiKey[akKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, charge: 0, credits: 0, creditCost: 0, rawModel: r.model, provider: providerDisplayName, apiKeyMasked, keyName, keyId: keyInfo?.id || null, apiKeyKey: apiKeyMasked, lastUsed: r.timestamp };
         }
         const ake = stats.byApiKey[akKey];
-        ake.requests++; ake.promptTokens += promptTokens; ake.completionTokens += completionTokens; ake.cachedTokens += cachedTokens; ake.cost += entryCost; ake.credits += entryCredits; ake.creditCost += entryCreditCost;
+        ake.requests++; ake.promptTokens += promptTokens; ake.completionTokens += completionTokens; ake.cachedTokens += cachedTokens; ake.cost += entryCost; ake.charge += r.charge ?? entryCost; ake.credits += entryCredits; ake.creditCost += entryCreditCost;
         if (new Date(r.timestamp) > new Date(ake.lastUsed)) ake.lastUsed = r.timestamp;
       } else {
         if (!stats.byApiKey["local-no-key"]) {
-          stats.byApiKey["local-no-key"] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, credits: 0, creditCost: 0, rawModel: r.model, provider: providerDisplayName, apiKeyMasked: null, keyName: "Local (No API Key)", apiKeyKey: "local-no-key", lastUsed: r.timestamp };
+          stats.byApiKey["local-no-key"] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, charge: 0, credits: 0, creditCost: 0, rawModel: r.model, provider: providerDisplayName, apiKeyMasked: null, keyName: "Local (No API Key)", apiKeyKey: "local-no-key", lastUsed: r.timestamp };
         }
         const ake = stats.byApiKey["local-no-key"];
-        ake.requests++; ake.promptTokens += promptTokens; ake.completionTokens += completionTokens; ake.cachedTokens += cachedTokens; ake.cost += entryCost; ake.credits += entryCredits; ake.creditCost += entryCreditCost;
+        ake.requests++; ake.promptTokens += promptTokens; ake.completionTokens += completionTokens; ake.cachedTokens += cachedTokens; ake.cost += entryCost; ake.charge += r.charge ?? entryCost; ake.credits += entryCredits; ake.creditCost += entryCreditCost;
         if (new Date(r.timestamp) > new Date(ake.lastUsed)) ake.lastUsed = r.timestamp;
       }
 

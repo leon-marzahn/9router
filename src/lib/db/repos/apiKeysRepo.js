@@ -79,6 +79,7 @@ export async function deleteApiKey(id) {
   const db = await getAdapter();
   const res = db.run(`DELETE FROM apiKeys WHERE id = ?`, [id]);
   db.run(`DELETE FROM budgets WHERE scope = ?`, [`key:${id}`]);
+  db.run(`DELETE FROM apiKeyPlans WHERE keyId = ?`, [id]);
   return (res?.changes ?? 0) > 0;
 }
 

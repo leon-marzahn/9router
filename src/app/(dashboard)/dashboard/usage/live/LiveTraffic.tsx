@@ -391,6 +391,7 @@ function Feed({
             ))}
           </div>
         </Panel>
+        {u.byKey.length > 0 && <ByKey rows={u.byKey} />}
         <p className="flex items-center gap-1.5 text-[11px] text-text-subtle">
           <Kbd>j</Kbd>
           <Kbd>k</Kbd> step through requests once one is open
@@ -560,6 +561,59 @@ function MobileFeedRow({ r, now, failed }: { r: FeedItem; now: number; failed: b
         </span>
       </span>
     </span>
+  );
+}
+
+const signedCost = (n: number) => (n < 0 ? `−${fmtCost(-n)}` : fmtCost(n));
+
+/** Per customer key: charged, upstream cost, and the margin between them. */
+export function ByKey({ rows }: { rows: Usage["byKey"] }) {
+  const [all, setAll] = useState(false);
+  const shown = all ? rows : rows.slice(0, 5);
+  const total = rows.reduce((t, r) => ({ cost: t.cost + r.cost, charge: t.charge + r.charge }), {
+    cost: 0,
+    charge: 0,
+  });
+  return (
+    <Panel className="p-4">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <Eyebrow>By key</Eyebrow>
+        <span className="text-[11px] tabular-nums text-text-subtle">
+          margin {signedCost(total.charge - total.cost)}
+        </span>
+      </div>
+      <div className="grid grid-cols-[minmax(0,1fr)_auto_auto_auto] gap-x-3 gap-y-2 text-xs">
+        <span className="text-[11px] text-text-subtle">Key</span>
+        <span className="text-right text-[11px] text-text-subtle">Charged</span>
+        <span className="text-right text-[11px] text-text-subtle">Cost</span>
+        <span className="text-right text-[11px] text-text-subtle">Margin</span>
+        {shown.map((r) => {
+          const margin = r.charge - r.cost;
+          return (
+            <div key={r.key} className="contents">
+              <span className="truncate" title={`${r.requests.toLocaleString()} requests`}>
+                {r.name}
+              </span>
+              <span className="text-right tabular-nums">{fmtCost(r.charge)}</span>
+              <span className="text-right tabular-nums text-text-muted">{fmtCost(r.cost)}</span>
+              <span
+                className={cn(
+                  "text-right tabular-nums",
+                  margin < 0 ? "text-danger-text" : "text-text-muted",
+                )}
+              >
+                {signedCost(margin)}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      {rows.length > 5 && (
+        <Button variant="ghost" size="sm" className="mt-3" onClick={() => setAll(!all)}>
+          {all ? "Show less" : `All ${rows.length} keys`}
+        </Button>
+      )}
+    </Panel>
   );
 }
 

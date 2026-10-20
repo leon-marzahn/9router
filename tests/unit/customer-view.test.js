@@ -55,10 +55,11 @@ beforeEach(async () => {
 });
 
 // `model` is what the customer requested; the stored (resolved) model is always a secret.
-function usage(apiKey, { cost = 1, model = "gpt-x", tokens = 100, status = "ok" } = {}) {
+// `charge` is what the customer pays (per-key pricing); it defaults to the cost.
+function usage(apiKey, { cost = 1, charge = cost, model = "gpt-x", tokens = 100, status = "ok" } = {}) {
   adapter.run(
-    "INSERT INTO usageHistory(timestamp, provider, model, connectionId, apiKey, endpoint, promptTokens, completionTokens, cost, status, meta) VALUES(?, 'secret-provider', 'resolved-secret-model', 'conn-secret', ?, '/v1/chat/completions', ?, 10, ?, ?, ?)",
-    [new Date().toISOString(), apiKey, tokens, cost, status, JSON.stringify({ traceId: "trace-secret", requestedModel: model })],
+    "INSERT INTO usageHistory(timestamp, provider, model, connectionId, apiKey, endpoint, promptTokens, completionTokens, cost, charge, status, meta) VALUES(?, 'secret-provider', 'resolved-secret-model', 'conn-secret', ?, '/v1/chat/completions', ?, 10, ?, ?, ?, ?)",
+    [new Date().toISOString(), apiKey, tokens, cost, charge, status, JSON.stringify({ traceId: "trace-secret", requestedModel: model })],
   );
 }
 
@@ -160,20 +161,31 @@ describe("GET /api/customer/usage", () => {
     expect(b.daily.reduce((s, d) => s + d.spend, 0)).toBe(9);
   });
 
-  it("uses only the charge column once it exists (a NULL charge never shows raw cost)", async () => {
-    adapter.exec("ALTER TABLE usageHistory ADD COLUMN charge REAL");
+  it("shows the charge, never the upstream cost (a NULL charge counts as 0)", async () => {
+    usage(keyA.key, { cost: 100, charge: null });
+    usage(keyA.key, { cost: 100, charge: 7 });
+    const body = await (await get(keyA.key)).json();
+    expect(body.period.spend).toBe(7);
+    expect(body.recent.map((r) => r.spend).sort()).toEqual([0, 7]);
+    expect(body.byModel[0].spend).toBe(7);
+  });
+
+  it("rows from before per-key pricing show their cost as spend after migration 004", async () => {
+    const m004 = (await import("@/lib/db/migrations/004-key-pricing.js")).default;
+    adapter.exec("ALTER TABLE usageHistory DROP COLUMN charge");
     cv.resetSchemaCache();
     try {
-      usage(keyA.key, { cost: 100 });
-      adapter.run("UPDATE usageHistory SET charge = NULL");
-      usage(keyA.key, { cost: 100 });
-      adapter.run("UPDATE usageHistory SET charge = 7 WHERE charge IS NULL AND id = (SELECT MAX(id) FROM usageHistory)");
+      adapter.run(
+        "INSERT INTO usageHistory(timestamp, provider, model, apiKey, promptTokens, completionTokens, cost, status, meta) VALUES(?, 'p', 'm', ?, 10, 10, 2.5, 'ok', ?)",
+        [new Date().toISOString(), keyA.key, JSON.stringify({ requestedModel: "old-model" })],
+      );
+      adapter.transaction(() => m004.up(adapter));
+      cv.resetSchemaCache();
+      usage(keyA.key, { cost: 1, charge: 1.5, model: "new-model" });
       const body = await (await get(keyA.key)).json();
-      expect(body.period.spend).toBe(7);
-      expect(body.recent.map((r) => r.spend).sort()).toEqual([0, 7]);
-      expect(body.byModel[0].spend).toBe(7);
+      expect(body.period.spend).toBe(4);
+      expect(body.byModel.find((m) => m.model === "old-model").spend).toBe(2.5);
     } finally {
-      adapter.exec("ALTER TABLE usageHistory DROP COLUMN charge");
       cv.resetSchemaCache();
     }
   });

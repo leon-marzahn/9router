@@ -86,6 +86,8 @@ export async function exportDb() {
     mitmAlias: {},
     pricing: {},
     budgets: db.all(`SELECT scope, data FROM budgets`).map((r) => ({ scope: r.scope, ...parseJson(r.data, {}) })),
+    pricePlans: db.all(`SELECT id, data FROM pricePlans`).map((r) => ({ ...parseJson(r.data, {}), id: r.id })),
+    keyPlans: db.all(`SELECT keyId, planId FROM apiKeyPlans`),
   };
 
   for (const r of db.all(`SELECT key, value FROM kv WHERE scope = 'modelAliases'`)) out.modelAliases[r.key] = parseJson(r.value);
@@ -114,6 +116,24 @@ export async function importDb(payload) {
     });
   }
 
+  let pricePlans = null;
+  let keyPlans = [];
+  if (Array.isArray(payload.pricePlans)) {
+    const { validatePlan, PLAN_ID_RE } = await import("@/lib/billing/index.js");
+    pricePlans = payload.pricePlans.map(({ id, ...rest }) => {
+      if (typeof id !== "string" || !PLAN_ID_RE.test(id)) throw new Error("pricePlans: invalid id");
+      const checked = validatePlan(rest);
+      if (checked.error) throw new Error(`pricePlans ${id}: ${checked.error}`);
+      return [id, checked.value];
+    });
+    const ids = new Set(pricePlans.map(([id]) => id));
+    // Only assignments for keys in this backup and plans that exist; the rest are dropped.
+    const keyIds = new Set((payload.apiKeys || []).map((k) => k?.id).filter((id) => typeof id === "string"));
+    keyPlans = (Array.isArray(payload.keyPlans) ? payload.keyPlans : []).filter(
+      (k) => typeof k?.keyId === "string" && keyIds.has(k.keyId) && ids.has(k.planId),
+    );
+  }
+
   db.transaction(() => {
     // Wipe all tables (keep _meta)
     db.run(`DELETE FROM settings`);
@@ -128,6 +148,15 @@ export async function importDb(payload) {
       for (const [scope, data] of budgets) {
         db.run(`INSERT INTO budgets(scope, data, updatedAt) VALUES(?, ?, ?)`, [scope, stringifyJson(data), new Date().toISOString()]);
       }
+    }
+    // Older backups have no price plans: keep this install's own.
+    if (pricePlans) {
+      db.run(`DELETE FROM pricePlans`);
+      db.run(`DELETE FROM apiKeyPlans`);
+      for (const [id, data] of pricePlans) {
+        db.run(`INSERT INTO pricePlans(id, data, updatedAt) VALUES(?, ?, ?)`, [id, stringifyJson(data), new Date().toISOString()]);
+      }
+      for (const k of keyPlans) db.run(`INSERT OR REPLACE INTO apiKeyPlans(keyId, planId) VALUES(?, ?)`, [k.keyId, k.planId]);
     }
     db.run(`DELETE FROM kv WHERE scope IN ('modelAliases', 'customModels', 'mitmAlias', 'pricing')`);
 

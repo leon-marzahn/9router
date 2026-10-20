@@ -18,6 +18,7 @@ import { ConfirmDialog, Dialog } from "@/ui";
 import { CopyButton } from "@/ui";
 import { KeyCard } from "./KeyCard";
 import { useBudgets } from "@/ui/budget/Budget";
+import { DEFAULT_PLAN_ID, usePricePlans } from "@/ui/pricing/PricePlan";
 import { TailscaleSetup, tailscaleReady } from "./TailscaleSetup";
 import { useEndpoint, type Security } from "./useEndpoint";
 import { useTunnels, type TunnelKind, type TunnelState } from "./useTunnels";
@@ -45,6 +46,7 @@ function gates(s: Security) {
 export function Gatehouse() {
   const ep = useEndpoint();
   const budgets = useBudgets();
+  const pricing = usePricePlans();
   const tn = useTunnels();
   const [confirm, setConfirm] = useState<Confirm | null>(null);
   const [creating, setCreating] = useState(false);
@@ -238,6 +240,11 @@ export function Gatehouse() {
                     budget={budgets.list?.keys[k.id] ?? null}
                     onBudgetSave={(b) => budgets.save(k.id, b)}
                     onBudgetRemove={() => budgets.remove(k.id)}
+                    plans={pricing.list?.plans ?? null}
+                    resolved={pricing.list?.resolved}
+                    planId={pricing.list?.keyPlans[k.id] ?? DEFAULT_PLAN_ID}
+                    onPlanAssign={(id) => pricing.assign(k.id, id)}
+                    onPlanSave={pricing.save}
                   />
                 ))
               : [0, 1].map((i) => (

@@ -10,6 +10,10 @@
 //                            sends threshold alerts (once per scope, period and threshold,
 //                            persisted in budgetAlerts so restarts don't re-send).
 //
+// Spend: a key's budget counts what its customer is charged (src/lib/billing: cost
+// plus the key's price plan); the global budget counts upstream cost, i.e. what the
+// operator pays providers. Token and request limits are the same either way.
+//
 // Periods are UTC calendar days / months.
 // A request that starts under the limit is never cut off, so spend can overshoot
 // by whatever is in flight when the limit is reached.
@@ -27,6 +31,9 @@ import { isEmail } from "@/lib/notify/config.js";
 export { GLOBAL_SCOPE, keyScope };
 export const PERIODS = ["day", "month"];
 export const COUNTER_REFRESH_MS = 60_000;
+
+/** "charge" for a key's budget (what the customer pays), "cost" for the global one. */
+export const spendBasis = (scope) => (scope === GLOBAL_SCOPE ? "cost" : "charge");
 const CONFIG_TTL_MS = 5_000;
 const MAX_WARN = 3;
 
@@ -127,14 +134,17 @@ async function getUsage(scope, apiKey, period, now = new Date()) {
   const c = state.counters.get(scope);
   if (c && c.periodKey === key && now.getTime() - c.loadedAt < COUNTER_REFRESH_MS) return c;
   const sum = await sumUsageSince(apiKey, start.toISOString());
-  const next = { periodKey: key, loadedAt: now.getTime(), ...sum };
+  const spend = spendBasis(scope) === "cost" ? sum.cost : sum.charge;
+  const next = { periodKey: key, loadedAt: now.getTime(), ...sum, spend };
   state.counters.set(scope, next);
   return next;
 }
 
+/** `usage.spend` is cost or charge depending on the scope (see spendBasis). */
 export function usageRatio(budget, usage) {
   let ratio = 0;
-  if (budget.spendLimit) ratio = Math.max(ratio, usage.cost / budget.spendLimit);
+  const spend = usage.spend ?? usage.cost;
+  if (budget.spendLimit) ratio = Math.max(ratio, spend / budget.spendLimit);
   if (budget.tokenLimit) ratio = Math.max(ratio, usage.tokens / budget.tokenLimit);
   if (budget.requestLimit) ratio = Math.max(ratio, usage.requests / budget.requestLimit);
   return ratio;
@@ -215,7 +225,7 @@ const money = (n) => `$${(Number(n) || 0).toFixed(2)}`;
 
 function describeUsage(b, u) {
   const parts = [];
-  if (b.spendLimit) parts.push(`${money(u.cost)} of ${money(b.spendLimit)}`);
+  if (b.spendLimit) parts.push(`${money(u.spend ?? u.cost)} of ${money(b.spendLimit)}`);
   if (b.tokenLimit)
     parts.push(
       `${u.tokens.toLocaleString("en-US")} of ${b.tokenLimit.toLocaleString("en-US")} tokens`,
@@ -293,8 +303,10 @@ export async function recordUsage(entry, { now = new Date() } = {}) {
     const budgets = await loadConfig(now.getTime());
     if (!budgets || !Object.keys(budgets).length) return;
     const t = entry.tokens || {};
+    const cost = Number(entry.cost) || 0;
     const inc = {
-      cost: Number(entry.cost) || 0,
+      cost,
+      charge: Number(entry.charge ?? cost) || 0,
       tokens:
         (t.prompt_tokens || t.input_tokens || 0) + (t.completion_tokens || t.output_tokens || 0),
     };
@@ -306,6 +318,8 @@ export async function recordUsage(entry, { now = new Date() } = {}) {
       let usage;
       if (c && c.periodKey === periodKey && now.getTime() - c.loadedAt < COUNTER_REFRESH_MS) {
         c.cost += inc.cost;
+        c.charge = (c.charge || 0) + inc.charge;
+        c.spend = (c.spend || 0) + (spendBasis(s.scope) === "cost" ? inc.cost : inc.charge);
         c.tokens += inc.tokens;
         c.requests += 1;
         usage = c;
@@ -322,7 +336,11 @@ export async function recordUsage(entry, { now = new Date() } = {}) {
 
 // ---------- dashboard ----------
 
-/** Current period status for one scope. `apiKey` null = global. */
+/**
+ * Current period status for one scope. `apiKey` null = global.
+ * `spend` is what the spend limit is measured against: `charge` (customer price) for a
+ * key, `cost` (upstream) for global; `spendBasis` says which. Both are always reported.
+ */
 export async function budgetStatus(scope, budget, apiKey, { now = new Date() } = {}) {
   const usage = await getUsage(scope, apiKey, budget.period, now);
   const ratio = usageRatio(budget, usage);
@@ -332,12 +350,15 @@ export async function budgetStatus(scope, budget, apiKey, { now = new Date() } =
     periodStart: start.toISOString(),
     resetsAt: end.toISOString(),
     cost: usage.cost,
+    charge: usage.charge ?? usage.cost,
+    spend: usage.spend ?? usage.cost,
+    spendBasis: spendBasis(scope),
     tokens: usage.tokens,
     requests: usage.requests,
     ratio,
     state: ratio >= 1 ? "over" : warn && ratio * 100 >= warn ? "warning" : "ok",
     blocked: budget.enabled && budget.hardStop && ratio >= 1,
-    unpricedModels: budget.spendLimit ? await unpricedModels(apiKey, start) : [],
+    unpricedModels: budget.spendLimit ? await unpricedModels(apiKey, start, spendBasis(scope)) : [],
   };
 }
 
@@ -345,11 +366,11 @@ export async function budgetStatus(scope, budget, apiKey, { now = new Date() } =
  * "provider/model" used this period with no price configured: a spend limit
  * doesn't see them. (Zero-cost rows whose model does have a price are free models.)
  */
-async function unpricedModels(apiKey, start) {
+async function unpricedModels(apiKey, start, basis) {
   try {
     const { getPricingForModel } = await import("@/lib/db/repos/pricingRepo.js");
     const out = [];
-    for (const r of await zeroCostModelsSince(apiKey, start.toISOString())) {
+    for (const r of await zeroCostModelsSince(apiKey, start.toISOString(), { basis })) {
       if (!(await getPricingForModel(r.provider, r.model))) out.push(`${r.provider}/${r.model}`);
     }
     return out;

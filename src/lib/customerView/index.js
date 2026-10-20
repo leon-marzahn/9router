@@ -96,9 +96,9 @@ function spendExpr(db) {
       chargeColumn = false;
     }
   }
-  // TODO(per-key pricing PR): that PR adds usageHistory.charge and backfills charge = cost.
-  // Once the column exists, spend is charge only: a NULL charge counts as 0 and never
-  // falls back to the raw upstream cost. Without the column, cost is the charge.
+  // usageHistory.charge comes from per-key pricing (migration 004, which backfills
+  // charge = cost for older rows). Spend is charge only: a NULL charge counts as 0 and
+  // never falls back to the raw upstream cost. Without the column, cost is the charge.
   return chargeColumn ? "COALESCE(charge, 0)" : "COALESCE(cost, 0)";
 }
 /** Test hook: re-detect the charge column. */

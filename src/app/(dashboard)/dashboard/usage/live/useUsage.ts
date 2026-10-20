@@ -22,6 +22,15 @@ export interface ModelRow {
   credits: number;
 }
 
+/** One API key (a customer): what its requests cost upstream vs what it was charged. */
+export interface KeyRow {
+  key: string;
+  name: string;
+  requests: number;
+  cost: number;
+  charge: number;
+}
+
 export interface Active {
   model: string;
   provider: string;
@@ -70,6 +79,7 @@ export interface Totals {
 export interface Usage {
   totals: Totals;
   byModel: ModelRow[];
+  byKey: KeyRow[];
   active: Active[];
   chart: ChartPoint[];
   /** Requests per minute over the last 10 minutes (oldest first). */
@@ -126,6 +136,21 @@ const recentItemOf = (r: Raw, i: number): FeedItem => ({
   logged: false,
 });
 
+/** byApiKey buckets are per key + model: fold them per key. Local (no key) is left out. */
+export function keyRows(byApiKey: Raw): KeyRow[] {
+  const out = new Map<string, KeyRow>();
+  for (const [k, v] of Object.entries(byApiKey)) {
+    if (k === "local-no-key") continue;
+    const id = String(v.keyId ?? v.keyName ?? k);
+    const row = out.get(id) ?? { key: id, name: v.keyName ?? id, requests: 0, cost: 0, charge: 0 };
+    row.requests += num(v.requests);
+    row.cost += num(v.cost);
+    row.charge += typeof v.charge === "number" ? v.charge : num(v.cost);
+    out.set(id, row);
+  }
+  return [...out.values()].sort((a, b) => b.charge - a.charge || b.requests - a.requests);
+}
+
 function statsPart(s: Raw) {
   return {
     totals: {
@@ -145,6 +170,7 @@ function statsPart(s: Raw) {
         credits: num(v.credits),
       }))
       .sort((a, b) => b.requests - a.requests),
+    byKey: keyRows(s.byApiKey ?? {}),
     active: (s.activeRequests ?? []) as Active[],
     perMinute: ((s.last10Minutes ?? []) as Raw[]).map((b) => num(b.requests)),
   };
