@@ -8,6 +8,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: release-notes
+  cancel-in-progress: false
+
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -22,45 +26,53 @@ jobs:
 
       # changelogithub picks its range from tags reachable from HEAD and creates the release
       # without make_latest, so GitHub marks every new stable release "Latest". Pass the
-      # previous version explicitly (v100.7.1 diffs against v100.7.0, never v101.0.0) and
-      # hand "Latest" back to the highest stable release after a backport.
+      # previous version explicitly (v100.7.1 diffs against v100.7.0, never v101.0.0). A stable
+      # release that is not the highest is created as a draft and published with
+      # --latest=false, so "Latest" never moves to a backport, not even briefly.
       - name: Resolve release range
         id: range
         env:
           TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          echo "previous=$(node scripts/ci/floating-tags.mjs previous "$TAG")" >> "$GITHUB_OUTPUT"
-          echo "highest=$(node scripts/ci/floating-tags.mjs highest)" >> "$GITHUB_OUTPUT"
+          previous="$(node scripts/ci/floating-tags.mjs previous "$TAG")"
+          highest="$(node scripts/ci/floating-tags.mjs highest)"
+          backport=false
+          if [[ "$TAG" != *-* && -n "$highest" && "$highest" != "$TAG" ]]; then
+            backport=true
+          fi
+          {
+            echo "previous=${previous}"
+            echo "highest=${highest}"
+            echo "backport=${backport}"
+          } >> "$GITHUB_OUTPUT"
+          echo "previous=${previous:-<none>} highest=${highest:-<none>} backport=${backport}"
 
       - name: Write GitHub release notes from Conventional Commits
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.ref_name }}
           PREVIOUS: ${{ steps.range.outputs.previous }}
+          BACKPORT: ${{ steps.range.outputs.backport }}
         run: |
           set -euo pipefail
-          if [[ -n "$PREVIOUS" ]]; then
-            bunx changelogithub@15.0.5 --from "$PREVIOUS" --to "$TAG"
-          else
-            bunx changelogithub@15.0.5 --to "$TAG"
-          fi
+          args=(--to "$TAG")
+          if [[ -n "$PREVIOUS" ]]; then args+=(--from "$PREVIOUS"); fi
+          if [[ "$BACKPORT" == "true" ]]; then args+=(--draft); fi
+          bunx changelogithub@15.0.5 "${args[@]}"
 
-      - name: Keep "Latest" on the highest stable release
+      - name: Publish backport without taking "Latest"
+        if: steps.range.outputs.backport == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.ref_name }}
           HIGHEST: ${{ steps.range.outputs.highest }}
         run: |
           set -euo pipefail
-          if [[ -z "$HIGHEST" || "$HIGHEST" == "$TAG" ]]; then
-            echo "${TAG} is the highest stable release (or a prerelease with none yet); nothing to change."
-            exit 0
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest=false
+          if gh release view "$HIGHEST" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release edit "$HIGHEST" --repo "$GITHUB_REPOSITORY" --latest
+            echo "::notice title=Backport release::${TAG} is not the highest stable release; Latest stays on ${HIGHEST}."
+          else
+            echo "::warning title=No release for highest tag::${HIGHEST} has no GitHub release; Latest left unchanged."
           fi
-          if [[ "$TAG" == *-* ]]; then
-            echo "${TAG} is a prerelease; GitHub never marks those Latest."
-            exit 0
-          fi
-          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --latest=false
-          gh release edit "$HIGHEST" --repo "$GITHUB_REPOSITORY" --latest
-          echo "::notice title=Backport release::${TAG} is not the highest stable release; Latest stays on ${HIGHEST}."
