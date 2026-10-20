@@ -8,9 +8,10 @@ import { branchMajor, release, releaseErrors } from "../../scripts/release.mjs";
 
 const scripts = path.join(import.meta.dirname, "../../scripts");
 
-// Stand-in for `bunx git-cliff --unreleased --tag <tag> --prepend CHANGELOG.md`.
+// Stand-in for `bunx git-cliff <range> --tag <tag> --prepend CHANGELOG.md`; logs its args.
 const FAKE_CLIFF = `
 const fs = require("node:fs");
+fs.appendFileSync(require("node:path").join(__dirname, "cliff-args.log"), process.argv.slice(2).join(" ") + "\\n");
 const tag = process.argv[process.argv.indexOf("--tag") + 1];
 const old = fs.existsSync("CHANGELOG.md") ? fs.readFileSync("CHANGELOG.md", "utf8") : "";
 fs.writeFileSync("CHANGELOG.md", "# " + tag + " (2026-01-01)\\n\\n## Fixes\\n- fake entry\\n\\n" + old);
@@ -106,6 +107,14 @@ describe("release.mjs branch and version rules", () => {
     expect(git("log", "-1", "--format=%s")).toBe("chore(release): v101.1.0");
     expect(git("tag", "-l", "v101.1.0")).toBe("v101.1.0");
     expect(fs.readFileSync(path.join(repo, "CHANGELOG.md"), "utf8")).toMatch(/^# v101\.1\.0/);
+  });
+
+  it("passes git-cliff the range from the newest tag on this branch, not the newest tag by date", () => {
+    // A backport tag created after v101.0.0 but not on master.
+    git("tag", "-a", "v100.0.9", "-m", "v100.0.9", "v100.0.0");
+    release("101.0.1", { cwd: repo });
+    const args = fs.readFileSync(path.join(dir, "cliff-args.log"), "utf8").trim();
+    expect(args).toBe("v101.0.0..HEAD --tag v101.0.1 --prepend CHANGELOG.md");
   });
 
   it("refuses any branch other than master or support/v<major>", () => {

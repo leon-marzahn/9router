@@ -117,7 +117,21 @@ export function release(version, { tag: createTag = true, cwd = process.cwd() } 
     fs.writeFileSync(full, `${JSON.stringify(json, null, 2)}\n`);
   }
 
-  const cliffArgs = ["--unreleased", "--tag", tag, "--prepend", "CHANGELOG.md"];
+  // Pass the range explicitly: git-cliff's --unreleased starts from the newest tag by date, which
+  // after a backport (v100.7.1 tagged after v101.0.1) is a tag off this branch, and it would
+  // re-emit every release since the branches split.
+  const previous = lines(git("tag", "--merged", "HEAD", "-l", "v*"))
+    .map(parseVersion)
+    .filter((v) => v && !v.prerelease?.length)
+    .sort(compareVersions)
+    .at(-1)?.raw;
+  const cliffArgs = [
+    ...(previous ? [`${previous}..HEAD`] : ["--unreleased"]),
+    "--tag",
+    tag,
+    "--prepend",
+    "CHANGELOG.md",
+  ];
   const fake = process.env.RELEASE_GIT_CLIFF;
   if (fake) execFileSync(process.execPath, [fake, ...cliffArgs], { stdio: "inherit", cwd });
   else execFileSync("bunx", ["git-cliff@2.14.2", ...cliffArgs], { stdio: "inherit", cwd });
