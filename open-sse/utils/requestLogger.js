@@ -1,4 +1,4 @@
-import { maskHeaders, maskBody, maskString } from "./maskSecrets.cjs";
+import { maskHeaders, maskBody, maskString, redactValues, redactValuesDeep } from "./maskSecrets.cjs";
 
 // Check if running in Node.js environment (has fs module)
 const isNode = typeof process !== "undefined" && process.versions?.node && typeof window === "undefined";
@@ -60,15 +60,20 @@ async function createLogSession(sourceFormat, targetFormat, model) {
 }
 
 // Write JSON file
-function writeJsonFile(sessionPath, filename, data) {
+function writeJsonFile(sessionPath, filename, data, secrets = []) {
   if (!fs || !sessionPath) return;
   
   try {
     const filePath = path.join(sessionPath, filename);
-    fs.writeFileSync(filePath, JSON.stringify(maskBody(data), null, 2));
+    fs.writeFileSync(filePath, JSON.stringify(maskBody(redactValuesDeep(data, secrets)), null, 2));
   } catch (err) {
     console.log(`[LOG] Failed to write ${filename}:`, err.message);
   }
+}
+
+function maskChunk(chunk, secrets) {
+  const text = typeof chunk === "string" ? chunk : Buffer.from(chunk).toString("utf8");
+  return maskString(redactValues(text, secrets));
 }
 
 // Every value written under logs/ goes through these maskers (see maskSecrets.cjs).
@@ -98,9 +103,10 @@ function createNoOpLogger() {
  * @param {string} sourceFormat - Source format from client (claude, openai, etc.)
  * @param {string} targetFormat - Target format to provider (antigravity, gemini-cli, etc.)
  * @param {string} model - Model name
+ * @param {() => string[]} [getSecrets] - Credential values this request carries; redacted literally
  * @returns {Promise<object>} Promise that resolves to logger object with methods to log each stage
  */
-export async function createRequestLogger(sourceFormat, targetFormat, model) {
+export async function createRequestLogger(sourceFormat, targetFormat, model, getSecrets = () => []) {
   // Return no-op logger if logging is disabled
   if (!LOGGING_ENABLED) {
     return createNoOpLogger();
@@ -108,13 +114,14 @@ export async function createRequestLogger(sourceFormat, targetFormat, model) {
   
   // Wait for session to be created before returning logger
   const sessionPath = await createLogSession(sourceFormat, targetFormat, model);
+  const write = (filename, data) => writeJsonFile(sessionPath, filename, data, getSecrets());
   
   return {
     get sessionPath() { return sessionPath; },
     
     // 1. Log client raw request (before any conversion)
     logClientRawRequest(endpoint, body, headers = {}) {
-      writeJsonFile(sessionPath, "1_req_client.json", {
+      write("1_req_client.json", {
         timestamp: new Date().toISOString(),
         endpoint,
         headers: maskSensitiveHeaders(headers),
@@ -124,7 +131,7 @@ export async function createRequestLogger(sourceFormat, targetFormat, model) {
     
     // 2. Log raw request from client (after initial conversion like responsesApi)
     logRawRequest(body, headers = {}) {
-      writeJsonFile(sessionPath, "2_req_source.json", {
+      write("2_req_source.json", {
         timestamp: new Date().toISOString(),
         headers: maskSensitiveHeaders(headers),
         body
@@ -133,7 +140,7 @@ export async function createRequestLogger(sourceFormat, targetFormat, model) {
     
     // 3. Log OpenAI intermediate format (source → openai)
     logOpenAIRequest(body) {
-      writeJsonFile(sessionPath, "3_req_openai.json", {
+      write("3_req_openai.json", {
         timestamp: new Date().toISOString(),
         body
       });
@@ -141,7 +148,7 @@ export async function createRequestLogger(sourceFormat, targetFormat, model) {
     
     // 4. Log target format request (openai → target)
     logTargetRequest(url, headers, body) {
-      writeJsonFile(sessionPath, "4_req_target.json", {
+      write("4_req_target.json", {
         timestamp: new Date().toISOString(),
         url,
         headers: maskSensitiveHeaders(headers),
@@ -152,7 +159,7 @@ export async function createRequestLogger(sourceFormat, targetFormat, model) {
     // 5. Log provider response (for non-streaming or error)
     logProviderResponse(status, statusText, headers, body) {
       const filename = "5_res_provider.json";
-      writeJsonFile(sessionPath, filename, {
+      write(filename, {
         timestamp: new Date().toISOString(),
         status,
         statusText,
@@ -166,7 +173,7 @@ export async function createRequestLogger(sourceFormat, targetFormat, model) {
       if (!fs || !sessionPath) return;
       try {
         const filePath = path.join(sessionPath, "5_res_provider.txt");
-        fs.appendFileSync(filePath, typeof chunk === "string" ? maskString(chunk) : maskString(Buffer.from(chunk).toString("utf8")));
+        fs.appendFileSync(filePath, maskChunk(chunk, getSecrets()));
       } catch (err) {
         // Ignore append errors
       }
@@ -177,7 +184,7 @@ export async function createRequestLogger(sourceFormat, targetFormat, model) {
       if (!fs || !sessionPath) return;
       try {
         const filePath = path.join(sessionPath, "6_res_openai.txt");
-        fs.appendFileSync(filePath, typeof chunk === "string" ? maskString(chunk) : maskString(Buffer.from(chunk).toString("utf8")));
+        fs.appendFileSync(filePath, maskChunk(chunk, getSecrets()));
       } catch (err) {
         // Ignore append errors
       }
@@ -185,7 +192,7 @@ export async function createRequestLogger(sourceFormat, targetFormat, model) {
     
     // 7. Log converted response to client (for non-streaming)
     logConvertedResponse(body) {
-      writeJsonFile(sessionPath, "7_res_client.json", {
+      write("7_res_client.json", {
         timestamp: new Date().toISOString(),
         body
       });
@@ -196,7 +203,7 @@ export async function createRequestLogger(sourceFormat, targetFormat, model) {
       if (!fs || !sessionPath) return;
       try {
         const filePath = path.join(sessionPath, "7_res_client.txt");
-        fs.appendFileSync(filePath, typeof chunk === "string" ? maskString(chunk) : maskString(Buffer.from(chunk).toString("utf8")));
+        fs.appendFileSync(filePath, maskChunk(chunk, getSecrets()));
       } catch (err) {
         // Ignore append errors
       }
@@ -204,7 +211,7 @@ export async function createRequestLogger(sourceFormat, targetFormat, model) {
     
     // 6. Log error
     logError(error, requestBody = null) {
-      writeJsonFile(sessionPath, "6_error.json", {
+      write("6_error.json", {
         timestamp: new Date().toISOString(),
         error: error?.message || String(error),
         stack: error?.stack,

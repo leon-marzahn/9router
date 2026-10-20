@@ -48,6 +48,15 @@ function decodeBody(buf, encoding) {
   return buf;
 }
 
+// JSON bodies get field-aware masking; anything else falls back to text patterns.
+function maskDumpBody(text) {
+  try {
+    return JSON.stringify(maskBody(JSON.parse(text)), null, 2);
+  } catch {
+    return maskString(text);
+  }
+}
+
 // Save raw request: method + url + headers + body
 function dumpRequest(req, bodyBuffer, tag = "raw") {
   if (isBlacklisted(req.url)) return null;
@@ -96,7 +105,7 @@ function createResponseDumper(req, tag = "raw") {
         const cleanHeaders = { ...headers };
         delete cleanHeaders["content-encoding"];
         delete cleanHeaders["Content-Encoding"];
-        const out = `STATUS: ${status}\nHEADERS: ${JSON.stringify(maskHeaders(cleanHeaders), null, 2)}\n---BODY---\n${maskString(text)}`;
+        const out = `STATUS: ${status}\nHEADERS: ${JSON.stringify(maskHeaders(cleanHeaders), null, 2)}\n---BODY---\n${maskDumpBody(text)}`;
         fs.writeFileSync(file, out);
       } catch { /* ignore */ }
     },

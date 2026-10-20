@@ -1,9 +1,14 @@
-// Redacts credentials before anything is written to request logs, debug dumps or the console.
-// CommonJS so both the ESM engine and the CJS MITM child process (src/mitm) can load it.
+// Redacts credentials before anything is written to request logs, debug dumps, error
+// messages or the console. CommonJS so both the ESM engine and the CJS MITM child
+// process (src/mitm) can load it.
 //
 // Values are replaced with a full "[REDACTED]" (an auth scheme such as "Bearer" is kept):
 // even a short tail of a key narrows a brute-force search and lets logs be correlated
 // across installs, and a log reader never needs it to debug routing.
+//
+// Two layers: pattern masking (header/field/param names, well-known key prefixes) for
+// anything, and value masking (`redactValues`) for the credentials a request is known
+// to carry, which also catches upstreams that echo the key back in an error body.
 
 const REDACTED = "[REDACTED]";
 
@@ -17,18 +22,63 @@ const SECRET_HEADERS = new Set([
   "set-cookie",
 ]);
 
-// Any other header naming a token/secret/key/session/credential.
-const SECRET_HEADER_RE = /token|secret|session|credential|password|(^|[-_])(api[-_]?)?key($|[-_])|auth/i;
+// Any other header naming a token/secret/key/credential, or a session *token/key/secret*.
+// Plain session ids (x-session-id, x-session-affinity) are routing hints and stay visible.
+const SECRET_HEADER_RE = /token|secret|credential|password|session[-_]?(token|key|secret)|(^|[-_])(api[-_]?)?key($|[-_])|auth/i;
 // Non-secret headers the pattern would otherwise hide (rate-limit counters, token budgets).
 const SAFE_HEADER_RE = /ratelimit|rate-limit|max-tokens|tokens?-(limit|remaining|reset|used)|^keep-alive$/i;
 
-// JSON body fields that carry credentials (OAuth refresh/exchange bodies, key configs).
-const SECRET_FIELD_RE = /^(access[-_]?token|refresh[-_]?token|id[-_]?token|session[-_]?token|auth[-_]?token|api[-_]?key|apikey|x-api-key|x-goog-api-key|client[-_]?secret|password|authorization|cookie|private[-_]?key)$/i;
+// Field / param names (compared lower-cased with "-" and "_" removed) that carry credentials.
+const SECRET_NAMES = new Set([
+  "accesstoken",
+  "refreshtoken",
+  "idtoken",
+  "sessiontoken",
+  "authtoken",
+  "bearertoken",
+  "passtoken",
+  "servicetoken",
+  "token",
+  "apikey",
+  "xapikey",
+  "xgoogapikey",
+  "key",
+  "clientsecret",
+  "secret",
+  "password",
+  "authorization",
+  "proxyauthorization",
+  "auth",
+  "cookie",
+  "setcookie",
+  "privatekey",
+]);
 
-// Credentials embedded in free text: URL query params / form bodies and bearer tokens.
-const QUERY_RE = /((?:^|[?&\s])(?:key|api[-_]?key|access[-_]?token|refresh[-_]?token|id[-_]?token|token|client[-_]?secret|auth|password)=)[^&\s"'#<>\\]+/gi;
-const JSON_FIELD_RE = /("(?:access_token|refresh_token|id_token|session_token|api_?key|client_secret|password)"\s*:\s*")[^"]*/gi;
+function normName(name) {
+  let n = String(name);
+  try {
+    n = decodeURIComponent(n);
+  } catch {
+    /* keep raw */
+  }
+  return n.toLowerCase().replace(/[-_]/g, "");
+}
+
+function isSecretName(name) {
+  return SECRET_NAMES.has(normName(name));
+}
+
+// Credentials embedded in free text.
+const QUERY_RE = /((?:^|[?&#;\s])([A-Za-z0-9_%.-]+)=)([^&\s"'#<>\\]+)/g;
+// JSON "name": "value" (value may contain escaped quotes) or a bare number.
+const JSON_FIELD_RE = /("([A-Za-z0-9_-]+)"\s*:\s*)("(?:[^"\\]|\\.)*"|-?\d+(?:\.\d+)?)/g;
+// The same inside a JSON-encoded string: \"name\":\"value\".
+const ESC_JSON_FIELD_RE = /(\\"([A-Za-z0-9_-]+)\\"\s*:\s*)(\\"(?:[^"\\]|\\[^"])*\\")/g;
+// Raw "Header: value" lines.
+const HEADER_LINE_RE = /^([ \t]*)((?:proxy-)?authorization|x-api-key|x-goog-api-key|api-key|cookie|set-cookie)([ \t]*:[ \t]*)(.+)$/gim;
 const BEARER_RE = /\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{6,}/gi;
+// Well-known key formats, with a minimum length so ordinary words never match.
+const KEY_PREFIX_RE = /\b(?:sk-ant-[A-Za-z0-9_-]{8,}|sk-(?:proj-|or-v1-|or-)?[A-Za-z0-9_-]{16,}|AIza[0-9A-Za-z_-]{30,}|gsk_[A-Za-z0-9]{20,}|xai-[A-Za-z0-9]{20,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|hf_[A-Za-z0-9]{20,}|ya29\.[A-Za-z0-9._-]{20,}|AKIA[0-9A-Z]{16})/g;
 
 function isSecretHeader(name) {
   const lower = String(name).toLowerCase();
@@ -46,7 +96,13 @@ function maskHeaderValue(value) {
 
 function maskString(str) {
   if (typeof str !== "string" || !str) return str;
-  return str.replace(QUERY_RE, `$1${REDACTED}`).replace(JSON_FIELD_RE, `$1${REDACTED}`).replace(BEARER_RE, `$1 ${REDACTED}`);
+  return str
+    .replace(HEADER_LINE_RE, (_m, ws, name, sep, value) => `${ws}${name}${sep}${maskHeaderValue(value.trim())}`)
+    .replace(QUERY_RE, (m, prefix, name) => (isSecretName(name) ? `${prefix}${REDACTED}` : m))
+    .replace(JSON_FIELD_RE, (m, prefix, name, value) => (isSecretName(name) && !value.includes(REDACTED) ? `${prefix}"${REDACTED}"` : m))
+    .replace(ESC_JSON_FIELD_RE, (m, prefix, name, value) => (isSecretName(name) && !value.includes(REDACTED) ? `${prefix}\\"${REDACTED}\\"` : m))
+    .replace(BEARER_RE, `$1 ${REDACTED}`)
+    .replace(KEY_PREFIX_RE, REDACTED);
 }
 
 // Accepts a plain object, a Headers/Map-like object, or an entries array.
@@ -68,11 +124,55 @@ function maskBody(value, depth = 0) {
   if (value && typeof value === "object") {
     const out = {};
     for (const [k, v] of Object.entries(value)) {
-      out[k] = SECRET_FIELD_RE.test(k) && v != null && typeof v !== "object" && v !== "" && !String(v).includes(REDACTED) ? REDACTED : maskBody(v, depth + 1);
+      if (isSecretName(k) && v != null && v !== "") {
+        if (typeof v === "object") out[k] = REDACTED;
+        else if (typeof v === "string" && v.includes(REDACTED)) out[k] = v;
+        else out[k] = REDACTED;
+      } else out[k] = maskBody(v, depth + 1);
     }
     return out;
   }
   return value;
 }
 
-module.exports = { REDACTED, isSecretHeader, maskHeaders, maskString, maskBody };
+// Collect the credential strings a request is known to carry.
+function knownSecrets(...sources) {
+  const out = new Set();
+  const add = (v) => {
+    if (typeof v === "string" && v.length >= 8) out.add(v);
+  };
+  for (const s of sources) {
+    if (!s) continue;
+    if (typeof s === "string") add(s);
+    else for (const f of ["apiKey", "accessToken", "refreshToken", "idToken", "sessionToken", "token"]) add(s[f]);
+  }
+  return [...out];
+}
+
+// Replace known credential values literally (also their JSON-escaped and URL-encoded forms).
+function redactValues(str, secrets) {
+  if (typeof str !== "string" || !str || !secrets?.length) return str;
+  let out = str;
+  for (const s of secrets) {
+    if (typeof s !== "string" || s.length < 8) continue;
+    for (const form of new Set([s, JSON.stringify(s).slice(1, -1), encodeURIComponent(s)])) {
+      if (out.includes(form)) out = out.split(form).join(REDACTED);
+    }
+  }
+  return out;
+}
+
+// Deep version of redactValues for objects about to be logged or stored.
+function redactValuesDeep(value, secrets, depth = 0) {
+  if (!secrets?.length || depth > 50) return value;
+  if (typeof value === "string") return redactValues(value, secrets);
+  if (Array.isArray(value)) return value.map((v) => redactValuesDeep(v, secrets, depth + 1));
+  if (value && typeof value === "object") {
+    const out = {};
+    for (const [k, v] of Object.entries(value)) out[k] = redactValuesDeep(v, secrets, depth + 1);
+    return out;
+  }
+  return value;
+}
+
+module.exports = { REDACTED, isSecretHeader, maskHeaders, maskString, maskBody, knownSecrets, redactValues, redactValuesDeep };

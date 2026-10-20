@@ -1,6 +1,6 @@
 // Request logs, MITM dumps and debug output must never contain usable credentials.
 import { describe, it, expect } from "vite-plus/test";
-import { REDACTED, isSecretHeader, maskHeaders, maskString, maskBody } from "../../open-sse/utils/maskSecrets.cjs";
+import { REDACTED, isSecretHeader, maskHeaders, maskString, maskBody, knownSecrets, redactValues, redactValuesDeep } from "../../open-sse/utils/maskSecrets.cjs";
 
 const KEY = "sk-live-abcdef0123456789";
 
@@ -23,10 +23,10 @@ describe("maskHeaders", () => {
   });
 
   it("redacts other token/secret/key/session headers but keeps useful ones", () => {
-    for (const h of ["x-access-token", "x-client-secret", "x-session-id", "x-amz-security-token", "x-custom-key", "anthropic-api-key", "x-auth"]) {
+    for (const h of ["x-access-token", "x-client-secret", "x-session-token", "x-amz-security-token", "x-custom-key", "anthropic-api-key", "x-auth"]) {
       expect(isSecretHeader(h), h).toBe(true);
     }
-    for (const h of ["content-type", "user-agent", "anthropic-version", "x-ratelimit-remaining-tokens", "anthropic-ratelimit-tokens-limit", "keep-alive", "x-request-id", "accept"]) {
+    for (const h of ["content-type", "user-agent", "anthropic-version", "x-ratelimit-remaining-tokens", "anthropic-ratelimit-tokens-limit", "keep-alive", "x-request-id", "accept", "x-session-id", "x-session-affinity"]) {
       expect(isSecretHeader(h), h).toBe(false);
     }
   });
@@ -81,5 +81,42 @@ describe("maskBody", () => {
     expect(out.nested[0].model).toBe("gpt");
     expect(out.headers.authorization).toBe(`Bearer ${REDACTED}`);
     expect(out.usage.total_tokens).toBe(12);
+  });
+});
+
+describe("review bypasses", () => {
+  const S = "SEKRET123456";
+  it("masks camelCase, bare and escaped JSON fields inside strings", () => {
+    expect(maskString(JSON.stringify({ refreshToken: S, token: S, key: S, secret: S, "x-goog-api-key": S }))).not.toContain(S);
+    expect(maskString(`{"api_key":"a\\"${S}"}`)).not.toContain(S);
+    expect(maskString(JSON.stringify(JSON.stringify({ access_token: S })))).not.toContain(S);
+    expect(maskString(`{"api_key": 123456789}`)).not.toContain("123456789");
+  });
+
+  it("masks bare and object-valued secret fields in bodies", () => {
+    expect(JSON.stringify(maskBody({ token: S, secret: S, key: S }))).not.toContain(S);
+    expect(maskBody({ client_secret: { value: S } })).toEqual({ client_secret: REDACTED });
+  });
+
+  it("masks raw header lines, key prefixes, encoded param names and fragments", () => {
+    expect(maskString(`x-api-key: ${S}`)).toBe(`x-api-key: ${REDACTED}`);
+    expect(maskString(`Authorization: Basic ${S}`)).toBe(`Authorization: Basic ${REDACTED}`);
+    for (const k of [`sk-ant-${S}`, `sk-proj-${S}abcdefgh`, `AIza${S}${S}${S}`, `gsk_${S}${S}`]) {
+      expect(maskString(`invalid key ${k} given`)).toBe(`invalid key ${REDACTED} given`);
+    }
+    expect(maskString(`https://h/v1?api%5Fkey=${S}`)).not.toContain(S);
+    expect(maskString(`https://h/p#key=${S}`)).not.toContain(S);
+    expect(maskString("sk-short and AIza")).toBe("sk-short and AIza");
+  });
+});
+
+describe("value redaction", () => {
+  it("collects credential strings and redacts them in any encoding", () => {
+    const secrets = knownSecrets({ apiKey: "prov-key-abcdef", accessToken: "acc-tok-123456", refreshToken: null }, "client/key+12345", "short");
+    expect(secrets).toEqual(["prov-key-abcdef", "acc-tok-123456", "client/key+12345"]);
+    const text = `bad key prov-key-abcdef; tok acc-tok-123456; url ?x=${encodeURIComponent("client/key+12345")}`;
+    expect(redactValues(text, secrets)).toBe(`bad key ${REDACTED}; tok ${REDACTED}; url ?x=${REDACTED}`);
+    expect(redactValues(text, [])).toBe(text);
+    expect(redactValuesDeep({ a: [{ m: "prov-key-abcdef" }], n: 1 }, secrets)).toEqual({ a: [{ m: REDACTED }], n: 1 });
   });
 });

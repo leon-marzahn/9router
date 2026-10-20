@@ -21,6 +21,12 @@ beforeAll(async () => {
     req.on("data", (c) => (raw += c));
     req.on("end", () => {
       const body = JSON.parse(raw || "{}");
+      if (body.model === "echo") {
+        // An upstream that echoes the rejected key back in its error body.
+        res.writeHead(401, { "content-type": "application/json" });
+        res.end(JSON.stringify({ error: { message: `bad key ${req.headers.authorization?.slice(7)} (client ${body.user})` } }));
+        return;
+      }
       if (body.stream) {
         res.writeHead(200, { "content-type": "text/event-stream", "set-cookie": `s=${PROVIDER_KEY}` });
         res.write(chunk({ choices: [{ index: 0, delta: { role: "assistant", content: "ok" } }] }));
@@ -58,7 +64,7 @@ function allFiles(dir) {
 }
 
 describe("request logs", () => {
-  it("never contain the client or provider key, streaming or not", async () => {
+  it("never contain the client or provider key, streaming or not", { timeout: 30_000 }, async () => {
     const { handleChatCore } = await import("../../open-sse/handlers/chatCore.js");
     const clientHeaders = [{ authorization: `Bearer ${CLIENT_KEY}` }, { "x-api-key": CLIENT_KEY }, { "x-goog-api-key": CLIENT_KEY }, {}];
     for (const stream of [false, true]) {
@@ -76,10 +82,30 @@ describe("request logs", () => {
         await result.response.text();
       }
     }
+    // Upstream echoes the provider key (and the client key, via the body) in a 401.
+    for (const stream of [false, true]) {
+      const body = { model: "echo", stream, user: CLIENT_KEY, messages: [{ role: "user", content: "hi" }] };
+      const result = await handleChatCore({
+        body,
+        modelInfo: { provider: "openai-compatible-test", model: "echo" },
+        credentials: { apiKey: PROVIDER_KEY, providerSpecificData: { baseUrl } },
+        clientRawRequest: { endpoint: "/v1/chat/completions", body, headers: { authorization: `Bearer ${CLIENT_KEY}` } },
+        apiKey: CLIENT_KEY,
+        connectionId: "conn-test",
+      });
+      expect(result.success).toBe(false);
+      expect(String(result.error)).toContain("bad key");
+      expect(String(result.error)).not.toContain(PROVIDER_KEY);
+      expect(String(result.error)).not.toContain(CLIENT_KEY);
+      const clientBody = await result.response.text();
+      expect(clientBody).not.toContain(PROVIDER_KEY);
+      expect(clientBody).not.toContain(CLIENT_KEY);
+    }
     await new Promise((r) => setTimeout(r, 50));
     const files = allFiles(LOGS);
     expect(files.some((f) => f.endsWith("4_req_target.json"))).toBe(true);
     expect(files.some((f) => f.endsWith("1_req_client.json"))).toBe(true);
+    expect(files.some((f) => f.endsWith("6_error.json"))).toBe(true);
     for (const f of files) {
       const text = fs.readFileSync(f, "utf8");
       expect(text, f).not.toContain(CLIENT_KEY);
