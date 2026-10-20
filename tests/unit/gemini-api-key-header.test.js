@@ -84,6 +84,10 @@ describe("extractApiKey", () => {
     expect(extractApiKey(r({}, "http://l/x?key=d"))).toBe("d");
     expect(extractApiKey(r({}))).toBeNull();
   });
+  it("returns null for a request without headers or with an unparseable URL", () => {
+    expect(extractApiKey(null)).toBeNull();
+    expect(extractApiKey({ headers: new Headers(), url: "not a url" })).toBeNull();
+  });
 });
 
 describe("/v1beta generateContent with requireApiKey", () => {
