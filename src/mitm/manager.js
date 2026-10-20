@@ -16,6 +16,7 @@ const { isCertExpired } = require("./cert/rootCA");
 const { DATA_DIR, MITM_DIR } = require("./paths");
 const { log, err } = require("./logger");
 const { LSOF_BIN } = require("./config");
+const portOwner = require("./portOwner");
 
 const DEFAULT_MITM_ROUTER_BASE = "http://localhost:20128";
 
@@ -110,9 +111,8 @@ function getProcessUsingPort443() {
         if (processMatch) return processMatch[1].replace(".exe", "");
       }
     } else {
-      const result = execSync(`${LSOF_BIN} -i :443`, { encoding: "utf8", windowsHide: true });
-      const lines = result.trim().split("\n");
-      if (lines.length > 1) return lines[1].split(/\s+/)[0];
+      const owner = portOwner.getPortOwner(MITM_PORT, { lsofBin: LSOF_BIN });
+      if (owner && !owner.unknown) return owner.name;
     }
   } catch {
     return null;
@@ -283,7 +283,7 @@ function checkPort443Free() {
   });
 }
 
-function getPort443Owner(sudoPassword) {
+function getPort443Owner(sudoPassword, portBusy = false) {
   return new Promise((resolve) => {
     if (IS_WIN) {
       const psCmd = `powershell -NonInteractive -WindowStyle Hidden -Command "` +
@@ -299,15 +299,9 @@ function getPort443Owner(sudoPassword) {
         });
       });
     } else {
-      // Only find process actually LISTENING on TCP port 443
-      exec(`${LSOF_BIN} -nP -iTCP:443 -sTCP:LISTEN -t`, { windowsHide: true }, (err, stdout) => {
-        if (err || !stdout?.trim()) return resolve(null);
-        const pid = parseInt(stdout.trim().split("\n")[0], 10);
-        if (!pid || isNaN(pid)) return resolve(null);
-        exec(`ps -p ${pid} -o comm=`, { windowsHide: true }, (e2, out2) => {
-          resolve({ pid, name: (out2?.trim() || "unknown") });
-        });
-      });
+      // Only the process LISTENING on TCP 443. Returns null (free), { pid, pids, name },
+      // or { unknown: true, reason }; never a guessed PID (busybox lsof lists every open file).
+      resolve(portOwner.getPortOwner(MITM_PORT, { lsofBin: LSOF_BIN, portBusy }));
     }
   });
 }
@@ -450,21 +444,61 @@ async function scheduleMitmRestart(apiKey) {
  * Start MITM server only (cert + server, no DNS)
  */
 async function killPort443Owner(owner, sudoPassword) {
-  if (!owner || !owner.pid) return;
-  if (IS_WIN) {
+  if (!owner) return;
+  if (!IS_WIN) return killUnixPortOwner(owner, sudoPassword);
+  if (!owner.pid) return;
+  {
     try {
       execSync(`powershell -NonInteractive -WindowStyle Hidden -Command "Stop-Process -Id ${owner.pid} -Force -ErrorAction SilentlyContinue"`, { windowsHide: true });
     } catch { /* best effort */ }
-  } else {
-    try {
-      const { execWithPassword } = require("./dns/dnsConfig");
-      if (sudoPassword || isSudoAvailable()) {
-        await execWithPassword(`kill -9 ${owner.pid}`, sudoPassword || "");
-      } else {
-        execSync(`kill -9 ${owner.pid}`, { windowsHide: true });
-      }
-    } catch { /* best effort */ }
   }
+  await new Promise(r => setTimeout(r, 800));
+}
+
+/**
+ * Port 443 is held by `owner` (unix). Kill it when forced and allowed; otherwise throw.
+ * PORT_443_BUSY (which makes the dashboard offer force-kill) is only thrown when a
+ * force-kill would actually be allowed; unknown or protected owners get a plain error.
+ */
+async function resolvePort443Conflict(owner, forceKillPort443, sudoPassword) {
+  const refusal = portOwner.forceKillRefusal(owner, MITM_PORT);
+  if (refusal) {
+    throw new Error(owner.unknown
+      ? `Port 443 is already in use by a process regent could not identify (${owner.reason}). Stop it manually.`
+      : refusal);
+  }
+  const shortName = owner.name.includes("/") ? owner.name.split("/").filter(Boolean).pop() : owner.name;
+  if (forceKillPort443) {
+    log(`Killing process on port 443 (PID ${owner.pid}, name=${shortName})...`);
+    await killUnixPortOwner(owner, sudoPassword);
+    return;
+  }
+  const e = new Error(`Port 443 is already in use by "${shortName}" (PID ${owner.pid}).`);
+  e.code = "PORT_443_BUSY";
+  e.portOwner = { pid: owner.pid, name: shortName };
+  throw e;
+}
+
+/**
+ * SIGKILL every listener on 443 after re-checking the guards (never PID <= 1, regent itself,
+ * its ancestors or its process group). Throws when the owner is unknown or protected.
+ */
+async function killUnixPortOwner(owner, sudoPassword) {
+  const refusal = portOwner.forceKillRefusal(owner, MITM_PORT);
+  if (refusal) throw new Error(refusal);
+  const pids = owner.pids || [owner.pid];
+  const { execWithPassword } = require("./dns/dnsConfig");
+  let killed = 0;
+  for (const pid of pids) {
+    try {
+      if (sudoPassword || isSudoAvailable()) await execWithPassword(`kill -9 ${pid}`, sudoPassword || "");
+      else process.kill(pid, "SIGKILL");
+      killed++;
+    } catch (e) {
+      err(`Failed to kill PID ${pid}: ${e.message}`);
+    }
+  }
+  log(`Killed ${killed}/${pids.length} process(es) on port 443`);
   await new Promise(r => setTimeout(r, 800));
 }
 
@@ -513,21 +547,8 @@ async function startServer(apiKey, sudoPassword, forceKillPort443 = false) {
   if (!IS_WIN) {
     const portStatus = await checkPort443Free();
     if (portStatus === "in-use" || portStatus === "no-permission") {
-      const owner = await getPort443Owner(sudoPassword);
-      if (owner) {
-        const shortName = owner.name.includes("/")
-          ? owner.name.split("/").filter(Boolean).pop()
-          : owner.name;
-        if (forceKillPort443) {
-          log(`Killing process on port 443 (PID ${owner.pid}, name=${shortName})...`);
-          await killPort443Owner(owner, sudoPassword);
-        } else {
-          const e = new Error(`Port 443 is already in use by "${shortName}" (PID ${owner.pid}).`);
-          e.code = "PORT_443_BUSY";
-          e.portOwner = { pid: owner.pid, name: shortName };
-          throw e;
-        }
-      }
+      const owner = await getPort443Owner(sudoPassword, portStatus === "in-use");
+      if (owner) await resolvePort443Conflict(owner, forceKillPort443, sudoPassword);
     }
   }
 
@@ -874,6 +895,9 @@ module.exports = {
   getCachedPassword,
   setCachedPassword,
   loadEncryptedPassword,
+  // for tests
+  resolvePort443Conflict,
+  killUnixPortOwner,
   clearEncryptedPassword,
   isSudoPasswordRequired,
   initDbHooks,
