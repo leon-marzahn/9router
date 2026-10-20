@@ -14,7 +14,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
-import { describeBackup } from "../src/lib/db/pinnedBackups.js";
+import { describeBackup, isPinnedName } from "../src/lib/db/pinnedBackups.js";
 
 const require = createRequire(import.meta.url);
 const { defaultDataDir } = require("../src/lib/appDir.cjs");
@@ -35,13 +35,20 @@ const describe = (dir) => {
 
 const dataDir = process.env.DATA_DIR || defaultDataDir();
 const pinned = path.join(dataDir, "db", "pinned-backups");
-const dirs = fs.existsSync(pinned)
+const entries = fs.existsSync(pinned)
   ? fs
       .readdirSync(pinned, { withFileTypes: true })
       .filter((e) => e.isDirectory())
       .map((e) => e.name)
       .sort()
   : [];
+// Only directories named like a pinned backup are listed or deleted; anything else is left alone.
+const dirs = entries.filter(isPinnedName);
+const unknown = entries.filter((d) => !isPinnedName(d));
+if (unknown.length) {
+  console.log(`Not a recognised backup, left untouched (check and remove by hand):`);
+  for (const d of unknown) console.log(`  ${path.join(pinned, d)}`);
+}
 
 if (!dirs.length) {
   console.log(`No plaintext restore points in ${pinned}.`);

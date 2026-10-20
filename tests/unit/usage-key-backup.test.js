@@ -82,7 +82,7 @@ describe("pre-usage-key-refs backup", () => {
     fs.mkdirSync(pinnedDir(), { recursive: true });
     fs.chmodSync(pinnedDir(), 0o555);
     await expect(boot()).rejects.toThrow(
-      /Refusing to rewrite usage API keys without a verified backup/,
+      /Refusing to rewrite usage API keys \(005\) without a verified backup/,
     );
     fs.chmodSync(pinnedDir(), 0o755);
     // Nothing was migrated: the next boot (backup possible again) still sees schema 4 + the raw key.

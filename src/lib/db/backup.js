@@ -11,7 +11,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { BACKUPS_DIR, PINNED_BACKUPS_DIR, ensureDirs } from "./paths.js";
 import { timestampSlug, getAppVersion } from "./version.js";
-import { BACKUP_META_FILE, backupMeta, backupName, isPinnedName } from "./pinnedBackups.js";
+import { BACKUP_META_FILE, backupMeta, backupName, isPinnedName, joinLabels } from "./pinnedBackups.js";
 
 const KEEP_BACKUPS = 3;
 
@@ -212,13 +212,13 @@ function currentSchemaVersion(adapter) {
  * label or every one-way step this copy precedes (one backup for all of them); the
  * directory is named after the DB's schemaVersion and gets a backup.json (backupMeta).
  */
-export function requiredBackup(adapter, labels) {
-  const label = [].concat(labels).join("+");
+export function requiredBackup(adapter, labels, { heal = false } = {}) {
+  const label = joinLabels(labels);
   let dir;
   try {
     const schemaVersion = currentSchemaVersion(adapter);
     dir = makeBackupDir(labels, { schemaVersion });
-    const meta = backupMeta({ labels, schemaVersion, appVersion: getAppVersion() });
+    const meta = backupMeta({ labels, schemaVersion, appVersion: getAppVersion(), heal });
     fs.writeFileSync(path.join(dir, BACKUP_META_FILE), `${JSON.stringify(meta, null, 2)}\n`, { mode: 0o600 });
     if (adapter.driver === "sql.js") {
       // In-memory engine: ATTACH can't reach the disk. Write the whole DB, reopen it to verify.

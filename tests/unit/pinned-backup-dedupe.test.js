@@ -107,6 +107,7 @@ describe("pinned backup per upgrade", () => {
       schemaVersion: 4,
       createdBy: APP_VERSION,
       precedes: ["pre-usage-key-refs", "pre-encrypt-credentials"],
+      heal: false,
       restoresTo: "v100.7.x (e.g. v100.7.2)",
     });
     expect(inBackup(db, pinned[0])).toEqual({ schema: "4", rawUsage: 1, apiKey: SECRET });
@@ -153,11 +154,86 @@ describe("pinned backup per upgrade", () => {
     fs.mkdirSync(pinnedDir(), { recursive: true });
     fs.chmodSync(pinnedDir(), 0o555);
     try {
-      await expect(boot()).rejects.toThrow(/pre-usage-key-refs\+pre-encrypt-credentials" failed/);
+      await expect(boot()).rejects.toThrow(
+        /backup "pre-usage-key-refs\+encrypt-credentials" failed: .*Refusing to rewrite usage API keys \(005\) and encrypt stored credentials \(006\) without a verified backup; nothing was changed\. Fix permissions or disk space on DATA_DIR\/db \(incl\. db\/pinned-backups\) and restart\./,
+      );
     } finally {
       fs.chmodSync(pinnedDir(), 0o755);
     }
     expect(list(pinnedDir())).toEqual([]);
+  });
+
+  it("names a rekey pass pending with 005 correctly in the abort message", async () => {
+    if (process.platform === "win32") return;
+    const { randomBytes } = await import("node:crypto");
+    const KEY_A = randomBytes(32).toString("hex");
+    const KEY_B = randomBytes(32).toString("hex");
+    process.env.CREDENTIALS_KEY = KEY_A;
+    await olderDb(5);
+    let db = await boot(); // encrypted under KEY_A, schema 6
+    db.run(
+      "INSERT INTO usageHistory(timestamp, provider, model, apiKey, promptTokens, completionTokens, cost, status) VALUES(?, 'p', 'm', ?, 1, 1, 0, 'ok')",
+      [new Date().toISOString(), RAW],
+    );
+    db.run("UPDATE _meta SET value = '4' WHERE key = 'schemaVersion'");
+    db.run("DELETE FROM _meta WHERE key IN ('usageKeyRefsMigrated', 'usageKeysScrubbed')");
+    process.env.CREDENTIALS_KEY = KEY_B;
+    process.env.CREDENTIALS_KEY_PREVIOUS = KEY_A;
+    fs.chmodSync(pinnedDir(), 0o555);
+    try {
+      await expect(boot()).rejects.toThrow(
+        /backup "pre-usage-key-refs\+credentials-rekey" failed: .*Refusing to rewrite usage API keys \(005\) and re-encrypt stored credentials under the new key without/,
+      );
+    } finally {
+      fs.chmodSync(pinnedDir(), 0o755);
+      delete process.env.CREDENTIALS_KEY;
+      delete process.env.CREDENTIALS_KEY_PREVIOUS;
+    }
+  });
+});
+
+describe("release lines and metadata", () => {
+  it("has a release line for every schema up to the latest migration", async () => {
+    const { RELEASE_LINES } = await import("@/lib/db/pinnedBackups.js");
+    const { latestVersion } = await import("@/lib/db/migrations/index.js");
+    const highest = Math.max(...Object.keys(RELEASE_LINES).map(Number));
+    expect(highest).toBeGreaterThanOrEqual(latestVersion());
+    expect(RELEASE_LINES[6]).toMatch(/^v102\./);
+  });
+
+  it("marks heal backups from the step, not the schema number", async () => {
+    const { backupMeta, describeBackup } = await import("@/lib/db/pinnedBackups.js");
+    const heal = backupMeta({ labels: "pre-usage-key-heal", schemaVersion: 6, appVersion: "102.0.0" });
+    expect(heal).toMatchObject({ heal: true, restoresTo: expect.stringMatching(/^v102\.x .*after a downgrade/) });
+    expect(backupMeta({ labels: "pre-usage-key-scrub", schemaVersion: 6 }).heal).toBe(true);
+    expect(backupMeta({ labels: "pre-encrypt-credentials", schemaVersion: 6, heal: true }).heal).toBe(true);
+    // A straight upgrade from a future schema 6 is not a downgrade.
+    const upgrade = backupMeta({ labels: "pre-encrypt-credentials", schemaVersion: 6 });
+    expect(upgrade).toMatchObject({ heal: false, restoresTo: "v102.x (e.g. v102.0.0)" });
+    expect(describeBackup("/x/pre-usage-key-heal-schema6-1").heal).toBe(true);
+  });
+
+  it("writes createdBy: null when the app version is unknown", async () => {
+    const { backupMeta } = await import("@/lib/db/pinnedBackups.js");
+    expect(backupMeta({ labels: "pre-usage-key-refs", schemaVersion: 4, appVersion: "0.0.0" }).createdBy).toBeNull();
+    expect(backupMeta({ labels: "pre-usage-key-refs", schemaVersion: 4 }).createdBy).toBeNull();
+    expect(backupMeta({ labels: "pre-usage-key-refs", schemaVersion: 4, appVersion: "102.0.0" }).createdBy).toBe("102.0.0");
+  });
+
+  it("the heal's encrypt backup at boot is flagged heal in backup.json", async () => {
+    await olderDb(5);
+    let db = await boot();
+    // An older version writes a plaintext credential after a downgrade.
+    const now = new Date().toISOString();
+    db.run(
+      `INSERT INTO providerConnections(id, provider, authType, name, priority, isActive, data, createdAt, updatedAt) VALUES('c9', 'openai', 'apikey', 'k', 1, 1, ?, ?, ?)`,
+      [JSON.stringify({ apiKey: SECRET }), now, now],
+    );
+    db = await boot();
+    const heal = list(pinnedDir()).filter((d) => readMeta(d).heal);
+    expect(heal).toHaveLength(1);
+    expect(heal[0]).toMatch(/^pre-encrypt-credentials-schema6-/);
+    expect(readMeta(heal[0]).restoresTo).toMatch(/^v102\.x .*after a downgrade/);
   });
 });
 
@@ -177,8 +253,8 @@ describe("names", () => {
       createdBy: "102.0.0",
       precedes: ["pre-encrypt-credentials"],
     });
-    expect(describeBackup("/x/unknown").restoresTo).toMatch(/older version/);
-    expect(describeBackup("/x/pre-x-schema7-1").restoresTo).toMatch(/after a downgrade/);
+    expect(describeBackup("/x/unknown").restoresTo).toMatch(/unknown release/);
+    expect(describeBackup("/x/pre-x-schema99-1").restoresTo).toMatch(/unknown release \(schema 99\)/);
   });
 
   it("purge-plaintext-backups lists old-style and new backups with their schema and release", async () => {
@@ -192,6 +268,8 @@ describe("names", () => {
       fs.mkdirSync(d);
       fs.writeFileSync(path.join(d, "data.sqlite"), "x");
     }
+    const stray = path.join(pinnedDir(), "notes-not-a-backup");
+    fs.mkdirSync(stray);
     const script = path.join(import.meta.dirname, "../../scripts/purge-plaintext-backups.mjs");
     const env = { ...process.env, DATA_DIR: tempDir };
     const out = execFileSync(process.execPath, [script], { env }).toString();
@@ -201,7 +279,82 @@ describe("names", () => {
     );
     expect(out).toMatch(/pre-usage-key-refs-101\.0\.2-\S+\n {4}restore point for v100\.7\.x.*\n {4}DB schema 4, .* by v101\.0\.2/);
     expect(out).toMatch(/pre-encrypt-credentials-102\.0\.0-\S+\n {4}restore point for v101\.0\.x/);
+    expect(out).toMatch(/Not a recognised backup, left untouched.*\n {2}\S*notes-not-a-backup/);
+    expect(out).not.toMatch(/notes-not-a-backup\n {4}restore point/);
     execFileSync(process.execPath, [script, "--yes"], { env });
-    expect(list(pinnedDir())).toEqual([]);
+    expect(list(pinnedDir())).toEqual(["notes-not-a-backup"]);
+  });
+
+  it("names a rekey pass pending with 005 correctly in the abort message", async () => {
+    if (process.platform === "win32") return;
+    const { randomBytes } = await import("node:crypto");
+    const KEY_A = randomBytes(32).toString("hex");
+    const KEY_B = randomBytes(32).toString("hex");
+    process.env.CREDENTIALS_KEY = KEY_A;
+    await olderDb(5);
+    let db = await boot(); // encrypted under KEY_A, schema 6
+    db.run(
+      "INSERT INTO usageHistory(timestamp, provider, model, apiKey, promptTokens, completionTokens, cost, status) VALUES(?, 'p', 'm', ?, 1, 1, 0, 'ok')",
+      [new Date().toISOString(), RAW],
+    );
+    db.run("UPDATE _meta SET value = '4' WHERE key = 'schemaVersion'");
+    db.run("DELETE FROM _meta WHERE key IN ('usageKeyRefsMigrated', 'usageKeysScrubbed')");
+    process.env.CREDENTIALS_KEY = KEY_B;
+    process.env.CREDENTIALS_KEY_PREVIOUS = KEY_A;
+    fs.chmodSync(pinnedDir(), 0o555);
+    try {
+      await expect(boot()).rejects.toThrow(
+        /backup "pre-usage-key-refs\+credentials-rekey" failed: .*Refusing to rewrite usage API keys \(005\) and re-encrypt stored credentials under the new key without/,
+      );
+    } finally {
+      fs.chmodSync(pinnedDir(), 0o755);
+      delete process.env.CREDENTIALS_KEY;
+      delete process.env.CREDENTIALS_KEY_PREVIOUS;
+    }
+  });
+});
+
+describe("release lines and metadata", () => {
+  it("has a release line for every schema up to the latest migration", async () => {
+    const { RELEASE_LINES } = await import("@/lib/db/pinnedBackups.js");
+    const { latestVersion } = await import("@/lib/db/migrations/index.js");
+    const highest = Math.max(...Object.keys(RELEASE_LINES).map(Number));
+    expect(highest).toBeGreaterThanOrEqual(latestVersion());
+    expect(RELEASE_LINES[6]).toMatch(/^v102\./);
+  });
+
+  it("marks heal backups from the step, not the schema number", async () => {
+    const { backupMeta, describeBackup } = await import("@/lib/db/pinnedBackups.js");
+    const heal = backupMeta({ labels: "pre-usage-key-heal", schemaVersion: 6, appVersion: "102.0.0" });
+    expect(heal).toMatchObject({ heal: true, restoresTo: expect.stringMatching(/^v102\.x .*after a downgrade/) });
+    expect(backupMeta({ labels: "pre-usage-key-scrub", schemaVersion: 6 }).heal).toBe(true);
+    expect(backupMeta({ labels: "pre-encrypt-credentials", schemaVersion: 6, heal: true }).heal).toBe(true);
+    // A straight upgrade from a future schema 6 is not a downgrade.
+    const upgrade = backupMeta({ labels: "pre-encrypt-credentials", schemaVersion: 6 });
+    expect(upgrade).toMatchObject({ heal: false, restoresTo: "v102.x (e.g. v102.0.0)" });
+    expect(describeBackup("/x/pre-usage-key-heal-schema6-1").heal).toBe(true);
+  });
+
+  it("writes createdBy: null when the app version is unknown", async () => {
+    const { backupMeta } = await import("@/lib/db/pinnedBackups.js");
+    expect(backupMeta({ labels: "pre-usage-key-refs", schemaVersion: 4, appVersion: "0.0.0" }).createdBy).toBeNull();
+    expect(backupMeta({ labels: "pre-usage-key-refs", schemaVersion: 4 }).createdBy).toBeNull();
+    expect(backupMeta({ labels: "pre-usage-key-refs", schemaVersion: 4, appVersion: "102.0.0" }).createdBy).toBe("102.0.0");
+  });
+
+  it("the heal's encrypt backup at boot is flagged heal in backup.json", async () => {
+    await olderDb(5);
+    let db = await boot();
+    // An older version writes a plaintext credential after a downgrade.
+    const now = new Date().toISOString();
+    db.run(
+      `INSERT INTO providerConnections(id, provider, authType, name, priority, isActive, data, createdAt, updatedAt) VALUES('c9', 'openai', 'apikey', 'k', 1, 1, ?, ?, ?)`,
+      [JSON.stringify({ apiKey: SECRET }), now, now],
+    );
+    db = await boot();
+    const heal = list(pinnedDir()).filter((d) => readMeta(d).heal);
+    expect(heal).toHaveLength(1);
+    expect(heal[0]).toMatch(/^pre-encrypt-credentials-schema6-/);
+    expect(readMeta(heal[0]).restoresTo).toMatch(/^v102\.x .*after a downgrade/);
   });
 });

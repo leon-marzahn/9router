@@ -19,20 +19,45 @@ export const BACKUP_META_FILE = "backup.json";
 // Schema the DB had when an old-style backup of each label was taken by a straight upgrade.
 const LEGACY_SCHEMA = { [PRE_USAGE_KEY_REFS]: 4, [PRE_ENCRYPT_CREDENTIALS]: 5 };
 
-/** The release line a DB of `schemaVersion` restores to. */
-export function releaseLineFor(schemaVersion) {
-  if (schemaVersion === 4) return "v100.7.x (e.g. v100.7.2)";
-  if (schemaVersion === 5) return "v101.0.x (e.g. v101.0.2)";
-  if (schemaVersion >= 6)
-    return `v101.0.x after a downgrade (schema ${schemaVersion} with the plaintext credentials the older version wrote)`;
-  return `an older version (schema ${schemaVersion ?? "unknown"})`;
+// Schema -> the release line whose DB has it. Add a row with every migration that bumps the
+// schema (a test fails when the latest migration has no row here).
+export const RELEASE_LINES = {
+  4: "v100.7.x (e.g. v100.7.2)",
+  5: "v101.0.x (e.g. v101.0.2)",
+  6: "v102.x (e.g. v102.0.0)",
+};
+
+// Steps that repair data an older version wrote after a downgrade (vs. a straight upgrade).
+export const HEAL_STEPS = ["pre-usage-key-heal", "pre-usage-key-scrub"];
+
+// What each step does, for log and error messages.
+export const STEP_DESCRIPTIONS = {
+  [PRE_USAGE_KEY_REFS]: "rewrite usage API keys (005)",
+  [PRE_ENCRYPT_CREDENTIALS]: "encrypt stored credentials (006)",
+  "pre-credentials-rekey": "re-encrypt stored credentials under the new key",
+  "pre-usage-key-heal": "rewrite usage API keys an older version wrote",
+  "pre-usage-key-scrub": "vacuum the replaced usage API keys",
+};
+
+/**
+ * The release a DB of `schemaVersion` restores to. `heal`: the backup was taken to repair
+ * what an older version wrote into this schema after a downgrade.
+ */
+export function releaseLineFor(schemaVersion, { heal = false } = {}) {
+  const line = RELEASE_LINES[schemaVersion];
+  if (!line) return `an unknown release (schema ${schemaVersion ?? "unknown"})`;
+  return heal ? `${line}, holding what an older version wrote after a downgrade` : line;
+}
+
+/** Labels joined as in a backup name: pre-a+b. */
+export function joinLabels(labels) {
+  const list = [].concat(labels);
+  return [list[0], ...list.slice(1).map((l) => l.replace(/^pre-/, ""))].join("+");
 }
 
 /** Directory name for a backup taken before `labels` (["pre-a", "pre-b"]) at `schemaVersion`. */
 export function backupName(labels, schemaVersion, timestamp) {
-  const list = [].concat(labels);
-  const joined = [list[0], ...list.slice(1).map((l) => l.replace(/^pre-/, ""))].join("+");
-  return `${joined}-schema${schemaVersion}-${timestamp}`;
+  return `${joinLabels(labels)}-schema${schemaVersion}-${timestamp}`;
 }
 
 /**
@@ -57,12 +82,16 @@ export function isPinnedName(name) {
 }
 
 /** The backup.json written next to a backup's data.sqlite. */
-export function backupMeta({ labels, schemaVersion, appVersion }) {
+export function backupMeta({ labels, schemaVersion, appVersion, heal = false }) {
+  const precedes = [].concat(labels);
+  const isHeal = heal || precedes.some((l) => HEAL_STEPS.includes(l));
   return {
     schemaVersion,
-    createdBy: appVersion,
-    precedes: [].concat(labels),
-    restoresTo: releaseLineFor(schemaVersion),
+    // getAppVersion() falls back to 0.0.0 when package.json can't be read.
+    createdBy: appVersion && appVersion !== "0.0.0" ? appVersion : null,
+    precedes,
+    heal: isHeal,
+    restoresTo: releaseLineFor(schemaVersion, { heal: isHeal }),
   };
 }
 
@@ -74,16 +103,26 @@ export function describeBackup(dir) {
   try {
     const meta = JSON.parse(fs.readFileSync(path.join(dir, BACKUP_META_FILE), "utf8"));
     if (meta && Array.isArray(meta.precedes)) {
-      return { ...meta, restoresTo: meta.restoresTo || releaseLineFor(meta.schemaVersion) };
+      return {
+        ...meta,
+        restoresTo: meta.restoresTo || releaseLineFor(meta.schemaVersion, { heal: !!meta.heal }),
+      };
     }
   } catch {}
   const parsed = parseBackupName(path.basename(dir));
   if (!parsed)
-    return { schemaVersion: null, createdBy: null, precedes: [], restoresTo: releaseLineFor(null) };
+    return {
+      schemaVersion: null,
+      createdBy: null,
+      precedes: [],
+      heal: false,
+      restoresTo: releaseLineFor(null),
+    };
   const oldVer = parsed.legacy
     ? /^pre-[a-z-]+?-(\d+\.\d+\.\d+)-/.exec(path.basename(dir))?.[1]
     : null;
-  let restoresTo = releaseLineFor(parsed.schemaVersion);
+  const heal = parsed.labels.some((l) => HEAL_STEPS.includes(l));
+  let restoresTo = releaseLineFor(parsed.schemaVersion, { heal });
   // An old-style pre-encrypt-credentials may also come from a heal after a downgrade.
   if (parsed.legacy && parsed.labels[0] === PRE_ENCRYPT_CREDENTIALS)
     restoresTo += ", or v101.0.x after a downgrade if a heal took it";
@@ -91,6 +130,7 @@ export function describeBackup(dir) {
     schemaVersion: parsed.schemaVersion,
     createdBy: oldVer ?? null,
     precedes: parsed.labels,
+    heal,
     restoresTo,
   };
 }

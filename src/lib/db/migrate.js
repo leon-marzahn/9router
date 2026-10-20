@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { LEGACY_FILES, DB_DIR, DATA_FILE } from "./paths.js";
+import { LEGACY_FILES, DB_DIR, DATA_FILE, PINNED_BACKUPS_DIR } from "./paths.js";
 import { TABLES, buildCreateTableSql, SCHEMA_VERSION } from "./schema.js";
 import { MIGRATIONS, latestVersion } from "./migrations/index.js";
 import { getMetaSync, setMetaSync } from "./helpers/metaStore.js";
@@ -15,7 +15,7 @@ import {
   pruneOldBackups,
   requiredBackup,
 } from "./backup.js";
-import { describeBackup } from "./pinnedBackups.js";
+import { STEP_DESCRIPTIONS, describeBackup } from "./pinnedBackups.js";
 import {
   KEY_ID_META,
   loadCredentialsKey,
@@ -29,6 +29,7 @@ import {
 } from "./helpers/credentialsSeal.js";
 
 const USAGE_KEY_REFS_VERSION = 5;
+const ENCRYPT_CREDENTIALS_VERSION = 6;
 
 /** Thrown when a backup required before rewriting usage keys can't be taken or verified. */
 export class BackupRequired extends Error {
@@ -38,25 +39,18 @@ export class BackupRequired extends Error {
   }
 }
 
-function requiredCredentialsBackup(adapter, labels) {
+/**
+ * The verified backup required before the one-way `steps`; on failure, logs and throws
+ * BackupRequired naming every step it was meant to protect.
+ */
+function requiredStepBackup(adapter, steps, opts) {
   try {
-    return requiredBackup(adapter, labels);
+    return requiredBackup(adapter, steps, opts);
   } catch (e) {
+    const what = [].concat(steps).map((s) => STEP_DESCRIPTIONS[s] ?? s).join(" and ");
     const msg =
-      `[DB][migrate] ${e.message}. Refusing to encrypt stored credentials without a verified backup; ` +
-      `nothing was changed. Free disk space / fix permissions on DATA_DIR/db and restart.`;
-    console.error(msg);
-    throw new BackupRequired(msg);
-  }
-}
-
-function requiredUsageBackup(adapter, labels) {
-  try {
-    return requiredBackup(adapter, labels);
-  } catch (e) {
-    const msg =
-      `[DB][migrate] ${e.message}. Refusing to rewrite usage API keys without a verified backup; ` +
-      `no usage rows were changed. Free disk space / fix permissions on DATA_DIR/db/backups and restart.`;
+      `[DB][migrate] ${e.message}. Refusing to ${what} without a verified backup; nothing was changed. ` +
+      `Fix permissions or disk space on DATA_DIR/db (incl. db/pinned-backups) and restart.`;
     console.error(msg);
     throw new BackupRequired(msg);
   }
@@ -302,34 +296,31 @@ export async function runMigrationOnce(adapter) {
   const schemaChanging = !fresh && storedSchemaVer < SCHEMA_VERSION;
   // Migration 005 rewrites usage rows one way: its backup is required (taken, verified,
   // pinned against pruning). If it can't be taken, the boot stops here, untouched.
-  const usageRefsPending =
-    !fresh && (parseInt(getMetaSync(adapter, "schemaVersion", "0"), 10) || 0) < USAGE_KEY_REFS_VERSION;
+  const startSchema = parseInt(getMetaSync(adapter, "schemaVersion", "0"), 10) || 0;
+  const usageRefsPending = !fresh && startSchema < USAGE_KEY_REFS_VERSION;
   // Migration 006 / the heal encrypt plaintext credentials (or re-encrypt them under a new
   // key) one way: a verified backup first. The plaintext one is pinned and holds the
   // credentials unencrypted.
   // Every pinned step pending in this boot shares ONE backup of the starting DB (a v100 →
   // v102 upgrade runs 005 and 006 together), named and described by its schema.
-  const pinnedSteps = [
+  const steps = [
     ...(usageRefsPending ? [PRE_USAGE_KEY_REFS] : []),
-    ...(credentialsPending && credScan.plaintext > 0 ? [PRE_ENCRYPT_CREDENTIALS] : []),
+    ...(credentialsPending ? [credScan.plaintext > 0 ? PRE_ENCRYPT_CREDENTIALS : "pre-credentials-rekey"] : []),
   ];
   let backedUp = false;
-  if (pinnedSteps.length) {
-    const dir = credentialsPending
-      ? requiredCredentialsBackup(adapter, pinnedSteps)
-      : requiredUsageBackup(adapter, pinnedSteps);
+  if (steps.length) {
+    // Plaintext credentials in a DB that 006 already encrypted were written by an older
+    // version after a downgrade: this backup is the heal's, not the upgrade's.
+    const heal = !usageRefsPending && steps.includes(PRE_ENCRYPT_CREDENTIALS) && startSchema >= ENCRYPT_CREDENTIALS_VERSION;
+    const dir = requiredStepBackup(adapter, steps, { heal });
     pruneOldBackups();
     backedUp = true;
     const meta = describeBackup(dir);
+    const pinned = path.dirname(dir) === PINNED_BACKUPS_DIR;
     console.log(
-      `[DB][migrate] pinned backup before ${meta.precedes.join(" + ")} (verified, schema ${meta.schemaVersion}, ` +
-        `restores ${meta.restoresTo}${pinnedSteps.includes(PRE_ENCRYPT_CREDENTIALS) ? ", holds plaintext credentials" : ""}): ${dir}`,
+      `[DB][migrate] ${pinned ? "pinned " : ""}backup before ${meta.precedes.join(" + ")} (verified, schema ${meta.schemaVersion}, ` +
+        `restores ${meta.restoresTo}${steps.includes(PRE_ENCRYPT_CREDENTIALS) ? ", holds plaintext credentials" : ""}): ${dir}`,
     );
-  } else if (credentialsPending) {
-    const dir = requiredCredentialsBackup(adapter, "pre-credentials-rekey");
-    pruneOldBackups();
-    backedUp = true;
-    console.log(`[DB][migrate] pre-credentials-rekey backup (verified): ${dir}`);
   }
   if (!backedUp && schemaChanging) {
     try {
@@ -353,7 +344,7 @@ export async function runMigrationOnce(adapter) {
   // required backup of their own (a failed backup stops the boot before any rewrite).
   if (hasRawUsageKeys(adapter)) {
     if (!backedUp) {
-      const dir = requiredUsageBackup(adapter, "pre-usage-key-heal");
+      const dir = requiredStepBackup(adapter, "pre-usage-key-heal");
       pruneOldBackups();
       backedUp = true;
       console.log(`[DB][migrate] pre-usage-key-heal backup (verified): ${dir}`);
@@ -370,7 +361,7 @@ export async function runMigrationOnce(adapter) {
   // rewrite; it turns 1 only after a VACUUM succeeds, so a crash in between retries.
   if (needsUsageScrub(adapter)) {
     if (!backedUp) {
-      const dir = requiredUsageBackup(adapter, "pre-usage-key-scrub");
+      const dir = requiredStepBackup(adapter, "pre-usage-key-scrub");
       pruneOldBackups();
       console.log(`[DB][migrate] pre-usage-key-scrub backup (verified): ${dir}`);
     }
@@ -387,7 +378,7 @@ export async function runMigrationOnce(adapter) {
   // backup above. A value that fails authentication throws: the boot stops, nothing changes.
   if (needsCredentialsSeal(adapter, ring)) {
     if (!backedUp) {
-      const dir = requiredCredentialsBackup(adapter, PRE_ENCRYPT_CREDENTIALS);
+      const dir = requiredStepBackup(adapter, PRE_ENCRYPT_CREDENTIALS, { heal: true });
       pruneOldBackups();
       backedUp = true;
       console.log(`[DB][migrate] ${PRE_ENCRYPT_CREDENTIALS} backup before re-encrypting (verified, pinned, holds plaintext credentials): ${dir}`);
