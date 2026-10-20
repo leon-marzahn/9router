@@ -1,10 +1,17 @@
 // Boot a throwaway, demo-seeded dashboard instance and open browser contexts on it.
 // Shared by scripts/pr-shots.mjs (screenshots) and scripts/ui-smoke.mjs (CI smoke test).
 //
-// `next dev` runs on a free port with DATA_DIR and HOME in a fresh temp dir
+// The server runs on a free port with DATA_DIR and HOME in a fresh temp dir
 // (usage/log files ignore DATA_DIR, so HOME must move too), seeded by
 // scripts/pr-shots/seed.mjs, with a random INITIAL_PASSWORD. Contexts are logged
 // in and have scripts/pr-shots/mocks.json applied.
+//
+// mode "dev" (default) runs `next dev`, which compiles each route on its first
+// hit. mode "prod" runs `next build` into its own dist dir (.next-smoke, so a
+// local `next dev` keeps its .next) and then `next start`: slower to boot, but
+// every page is precompiled, which pays off when many routes are visited, and
+// no dev-server reloads interrupt pages visited in parallel.
+// NEXT_PUBLIC_BASE_URL is inlined at build time, hence the build per port.
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
@@ -35,13 +42,14 @@ export const VIEWPORTS = /** @type {const} */ ([
   ],
 ]);
 
-/** @param {{ port?: number, keep?: boolean }} [opts] */
+/** @param {{ port?: number, keep?: boolean, mode?: "dev" | "prod" }} [opts] */
 export async function startInstance(opts = {}) {
   // seed.mjs refuses to run unless HOME contains "pr-shots-".
   const tmp = mkdtempSync(join(tmpdir(), "pr-shots-"));
   const password = randomBytes(12).toString("hex");
   const port = opts.port || (await freePort());
-  const base = `http://localhost:${port}`;
+  // Bound to loopback only: the instance has a known-to-us password and demo data.
+  const base = `http://127.0.0.1:${port}`;
   const env = {
     ...process.env,
     DATA_DIR: join(tmp, "data"),
@@ -50,6 +58,7 @@ export async function startInstance(opts = {}) {
     APPDATA: join(tmp, "home"),
     INITIAL_PASSWORD: password,
     PORT: String(port),
+    HOSTNAME: "127.0.0.1",
     NEXT_PUBLIC_BASE_URL: base,
     NEXT_TELEMETRY_DISABLED: "1",
     NODE_NO_WARNINGS: "1",
@@ -58,6 +67,8 @@ export async function startInstance(opts = {}) {
 
   let server;
   let browser;
+  /** @type {"dev" | "prod"} */
+  let mode = "dev";
   const stop = async () => {
     await browser?.close().catch(() => {});
     if (server?.pid) {
@@ -74,7 +85,20 @@ export async function startInstance(opts = {}) {
       ["--import", "./scripts/pr-shots/register.mjs", "scripts/pr-shots/seed.mjs"],
       env,
     );
-    server = spawn("bunx", ["next", "dev", "--webpack", "--port", String(port)], {
+    mode = opts.mode ?? "dev";
+    if (mode === "prod") {
+      env.NEXT_DIST_DIR = ".next-smoke";
+      const t0 = Date.now();
+      await run("bunx", ["next", "build", "--webpack"], env, true);
+      console.error(`next build: ${Math.round((Date.now() - t0) / 1000)}s`);
+    }
+    // Production goes through custom-server.js like `bun run start` (it derives the
+    // client IP that local-only APIs such as /api/cli-tools check).
+    const [cmd, ...argv] =
+      mode === "prod"
+        ? ["node", "custom-server.js", "--hostname", "127.0.0.1", "--port", String(port)]
+        : ["bunx", "next", "dev", "--webpack", "--hostname", "127.0.0.1", "--port", String(port)];
+    server = spawn(cmd, argv, {
       cwd: root,
       env,
       stdio: ["ignore", "pipe", "pipe"],
@@ -108,7 +132,7 @@ export async function startInstance(opts = {}) {
     return context;
   }
 
-  return { base, newContext, stop };
+  return { base, mode, newContext, stop };
 }
 
 export async function applyMocks(context, mocks) {
@@ -138,9 +162,33 @@ export async function settle(page) {
   await page.waitForTimeout(1_000);
 }
 
-function run(cmd, argv, env) {
+/**
+ * Run one step of a shot/state (format: scripts/pr-shots.mjs header). On the
+ * mobile context `click` taps, falling back to a click when tapping fails.
+ */
+export async function runStep(page, step, vpName) {
+  const t = { timeout: 15_000 };
+  if (step.click && vpName === "mobile") {
+    const el = page.locator(step.click).first();
+    await el.tap(t).catch(() => el.click(t));
+  } else if (step.click) await page.locator(step.click).first().click(t);
+  else if (step.hover) await page.locator(step.hover).first().hover(t);
+  else if (step.fill) await page.locator(step.fill[0]).first().fill(String(step.fill[1]), t);
+  else if (step.select)
+    await page.locator(step.select[0]).first().selectOption(String(step.select[1]), t);
+  else if (step.press) await page.keyboard.press(step.press);
+  else if (step.waitFor) await page.locator(step.waitFor).first().waitFor(t);
+  else if (step.wait) await page.waitForTimeout(Number(step.wait));
+  else throw new Error("unknown step");
+}
+
+function run(cmd, argv, env, quiet = false) {
   return new Promise((ok, fail) => {
-    const p = spawn(cmd, argv, { cwd: root, env, stdio: "inherit" });
+    const p = spawn(cmd, argv, {
+      cwd: root,
+      env,
+      stdio: quiet ? ["ignore", "ignore", "inherit"] : "inherit",
+    });
     p.on("exit", (code) =>
       code === 0 ? ok() : fail(new Error(`${cmd} ${argv.join(" ")} exited ${code}`)),
     );

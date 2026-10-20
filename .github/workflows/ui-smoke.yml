@@ -1,9 +1,13 @@
 name: UI smoke
 
-# Visits every dashboard route in Chromium (desktop + touch-phone viewport) on a
-# demo-seeded throwaway instance and fails on new horizontal overflow, console
+# Visits every dashboard route and the UI states in scripts/ui-smoke/states.json
+# (dialogs, drawers, menus) in Chromium (desktop + touch-phone viewport) on a
+# demo-seeded production build and fails on new horizontal overflow, console
 # errors, failing same-origin requests, small mobile tap targets and serious axe
 # violations. Known issues: scripts/ui-smoke/baseline.txt. Local: `bun run smoke`.
+#
+# Pull requests check only the routes/states their changes can affect, plus a
+# core set (scripts/ui-smoke/affected.mjs); master and manual runs check everything.
 #
 # Security: plain `pull_request` (never pull_request_target), read-only token,
 # no secrets. Fork PRs run with the same read-only permissions.
@@ -11,6 +15,7 @@ on:
   pull_request:
   push:
     branches: [master]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -23,11 +28,13 @@ jobs:
   smoke:
     name: Browser smoke
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
+          # A PR checks out its merge commit, so HEAD^1 is the base and the diff is the PR.
+          fetch-depth: 2
 
       - uses: actions/setup-node@v5
         with:
@@ -56,8 +63,26 @@ jobs:
         if: steps.pw-cache.outputs.cache-hit == 'true'
         run: bunx playwright@1.63.0 install-deps chromium
 
+      # Webpack's persistent cache for the smoke's `next build` (.next-smoke, several
+      # hundred MB). Every run restores the newest one; only master saves, and only
+      # when the sources changed, so PRs don't fill the 10 GB Actions cache and
+      # evict Playwright's.
+      - name: Restore Next build cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .next-smoke/cache
+          key: next-smoke-${{ runner.os }}-${{ hashFiles('bun.lock') }}-${{ hashFiles('src/**', 'open-sse/**', 'next.config.mjs') }}
+          restore-keys: next-smoke-${{ runner.os }}-${{ hashFiles('bun.lock') }}-
+
       - name: Smoke test
-        run: node scripts/ui-smoke.mjs --out ui-smoke
+        run: node scripts/ui-smoke.mjs --out ui-smoke ${{ github.event_name == 'pull_request' && '--changed HEAD^1' || '' }}
+
+      - name: Save Next build cache
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        uses: actions/cache/save@v4
+        with:
+          path: .next-smoke/cache
+          key: next-smoke-${{ runner.os }}-${{ hashFiles('bun.lock') }}-${{ hashFiles('src/**', 'open-sse/**', 'next.config.mjs') }}
 
       - name: Upload screenshots and report
         if: always()

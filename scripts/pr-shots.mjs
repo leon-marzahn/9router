@@ -18,7 +18,7 @@
 //      "selector": "[role=dialog]" }]
 //
 // Step keys: click, hover, press, waitFor (selector), fill ([selector, value]),
-// wait (ms). Saved as <label>-<name>-<desktop|mobile>-<light|dark>.png.
+// select ([selector, option value]), wait (ms). Saved as <label>-<name>-<desktop|mobile>-<light|dark>.png.
 // Set `"viewports": ["desktop"]` on an entry to skip mobile.
 //
 // The mobile context emulates a phone (isMobile, hasTouch, iPhone user agent),
@@ -43,6 +43,7 @@ import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import {
   applyMocks,
+  runStep as runOneStep,
   settle as settlePage,
   startInstance,
   VIEWPORTS,
@@ -132,18 +133,8 @@ try {
 }
 
 async function runStep(page, name, step, vpName) {
-  const t = { timeout: 15_000 };
   try {
-    if (step.click && vpName === "mobile") {
-      const el = page.locator(step.click).first();
-      await el.tap(t).catch(() => el.click(t));
-    } else if (step.click) await page.locator(step.click).first().click(t);
-    else if (step.hover) await page.locator(step.hover).first().hover(t);
-    else if (step.fill) await page.locator(step.fill[0]).first().fill(String(step.fill[1]), t);
-    else if (step.press) await page.keyboard.press(step.press);
-    else if (step.waitFor) await page.locator(step.waitFor).first().waitFor(t);
-    else if (step.wait) await page.waitForTimeout(Number(step.wait));
-    else throw new Error("unknown step");
+    await runOneStep(page, step, vpName);
   } catch (e) {
     await page.screenshot({ path: join(outDir, `FAILED-${name}.png`) }).catch(() => {});
     throw new Error(`shot "${name}" step ${JSON.stringify(step)} failed: ${e.message}`);
