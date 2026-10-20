@@ -219,7 +219,7 @@ describe("MITM page", () => {
   });
   afterEach(() => vi.unstubAllGlobals());
 
-  it("loads its data, labels the server fields and uses the danger token", async () => {
+  it("loads its data, labels the server fields and uses status tokens", async () => {
     const MitmPageClient = (await import("@/app/(dashboard)/dashboard/mitm/MitmPageClient"))
       .default;
     await act(async () => root.render(h(MitmPageClient)));
@@ -227,7 +227,7 @@ describe("MITM page", () => {
     expect(urls).toEqual(
       expect.arrayContaining(["/api/providers", "/api/keys", "/api/models/alias", "/api/settings"]),
     );
-    expect(container.querySelector(".text-danger-text")).not.toBeNull();
+    expect(container.querySelector(".text-warning-text")).not.toBeNull();
     expect(container.querySelector(".text-red-600")).toBeNull();
     for (const input of container.querySelectorAll("input[type=text]"))
       expect(labelOf(input), input.outerHTML).not.toBe("");

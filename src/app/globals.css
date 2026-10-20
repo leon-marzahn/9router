@@ -52,7 +52,7 @@
 
   --color-text: #1c1917;
   --color-text-main: var(--color-text);
-  --color-text-muted: #615a55;
+  --color-text-muted: #4f4a45;
   --color-text-subtle: #6b635e;
 
   /* Status — use via StatusDot / Tag, not ad hoc */

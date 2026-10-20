@@ -228,7 +228,7 @@ export default function MitmServerCard({ apiKeys, cloudEnabled, onStatusChange }
               <button
                 onClick={() => handleAction("stop")}
                 disabled={loading}
-                className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-red-500/30 bg-danger-soft px-4 py-2 text-xs font-medium text-red-500 transition-colors hover:bg-red-500/20 disabled:opacity-50 sm:w-auto sm:py-1.5"
+                className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-danger-border bg-danger-soft px-4 py-2 text-xs font-medium text-danger-text transition-colors hover:bg-danger/15 disabled:opacity-50 sm:w-auto sm:py-1.5"
               >
                 <span className="material-symbols-outlined text-[16px]">stop_circle</span>
                 Stop Server
