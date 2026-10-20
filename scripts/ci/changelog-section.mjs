@@ -21,7 +21,7 @@ export function changelogSection(changelog, version) {
   if (start === -1) return null;
   let end = lines.length;
   for (let i = start + 1; i < lines.length; i++) {
-    if (/^# /.test(lines[i])) {
+    if (lines[i].startsWith("# ")) {
       end = i;
       break;
     }

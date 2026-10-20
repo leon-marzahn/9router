@@ -88,7 +88,10 @@ function resolveCommit(git, masterRef, ref) {
 /** Already on HEAD, either itself or as a `cherry-pick -x` copy. */
 function isApplied(git, sha) {
   if (git.ok(["merge-base", "--is-ancestor", sha, "HEAD"])) return true;
-  return git.run(["log", "HEAD", "--format=%H", "-F", "--grep", `cherry picked from commit ${sha}`]) !== "";
+  return (
+    git.run(["log", "HEAD", "--format=%H", "-F", "--grep", `cherry picked from commit ${sha}`]) !==
+    ""
+  );
 }
 
 function guardCommits(git, masterRef, cwd) {

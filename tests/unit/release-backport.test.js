@@ -19,7 +19,11 @@ fs.writeFileSync("CHANGELOG.md", "# " + tag + " (2026-01-01)\\n\\n## Fixes\\n- f
 let dir;
 let repo;
 const git = (...args) =>
-  execFileSync("git", args, { cwd: repo, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+  execFileSync("git", args, {
+    cwd: repo,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  }).trim();
 const write = (file, content) => {
   fs.mkdirSync(path.dirname(path.join(repo, file)), { recursive: true });
   fs.writeFileSync(path.join(repo, file), content);
