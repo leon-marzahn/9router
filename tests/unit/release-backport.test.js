@@ -41,7 +41,7 @@ const version = () => JSON.parse(fs.readFileSync(path.join(repo, "package.json")
  * master: v100.0.0 -> fix(a) #5 -> guard #6 -> notes guard #7 -> v101.0.0 -> fix(b) #8
  *         -> conflict.txt edits #10, #11 (#11 conflicts on v100 without #10)
  */
-function buildRepo() {
+function buildRepo({ upstream = false } = {}) {
   git("init", "-q", "-b", "master");
   git("config", "user.email", "test@example.com");
   git("config", "user.name", "Test");
@@ -55,6 +55,10 @@ function buildRepo() {
     ".github/workflows/docker-publish.yml": "name: docker\n",
     ".github/workflows/release-notes.yml": "name: notes\n",
   });
+  // A fork branched off upstream: upstream's own "(#8)" is on master's first-parent line.
+  const upstreamSha = upstream
+    ? commit("feat: upstream change (#8)", { "upstream.txt": "u\n" })
+    : null;
   git("tag", "-a", "v100.0.0", "-m", "v100.0.0");
   commit("fix(a): first fix (#5)", { "a.txt": "a\n" });
   commit("ci(release): floating-tag guard (#6)", {
@@ -75,6 +79,7 @@ function buildRepo() {
   commit("fix(b): second fix (#8)", { "b.txt": "b\n" });
   commit("refactor: rewrite conflict (#10)", { "conflict.txt": "master1\n" });
   commit("fix(c): conflicting fix (#11)", { "conflict.txt": "master2\n" });
+  return upstreamSha;
 }
 
 beforeEach(() => {
@@ -244,6 +249,30 @@ describe("backport.mjs", () => {
       `cherry picked from commit ${ours}`,
     );
     expect(fs.existsSync(path.join(repo, "upstream.txt"))).toBe(false);
+  });
+
+  it("skips upstream commits the fork was branched from, using forkedFrom.commit", () => {
+    fs.rmSync(repo, { recursive: true, force: true });
+    fs.mkdirSync(repo);
+    const up = buildRepo({ upstream: true });
+    const ours = git("log", "--format=%H", "-1", "-F", "--grep", "fix(b): second fix (#8)");
+    expect(git("log", "--first-parent", "--format=%H", "master").split("\n")).toContain(up);
+    // No marker: both match, so it refuses instead of guessing.
+    expect(() => backport("100.0.1", ["#8"], { cwd: repo })).toThrow(
+      /Several commits[^]*upstream change/,
+    );
+    // A marker this clone lacks behaves the same.
+    commit("chore: unknown fork base", {
+      "package.json": '{\n  "version": "101.0.0",\n  "forkedFrom": { "commit": "deadbeef" }\n}\n',
+    });
+    expect(() => backport("100.0.1", ["#8"], { cwd: repo })).toThrow(/Several commits/);
+    commit("chore: record fork base", {
+      "package.json": `{\n  "version": "101.0.0",\n  "forkedFrom": { "commit": "${up.slice(0, 8)}" }\n}\n`,
+    });
+    backport("100.0.1", ["#8"], { cwd: repo });
+    expect(git("log", "-1", "--format=%b", "HEAD~1")).toContain(
+      `cherry picked from commit ${ours}`,
+    );
   });
 
   it("treats a patch-equivalent commit without a trailer as applied", () => {
