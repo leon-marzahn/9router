@@ -1,4 +1,33 @@
 
+# v100.7.0 (2026-10-20)
+
+## Features
+- **notifications**: Email delivery via SMTP or Resend (#103)
+- **budgets**: Per-key and global spend budgets with alerts (#104)
+- **customer**: Customer view of own usage, spend and budget by API key (#105)
+- **billing**: Per-key price plans with charge vs cost (#109)
+
+## Fixes
+- **usage**: Record usage for omitted stream, real stream usage, no reasoning double-charge (#111)
+- **stream**: Real client-facing usage, trailers and [DONE] on every stream path (#116)
+- Pipelines preview, Ollama responses, Gemini reasoning usage, budget provider names (#117)
+- **ui**: Clear the a11y smoke baseline (contrast tokens, labels, 40px tap targets) (#118)
+- Gemini key header, non-streaming thought parts, Live list node names (#119)
+- **logs**: Redact keys, tokens and cookies in request logs and debug output (#120)
+- **docker**: Copy the files the MITM process requires outside src/mitm (#121)
+- **mitm**: Never guess the port-443 owner on busybox; guard force-kill (#122)
+
+## Docs
+- **agents**: Add REVIEW.md for the reviewer agent (#106)
+- **agents**: List the local CI gate commands in REVIEW.md (#110)
+- **agents**: Slim CLAUDE.md, review before the PR, fix stale usage-location note (#113)
+
+## Build & CI
+- **lint**: Design-system rules for redesigned UI (#107)
+- **coverage**: Diff coverage and ratchet gates on PRs (#108)
+- **ui-smoke**: Browser smoke test of every dashboard route on PRs (#112)
+- **ui-smoke**: Check dialog/drawer states, PR-scoped parallel production-build smoke (#115)
+
 # v100.6.0 (2026-10-19)
 
 ## Features
