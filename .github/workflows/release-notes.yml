@@ -20,7 +20,47 @@ jobs:
         with:
           bun-version-file: package.json
 
+      # changelogithub picks its range from tags reachable from HEAD and creates the release
+      # without make_latest, so GitHub marks every new stable release "Latest". Pass the
+      # previous version explicitly (v100.7.1 diffs against v100.7.0, never v101.0.0) and
+      # hand "Latest" back to the highest stable release after a backport.
+      - name: Resolve release range
+        id: range
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          echo "previous=$(node scripts/ci/floating-tags.mjs previous "$TAG")" >> "$GITHUB_OUTPUT"
+          echo "highest=$(node scripts/ci/floating-tags.mjs highest)" >> "$GITHUB_OUTPUT"
+
       - name: Write GitHub release notes from Conventional Commits
-        run: bunx changelogithub@15.0.5
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+          PREVIOUS: ${{ steps.range.outputs.previous }}
+        run: |
+          set -euo pipefail
+          if [[ -n "$PREVIOUS" ]]; then
+            bunx changelogithub@15.0.5 --from "$PREVIOUS" --to "$TAG"
+          else
+            bunx changelogithub@15.0.5 --to "$TAG"
+          fi
+
+      - name: Keep "Latest" on the highest stable release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+          HIGHEST: ${{ steps.range.outputs.highest }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$HIGHEST" || "$HIGHEST" == "$TAG" ]]; then
+            echo "${TAG} is the highest stable release (or a prerelease with none yet); nothing to change."
+            exit 0
+          fi
+          if [[ "$TAG" == *-* ]]; then
+            echo "${TAG} is a prerelease; GitHub never marks those Latest."
+            exit 0
+          fi
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --latest=false
+          gh release edit "$HIGHEST" --repo "$GITHUB_REPOSITORY" --latest
+          echo "::notice title=Backport release::${TAG} is not the highest stable release; Latest stays on ${HIGHEST}."
