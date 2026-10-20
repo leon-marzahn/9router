@@ -249,6 +249,30 @@ describe("Gemini native v1beta endpoint", () => {
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
+  it("reports reasoning once in usageMetadata (candidates + thoughts = completion)", async () => {
+    const usage = { prompt_tokens: 10, completion_tokens: 30, total_tokens: 40, completion_tokens_details: { reasoning_tokens: 20 } };
+    const expected = { promptTokenCount: 10, candidatesTokenCount: 10, thoughtsTokenCount: 20, totalTokenCount: 40 };
+    const body = { contents: [{ parts: [{ text: "hello" }] }] };
+
+    mocks.handleChat.mockResolvedValueOnce(
+      Response.json({ choices: [{ message: { role: "assistant", content: "hi" }, finish_reason: "stop" }], usage })
+    );
+    const json = await POST(makeGeminiRequest("gemini-2.5-flash:generateContent", body), {
+      params: Promise.resolve({ path: ["gemini-2.5-flash:generateContent"] }),
+    });
+    expect((await json.json()).usageMetadata).toEqual(expected);
+
+    const chunk = { choices: [{ delta: { content: "hi" }, finish_reason: "stop" }], usage };
+    mocks.handleChat.mockResolvedValueOnce(
+      new Response(`data: ${JSON.stringify(chunk)}\n\ndata: [DONE]\n\n`, { headers: { "Content-Type": "text/event-stream" } })
+    );
+    const stream = await POST(makeGeminiRequest("gemini-2.5-flash:streamGenerateContent?alt=sse", body), {
+      params: Promise.resolve({ path: ["gemini-2.5-flash:streamGenerateContent"] }),
+    });
+    const events = (await stream.text()).split(/\r?\n/).filter((l) => l.startsWith("data: ")).map((l) => JSON.parse(l.slice(6)));
+    expect(events.find((e) => e.usageMetadata).usageMetadata).toEqual(expected);
+  });
+
   it("does not hijack provider-prefixed non-Gemini audio requests", async () => {
     await POST(makeGeminiRequest("openai/gpt-4o-mini-tts:generateContent", audioBody()), {
       params: Promise.resolve({ path: ["openai", "gpt-4o-mini-tts:generateContent"] }),

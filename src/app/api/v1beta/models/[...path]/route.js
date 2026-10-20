@@ -9,6 +9,7 @@ import { getSettings } from "@/lib/localDb";
 import { PROVIDER_MODELS } from "@/shared/constants/models";
 import { GEMINI_NATIVE_TTS_FETCH_TIMEOUT_MS } from "open-sse/config/runtimeConfig.js";
 import { initTranslators } from "open-sse/translator/index.js";
+import { toGeminiUsageMetadata } from "open-sse/translator/concerns/usage.js";
 import { getKeyAccessContext, enforceKeyAccessResolved } from "@/sse/services/keyAccess.js";
 import { enforceBudget } from "@/sse/services/budget.js";
 
@@ -495,16 +496,7 @@ function transformOpenAISSEToGeminiSSE(upstreamResponse, model) {
 
         // Attach usage + modelVersion on the final chunk (when finish_reason is set)
         if (choice.finish_reason && parsed.usage) {
-          geminiChunk.usageMetadata = {
-            promptTokenCount: parsed.usage.prompt_tokens || 0,
-            candidatesTokenCount: parsed.usage.completion_tokens || 0,
-            totalTokenCount: parsed.usage.total_tokens || 0,
-          };
-          const reasoningTokens =
-            parsed.usage.completion_tokens_details?.reasoning_tokens;
-          if (reasoningTokens) {
-            geminiChunk.usageMetadata.thoughtsTokenCount = reasoningTokens;
-          }
+          geminiChunk.usageMetadata = toGeminiUsageMetadata(parsed.usage);
           geminiChunk.modelVersion = parsed.model || model;
         }
 
@@ -578,15 +570,7 @@ async function convertOpenAIResponseToGemini(response, model) {
   };
 
   if (body.usage) {
-    geminiResponse.usageMetadata = {
-      promptTokenCount: body.usage.prompt_tokens || 0,
-      candidatesTokenCount: body.usage.completion_tokens || 0,
-      totalTokenCount: body.usage.total_tokens || 0,
-    };
-    const reasoningTokens = body.usage.completion_tokens_details?.reasoning_tokens;
-    if (reasoningTokens) {
-      geminiResponse.usageMetadata.thoughtsTokenCount = reasoningTokens;
-    }
+    geminiResponse.usageMetadata = toGeminiUsageMetadata(body.usage);
   }
 
   return Response.json(geminiResponse, {

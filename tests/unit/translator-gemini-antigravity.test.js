@@ -230,7 +230,7 @@ describe("openaiToAntigravityResponse (streaming)", () => {
     openaiToAntigravityResponse({ choices: [{ delta: { tool_calls: [{ index: 1, function: { name: "bad", arguments: "{oops" } }] } }] }, state);
     const out = openaiToAntigravityResponse({
       choices: [{ delta: {}, finish_reason: OPENAI_FINISH.TOOL_CALLS }],
-      usage: { prompt_tokens: 1, completion_tokens: 2, total_tokens: 3, completion_tokens_details: { reasoning_tokens: 4 }, prompt_tokens_details: { cached_tokens: 5 } },
+      usage: { prompt_tokens: 1, completion_tokens: 6, total_tokens: 7, completion_tokens_details: { reasoning_tokens: 4 }, prompt_tokens_details: { cached_tokens: 5 } },
     }, state);
     const cand = out.response.candidates[0];
     expect(cand.content.parts).toEqual([
@@ -239,7 +239,8 @@ describe("openaiToAntigravityResponse (streaming)", () => {
     ]);
     expect(cand.finishReason).toBe(GEMINI_FINISH.STOP);
     expect(out.response.usageMetadata).toEqual({
-      promptTokenCount: 1, candidatesTokenCount: 2, totalTokenCount: 3, thoughtsTokenCount: 4, cachedContentTokenCount: 5,
+      // completion (6) includes reasoning (4): candidates + thoughts = completion.
+      promptTokenCount: 1, candidatesTokenCount: 2, totalTokenCount: 7, thoughtsTokenCount: 4, cachedContentTokenCount: 5,
     });
   });
 
