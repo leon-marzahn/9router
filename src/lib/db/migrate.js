@@ -15,6 +15,7 @@ import {
   pruneOldBackups,
   requiredBackup,
 } from "./backup.js";
+import { describeBackup } from "./pinnedBackups.js";
 import {
   KEY_ID_META,
   loadCredentialsKey,
@@ -37,9 +38,9 @@ export class BackupRequired extends Error {
   }
 }
 
-function requiredCredentialsBackup(adapter, label) {
+function requiredCredentialsBackup(adapter, labels) {
   try {
-    return requiredBackup(adapter, label);
+    return requiredBackup(adapter, labels);
   } catch (e) {
     const msg =
       `[DB][migrate] ${e.message}. Refusing to encrypt stored credentials without a verified backup; ` +
@@ -49,9 +50,9 @@ function requiredCredentialsBackup(adapter, label) {
   }
 }
 
-function requiredUsageBackup(adapter, label) {
+function requiredUsageBackup(adapter, labels) {
   try {
-    return requiredBackup(adapter, label);
+    return requiredBackup(adapter, labels);
   } catch (e) {
     const msg =
       `[DB][migrate] ${e.message}. Refusing to rewrite usage API keys without a verified backup; ` +
@@ -303,22 +304,32 @@ export async function runMigrationOnce(adapter) {
   // pinned against pruning). If it can't be taken, the boot stops here, untouched.
   const usageRefsPending =
     !fresh && (parseInt(getMetaSync(adapter, "schemaVersion", "0"), 10) || 0) < USAGE_KEY_REFS_VERSION;
-  let backedUp = false;
-  if (usageRefsPending) {
-    const dir = requiredUsageBackup(adapter, PRE_USAGE_KEY_REFS);
-    pruneOldBackups();
-    backedUp = true;
-    console.log(`[DB][migrate] pre-usage-key-refs backup (pinned, verified): ${dir}`);
-  }
   // Migration 006 / the heal encrypt plaintext credentials (or re-encrypt them under a new
   // key) one way: a verified backup first. The plaintext one is pinned and holds the
   // credentials unencrypted.
-  if (credentialsPending) {
-    const label = credScan.plaintext > 0 ? PRE_ENCRYPT_CREDENTIALS : "pre-credentials-rekey";
-    const dir = requiredCredentialsBackup(adapter, label);
+  // Every pinned step pending in this boot shares ONE backup of the starting DB (a v100 →
+  // v102 upgrade runs 005 and 006 together), named and described by its schema.
+  const pinnedSteps = [
+    ...(usageRefsPending ? [PRE_USAGE_KEY_REFS] : []),
+    ...(credentialsPending && credScan.plaintext > 0 ? [PRE_ENCRYPT_CREDENTIALS] : []),
+  ];
+  let backedUp = false;
+  if (pinnedSteps.length) {
+    const dir = credentialsPending
+      ? requiredCredentialsBackup(adapter, pinnedSteps)
+      : requiredUsageBackup(adapter, pinnedSteps);
     pruneOldBackups();
     backedUp = true;
-    console.log(`[DB][migrate] ${label} backup (verified${label === PRE_ENCRYPT_CREDENTIALS ? ", pinned, holds plaintext credentials" : ""}): ${dir}`);
+    const meta = describeBackup(dir);
+    console.log(
+      `[DB][migrate] pinned backup before ${meta.precedes.join(" + ")} (verified, schema ${meta.schemaVersion}, ` +
+        `restores ${meta.restoresTo}${pinnedSteps.includes(PRE_ENCRYPT_CREDENTIALS) ? ", holds plaintext credentials" : ""}): ${dir}`,
+    );
+  } else if (credentialsPending) {
+    const dir = requiredCredentialsBackup(adapter, "pre-credentials-rekey");
+    pruneOldBackups();
+    backedUp = true;
+    console.log(`[DB][migrate] pre-credentials-rekey backup (verified): ${dir}`);
   }
   if (!backedUp && schemaChanging) {
     try {
@@ -416,7 +427,7 @@ export async function runMigrationOnce(adapter) {
   if (restorePoints.length && scanCredentials(adapter).keyIds.size) {
     console.warn(
       `[DB][migrate] ${restorePoints.length} pinned restore point(s) for older versions hold provider credentials in PLAINTEXT ` +
-        `(owner-only files): ${restorePoints.join(", ")}. Once this version is known good, list or remove them with: vp run purge-plaintext-backups`,
+        `(owner-only files): ${restorePoints.map((d) => `${d} (restores ${describeBackup(d).restoresTo})`).join(", ")}. Once this version is known good, list or remove them with: vp run purge-plaintext-backups`,
     );
   }
 
