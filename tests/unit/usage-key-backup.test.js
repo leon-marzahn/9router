@@ -90,7 +90,7 @@ describe("pre-usage-key-refs backup", () => {
     const pinned = backups().filter(isPinnedName);
     expect(pinned).toHaveLength(1);
     expect(rawRowsInBackup(db, pinned[0])).toBe(1);
-    expect(db.get("SELECT value FROM _meta WHERE key = 'schemaVersion'").value).toBe("5");
+    expect(db.get("SELECT value FROM _meta WHERE key = 'schemaVersion'").value).toBe("6");
   });
 
   it("lives outside db/backups and survives pruning, ours and an older release's", async () => {

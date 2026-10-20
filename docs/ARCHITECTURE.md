@@ -542,7 +542,7 @@ Runtime visibility sources:
 - JWT secret (`JWT_SECRET`) secures dashboard session cookie verification/signing
 - Initial password fallback (`INITIAL_PASSWORD`, default `123456`) must be overridden in real deployments
 - API key HMAC secret (`API_KEY_SECRET`) secures generated local API key format
-- Provider secrets (API keys/tokens) are persisted in local DB and should be protected at filesystem level
+- Provider secrets (API keys, OAuth tokens, cookies, client secrets, proxy URLs, notification/SSO secrets) are encrypted at rest with AES-256-GCM (`src/lib/credentials/`, migration 006), keyed by `CREDENTIALS_KEY` or the generated `DATA_DIR/credentials.key`. Back the key up with the DB; a missing or wrong key stops the boot. The pinned `db/pinned-backups/pre-encrypt-credentials-*` backup holds them in plaintext. Client API keys (`apiKeys.key`) are still stored as-is.
 - Cloud sync endpoints rely on API key auth + machine id semantics
 
 ## Environment and Runtime Matrix
@@ -552,6 +552,7 @@ Environment variables actively used by code:
 - App/auth: `JWT_SECRET`, `INITIAL_PASSWORD`
 - Storage: `DATA_DIR`
 - Security hashing: `API_KEY_SECRET`, `MACHINE_ID_SALT`
+- Credentials encryption: `CREDENTIALS_KEY`, `CREDENTIALS_KEY_PREVIOUS` (rotation)
 - Logging: `ENABLE_REQUEST_LOGS`
 - Sync/cloud URLing: `NEXT_PUBLIC_BASE_URL`, `NEXT_PUBLIC_CLOUD_URL`
 - Outbound proxy: `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, `NO_PROXY` and lowercase variants

@@ -18,7 +18,11 @@ const KEEP_BACKUPS = 3;
 // They live in PINNED_BACKUPS_DIR (db/pinned-backups), outside db/backups, because older
 // releases prune every folder in db/backups and a downgrade would delete them.
 export const PRE_USAGE_KEY_REFS = "pre-usage-key-refs";
-const PINNED_BACKUP_LABELS = [PRE_USAGE_KEY_REFS];
+// Holds the provider credentials in PLAINTEXT: the last copy before migration 006 (or a
+// heal after a downgrade) encrypted them. Treat it like the credentials themselves and
+// delete it once the encrypted install is known good.
+export const PRE_ENCRYPT_CREDENTIALS = "pre-encrypt-credentials";
+const PINNED_BACKUP_LABELS = [PRE_USAGE_KEY_REFS, PRE_ENCRYPT_CREDENTIALS];
 const isPinned = (name) => PINNED_BACKUP_LABELS.some((l) => name.startsWith(`${l}-`));
 
 // Tables excluded from safety backups (large, non-critical, reproducible).
@@ -80,6 +84,19 @@ export function pruneOldBackups() {
   for (const old of entries.slice(KEEP_BACKUPS)) {
     try { fs.rmSync(old.full, { recursive: true, force: true }); } catch {}
   }
+}
+
+/** Removes unpinned backups made before `beforeMs` (they hold unencrypted credentials). Returns the count. */
+export function purgeUnpinnedBackups(beforeMs) {
+  if (!fs.existsSync(BACKUPS_DIR)) return 0;
+  let n = 0;
+  for (const e of fs.readdirSync(BACKUPS_DIR, { withFileTypes: true })) {
+    if (!e.isDirectory() || isPinned(e.name)) continue;
+    const full = path.join(BACKUPS_DIR, e.name);
+    if (fs.statSync(full).mtimeMs >= beforeMs) continue;
+    try { fs.rmSync(full, { recursive: true, force: true }); n++; } catch {}
+  }
+  return n;
 }
 
 /**

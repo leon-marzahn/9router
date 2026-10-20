@@ -5,13 +5,24 @@ import { TABLES, buildCreateTableSql, SCHEMA_VERSION } from "./schema.js";
 import { MIGRATIONS, latestVersion } from "./migrations/index.js";
 import { getMetaSync, setMetaSync } from "./helpers/metaStore.js";
 import {
+  PRE_ENCRYPT_CREDENTIALS,
   PRE_USAGE_KEY_REFS,
   backupDbLite,
   backupFile,
   makeBackupDir,
   pruneOldBackups,
+  purgeUnpinnedBackups,
   requiredBackup,
 } from "./backup.js";
+import {
+  KEY_ID_META,
+  loadCredentialsKey,
+  needsCredentialsScrub,
+  needsCredentialsSeal,
+  scanCredentials,
+  scrubCredentials,
+  sealAllCredentials,
+} from "./helpers/credentialsSeal.js";
 
 const USAGE_KEY_REFS_VERSION = 5;
 
@@ -20,6 +31,18 @@ export class BackupRequired extends Error {
   constructor(message) {
     super(message);
     this.name = "BackupRequired";
+  }
+}
+
+function requiredCredentialsBackup(adapter, label) {
+  try {
+    return requiredBackup(adapter, label);
+  } catch (e) {
+    const msg =
+      `[DB][migrate] ${e.message}. Refusing to encrypt stored credentials without a verified backup; ` +
+      `nothing was changed. Free disk space / fix permissions on DATA_DIR/db and restart.`;
+    console.error(msg);
+    throw new BackupRequired(msg);
   }
 }
 
@@ -246,6 +269,7 @@ function importLegacyDetails(adapter, data) {
 export async function runMigrationOnce(adapter) {
   if (_migratedAdapters.has(adapter)) return;
   _migratedAdapters.add(adapter);
+  const bootStartedMs = Date.now();
 
   // Capture freshness BEFORE migrations stamp _meta (otherwise we'd misclassify
   // a brand-new DB as non-fresh once schemaVersion is written).
@@ -261,6 +285,11 @@ export async function runMigrationOnce(adapter) {
   // Detect a pending schema change via the central SCHEMA_VERSION const.
   // A lightweight backup is taken BEFORE any schema mutation below.
   const storedSchemaVer = parseInt(getMetaSync(adapter, "backupSchemaVersion", "0"), 10) || 0;
+
+  // Credentials key (src/lib/credentials): fails closed before anything is written when the
+  // DB holds envelopes and the key is missing or wrong. Generated only for a DB without any.
+  const { ring, scan: credScan } = loadCredentialsKey(adapter);
+  const credentialsPending = !fresh && needsCredentialsSeal(adapter, ring, credScan);
   const schemaChanging = !fresh && storedSchemaVer < SCHEMA_VERSION;
   // Migration 005 rewrites usage rows one way: its backup is required (taken, verified,
   // pinned against pruning). If it can't be taken, the boot stops here, untouched.
@@ -272,7 +301,18 @@ export async function runMigrationOnce(adapter) {
     pruneOldBackups();
     backedUp = true;
     console.log(`[DB][migrate] pre-usage-key-refs backup (pinned, verified): ${dir}`);
-  } else if (schemaChanging) {
+  }
+  // Migration 006 / the heal encrypt plaintext credentials (or re-encrypt them under a new
+  // key) one way: a verified backup first. The plaintext one is pinned and holds the
+  // credentials unencrypted.
+  if (credentialsPending) {
+    const label = credScan.plaintext > 0 ? PRE_ENCRYPT_CREDENTIALS : "pre-credentials-rekey";
+    const dir = requiredCredentialsBackup(adapter, label);
+    pruneOldBackups();
+    backedUp = true;
+    console.log(`[DB][migrate] ${label} backup (verified${label === PRE_ENCRYPT_CREDENTIALS ? ", pinned, holds plaintext credentials" : ""}): ${dir}`);
+  }
+  if (!backedUp && schemaChanging) {
     try {
       const backupDir = makeBackupDir(`schema-${storedSchemaVer}-to-${SCHEMA_VERSION}`);
       backupDbLite(adapter, backupDir);
@@ -323,6 +363,36 @@ export async function runMigrationOnce(adapter) {
     }
   }
 
+  // Credentials are stored encrypted (migration 006). Plaintext written by an older version
+  // after a downgrade, or values under a rotated-out key, are sealed again here, after the
+  // backup above. A value that fails authentication throws: the boot stops, nothing changes.
+  if (needsCredentialsSeal(adapter, ring)) {
+    if (!backedUp) {
+      const dir = requiredCredentialsBackup(adapter, PRE_ENCRYPT_CREDENTIALS);
+      pruneOldBackups();
+      backedUp = true;
+      console.log(`[DB][migrate] pre-credentials-heal backup (verified, pinned): ${dir}`);
+    }
+    const n = adapter.transaction(() => sealAllCredentials(adapter, ring));
+    console.log(`[DB][migrate] credentials encrypted (${n ?? 0} rows)`);
+  }
+  if (scanCredentials(adapter).keyIds.size && getMetaSync(adapter, KEY_ID_META, null) !== ring.currentId) {
+    setMetaSync(adapter, KEY_ID_META, ring.currentId);
+  }
+  // The rewrite leaves plaintext in free pages and the WAL until a VACUUM; the seal sets
+  // credentialsScrubbed = 0 in its transaction and it turns 1 only after the VACUUM, so a
+  // crash in between retries. Older unpinned backups hold the same plaintext: removed too
+  // (the pinned pre-encrypt-credentials backup is the newer copy).
+  if (needsCredentialsScrub(adapter)) {
+    try {
+      scrubCredentials(adapter);
+      const removed = purgeUnpinnedBackups(bootStartedMs);
+      console.log(`[DB][migrate] vacuumed after encrypting credentials; removed ${removed} older unencrypted backup(s)`);
+    } catch (e) {
+      console.warn(`[DB][migrate] vacuum after encrypting credentials failed (retried next boot): ${e.message}`);
+    }
+  }
+
   // Stamp the schema version we just reached so future boots skip re-backup.
   setMetaSync(adapter, "backupSchemaVersion", SCHEMA_VERSION);
 
@@ -346,6 +416,7 @@ export async function runMigrationOnce(adapter) {
         importLegacyDisabled(adapter, legacyDisabled);
         importLegacyDetails(adapter, legacyDetails);
         backfillUsageKeyRefs(adapter, { allRaw: true });
+        sealAllCredentials(adapter, ring);
         setMetaSync(adapter, "appVersion", getAppVersion());
         setMetaSync(adapter, "backupSchemaVersion", SCHEMA_VERSION);
         setMetaSync(adapter, "migratedAt", new Date().toISOString());
@@ -359,6 +430,8 @@ export async function runMigrationOnce(adapter) {
     }
 
     try { fs.writeFileSync(MIGRATED_MARKER, new Date().toISOString()); } catch {}
+    try { if (needsCredentialsScrub(adapter)) scrubCredentials(adapter); } catch {}
+    console.warn("[DB][migrate] the legacy JSON files in DATA_DIR still hold provider credentials in plaintext; delete them once the import is checked");
     pruneOldBackups();
     console.log(`[DB][migrate] JSON → SQLite in ${Date.now() - t0}ms | legacy JSON kept at DATA_DIR | backup: ${backupDir}`);
     return;
