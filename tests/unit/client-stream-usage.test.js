@@ -57,6 +57,24 @@ const claudeEvents = (text) =>
 
 afterEach(() => vi.useRealTimers());
 
+describe("OpenAI client, passthrough stream", () => {
+  it("folds an unrequested usage trailer into the finish chunk and drops it", async () => {
+    // No stream_options sent upstream (strict node), but the upstream sends a trailer anyway.
+    const s = drive(createPassthroughStreamWithLogger("test", null, "m", null, body, null, null, { awaitTrailer: true, dropTrailer: true }));
+    s.send(contentChunk);
+    expect(await s.readUntil((t) => t.includes("Hello"))).toContain("Hello");
+    s.send(finishChunk + trailer + "data: [DONE]\n\n");
+    s.end();
+    const chunks = (await s.readAll())
+      .split("\n")
+      .filter((l) => l.startsWith("data: {"))
+      .map((l) => JSON.parse(l.slice(6)));
+    expect(chunks.filter((c) => c.usage && !c.choices.length)).toHaveLength(0);
+    const finish = chunks.find((c) => c.choices[0]?.finish_reason);
+    expect(finish.usage).toMatchObject({ prompt_tokens: USAGE.prompt_tokens + BUF, completion_tokens: USAGE.completion_tokens });
+  });
+});
+
 describe("JSON answer replayed as an OpenAI stream", () => {
   const json = { id: "c1", object: "chat.completion", created: 1, model: "m", choices: [{ index: 0, message: { role: "assistant", content: "Hi" }, finish_reason: "stop" }], usage: { prompt_tokens: 3234, completion_tokens: 567, total_tokens: 3801 } };
   const trailers = (text) =>

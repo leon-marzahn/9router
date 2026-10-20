@@ -242,7 +242,7 @@ export async function handleChatCore({ traceAttempt = null, body, modelInfo, cre
   syncUpstreamStreamFlag(translatedBody, passthrough ? sourceFormat : targetFormat, stream);
 
   // Real streaming usage instead of an estimate (OpenAI-format upstreams).
-  let streamUsageInjected = requestStreamUsage(translatedBody, provider, passthrough ? sourceFormat : targetFormat, stream, credentials);
+  const streamUsageInjected = requestStreamUsage(translatedBody, provider, passthrough ? sourceFormat : targetFormat, stream, credentials);
 
   // Tool normalization: MCP-equivalent built-in dedup (Claude clients) + same-name
   // dedup for DeepSeek models (upstream rejects duplicate tool names on all endpoints).
@@ -509,7 +509,6 @@ export async function handleChatCore({ traceAttempt = null, body, modelInfo, cre
   if (streamUsageInjected && await isStreamUsageRejection(providerResponse)) {
     rememberStreamUsageRejected(provider, credentials);
     delete translatedBody.stream_options;
-    streamUsageInjected = false;
     log?.warn?.("STREAM", `${provider}/${model} rejected stream_options; retrying without it (remembered for this node)`);
     try {
       const retry = await executor.execute({
@@ -527,9 +526,14 @@ export async function handleChatCore({ traceAttempt = null, body, modelInfo, cre
     }
   }
 
+  // Usage on an OpenAI passthrough stream is gateway-managed whether or not the
+  // upstream accepted stream_options (a strict upstream rejects the field, and
+  // some send the trailer unasked): hold the finish chunk for a usage trailer
+  // ([DONE] or a bounded timer releases it) and forward the trailer only to a
+  // client that asked for it.
   const streamUsage = {
-    awaitTrailer: stream && translatedBody?.stream_options?.include_usage === true,
-    dropTrailer: streamUsageInjected && !clientRequestedStreamUsage(body),
+    awaitTrailer: stream,
+    dropTrailer: !clientRequestedStreamUsage(body),
   };
 
   // Provider returned error

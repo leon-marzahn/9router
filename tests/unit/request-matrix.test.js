@@ -484,13 +484,6 @@ const KNOWN_BROKEN = {
   "openai | resp | stream=true | accept=application/json | include_usage": RESP_NO_DONE_NO_TRAILER,
   "openai | resp | stream=true | accept=text/event-stream | include_usage": RESP_NO_DONE_NO_TRAILER,
   "openai | resp | stream=true | accept=application/json, text/event-stream | include_usage": RESP_NO_DONE_NO_TRAILER,
-  "openai | strict | stream=omitted | accept=text/event-stream": STRICT_RETRY_USAGE,
-  "openai | strict | stream=true | accept=none": STRICT_RETRY_USAGE,
-  "openai | strict | stream=true | accept=application/json": STRICT_RETRY_USAGE,
-  "openai | strict | stream=true | accept=text/event-stream": STRICT_RETRY_USAGE,
-  "openai | strict | stream=true | accept=application/json, text/event-stream": STRICT_RETRY_USAGE,
-  "fb-strict | openai | stream=omitted | accept=text/event-stream": STRICT_RETRY_USAGE,
-  "fb-strict | openai | stream=true | accept=none": STRICT_RETRY_USAGE,
 };
 
 /** Registers a cell: known-broken checks may fail, and must still be failing. */
