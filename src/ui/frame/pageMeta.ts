@@ -34,7 +34,7 @@ const TITLES: [string, string][] = [
   ["/dashboard/translator", "Translator"],
   ["/dashboard/console-log", "Console Log"],
   ["/dashboard/request-pipelines", "Request Pipelines"],
-  ["/dashboard/basic-chat", "Chat"],
+  ["/dashboard/basic-chat", "Playground"],
   ["/dashboard/pxpipe", "PXPIPE"],
 ];
 

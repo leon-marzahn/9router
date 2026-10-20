@@ -49,6 +49,8 @@ export const NAV: NavGroup[] = [
       { href: "/dashboard/cli-tools", label: "CLI Tools", icon: "terminal" },
       { href: "/dashboard/proxy-pools", label: "Proxy Pools", icon: "lan" },
       { href: "/dashboard/skills", label: "Skills", icon: "extension" },
+      { href: "/dashboard/basic-chat", label: "Playground", icon: "chat" },
+      { href: "/dashboard/pxpipe", label: "PXPIPE", icon: "image" },
     ],
   },
 ];
