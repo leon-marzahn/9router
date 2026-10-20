@@ -1,5 +1,6 @@
 "use client";
 
+import { useId } from "react";
 import { cn } from "@/ui/cn";
 
 export default function Select({
@@ -16,21 +17,24 @@ export default function Select({
   selectClassName,
   ...props
 }) {
+  const autoId = useId();
+  const id = props.id ?? autoId;
   return (
     <div className={cn("flex flex-col gap-1.5", className)}>
       {label && (
-        <label className="text-xs font-medium text-text">
+        <label htmlFor={id} className="text-xs font-medium text-text">
           {label}
           {required && <span className="ml-0.5 text-danger-text">*</span>}
         </label>
       )}
       <div className="relative">
         <select
+          id={id}
           value={value}
           onChange={onChange}
           disabled={disabled}
           className={cn(
-            "h-9 w-full appearance-none rounded-lg border border-border-strong bg-surface pl-3 pr-9 text-[16px] text-text outline-none transition-colors sm:text-[13px] dark:border-border",
+            "h-9 max-md:h-10 w-full appearance-none rounded-lg border border-border-strong bg-surface pl-3 pr-9 text-[16px] text-text outline-none transition-colors sm:text-[13px] dark:border-border",
             "focus:border-accent focus:shadow-focus disabled:cursor-not-allowed disabled:opacity-50",
             error && "border-danger focus:border-danger",
             selectClassName,

@@ -89,7 +89,7 @@ export default function PricingSettingsPage() {
           <div className="text-text-muted text-sm uppercase font-semibold">
             Status
           </div>
-          <div className="text-2xl font-bold mt-1 text-success">
+          <div className="text-2xl font-bold mt-1 text-success-text">
             {loading ? "..." : "Active"}
           </div>
         </Card>

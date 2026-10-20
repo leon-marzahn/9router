@@ -21,6 +21,7 @@ export function CodeBlock({
   className,
   preClassName,
   preRef,
+  label,
 }: {
   title?: ReactNode;
   meta?: ReactNode;
@@ -37,6 +38,8 @@ export function CodeBlock({
   /** Overrides for the `<pre>` (max height, ref-free tweaks). */
   preClassName?: string;
   preRef?: Ref<HTMLPreElement>;
+  /** Accessible name of the scrollable body; defaults to a string `title`. */
+  label?: string;
 }) {
   const header = title != null || meta != null || actions != null || copy != null;
   return (
@@ -56,8 +59,11 @@ export function CodeBlock({
         {text != null && (
           <pre
             ref={preRef}
+            // Scrollable, so it must be reachable by keyboard (axe scrollable-region-focusable).
+            tabIndex={0}
+            aria-label={label ?? (typeof title === "string" ? title : "Code")}
             className={cn(
-              "overflow-auto px-4 py-3 font-mono text-[12px] leading-relaxed",
+              "overflow-auto px-4 py-3 font-mono text-[12px] leading-relaxed focus-visible:outline-none focus-visible:shadow-focus",
               wrap && "whitespace-pre-wrap break-all",
               muted ? "text-text-muted" : "text-text",
               children != null && "border-t border-border",

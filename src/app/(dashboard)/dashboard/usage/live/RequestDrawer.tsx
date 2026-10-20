@@ -197,7 +197,7 @@ function Section({
           type="button"
           onClick={() => setOpen(!open)}
           aria-expanded={open}
-          className="flex items-center gap-2 text-left"
+          className="flex items-center gap-2 text-left max-md:min-h-10"
         >
           <Icon
             name={open ? "expand_more" : "chevron_right"}
@@ -218,6 +218,7 @@ function Section({
       copy={empty ? undefined : text}
       text={open ? (empty ? "Not captured." : text) : undefined}
       muted={empty}
+      label={title}
       preClassName="max-h-80 text-[11px]"
       className="rounded-xl"
     />

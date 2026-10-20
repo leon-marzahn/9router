@@ -312,7 +312,10 @@ function Feed({
           {!logged && live.length > 0 && (
             <p className="border-t border-border px-4 py-3 text-xs text-text-muted">
               Turn on request logging in{" "}
-              <Link href="/dashboard/profile" className="text-accent-text hover:underline">
+              <Link
+                href="/dashboard/profile"
+                className="text-accent-text underline underline-offset-2"
+              >
                 Settings
               </Link>{" "}
               to capture request bodies and see credits, cost and latency per request.

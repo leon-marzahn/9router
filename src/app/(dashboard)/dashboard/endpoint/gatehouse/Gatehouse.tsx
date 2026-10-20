@@ -127,7 +127,7 @@ export function Gatehouse() {
                       {!g.ok && (
                         <Link
                           href={g.fix}
-                          className="ml-auto text-[12px] text-accent-text hover:underline"
+                          className="ml-auto text-[12px] text-accent-text hover:underline max-md:inline-flex max-md:min-h-10 max-md:min-w-10 max-md:items-center max-md:justify-center max-md:-my-2.5"
                         >
                           Fix
                         </Link>

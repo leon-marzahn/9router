@@ -73,7 +73,7 @@ export function ListGroup({
           tone === "danger" ? "text-danger-text" : "text-text-subtle",
         )}
       >
-        {title} {count != null && <span className="font-normal opacity-70">{count}</span>}
+        {title} {count != null && <span className="font-normal">{count}</span>}
       </div>
       {children}
     </div>
@@ -103,7 +103,7 @@ export function ListAddRow({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        "flex w-full items-center gap-2 rounded-lg border border-dashed border-border px-2.5 py-2 text-left text-[12px] text-text-muted transition-colors",
+        "flex w-full items-center gap-2 rounded-lg border border-dashed border-border px-2.5 py-2 text-left text-[12px] text-text-muted transition-colors max-md:min-h-10",
         "hover:bg-surface-2 hover:text-text focus-visible:outline-none focus-visible:shadow-focus",
         "disabled:pointer-events-none disabled:opacity-50",
         className,

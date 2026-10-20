@@ -190,13 +190,13 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
   const hasProxyPools = (proxyPools || []).length > 0;
 
   return (
-    <div className={cn("group flex min-w-0 items-center gap-3 px-3 py-2.5", connection.isActive === false && "opacity-55")}>
+    <div className={cn("group flex min-w-0 items-center gap-3 px-3 py-2.5 max-md:flex-wrap max-md:gap-y-1", connection.isActive === false && "opacity-55")}>
       {/* Priority */}
-      <div className="flex shrink-0 flex-col text-text-subtle">
-        <button type="button" onClick={onMoveUp} disabled={isFirst} aria-label="Move up" className="rounded leading-none hover:text-text disabled:opacity-25">
+      <div className="flex shrink-0 flex-col text-text-subtle max-md:-my-2 max-md:-ml-3 max-md:-mr-2">
+        <button type="button" onClick={onMoveUp} disabled={isFirst} aria-label="Move up" className="rounded leading-none hover:text-text disabled:opacity-25 max-md:inline-flex max-md:size-10 max-md:items-center max-md:justify-center">
           <Icon name="keyboard_arrow_up" size={16} />
         </button>
-        <button type="button" onClick={onMoveDown} disabled={isLast} aria-label="Move down" className="rounded leading-none hover:text-text disabled:opacity-25">
+        <button type="button" onClick={onMoveDown} disabled={isLast} aria-label="Move down" className="rounded leading-none hover:text-text disabled:opacity-25 max-md:inline-flex max-md:size-10 max-md:items-center max-md:justify-center">
           <Icon name="keyboard_arrow_down" size={16} />
         </button>
       </div>
@@ -232,7 +232,7 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
         </div>
       </div>
 
-      <div className="flex shrink-0 items-center gap-0.5 transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:focus-within:opacity-100">
+      <div className="flex shrink-0 items-center gap-0.5 max-md:order-last max-md:-mb-1 max-md:basis-full max-md:justify-end transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:focus-within:opacity-100">
         {hasProxyPools && (
           <>
             <IconButton

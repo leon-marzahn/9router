@@ -1,5 +1,6 @@
 "use client";
 
+import { useId } from "react";
 import { cn } from "@/ui/cn";
 
 export default function Input({
@@ -17,10 +18,12 @@ export default function Input({
   inputClassName,
   ...props
 }) {
+  const autoId = useId();
+  const id = props.id ?? autoId;
   return (
     <div className={cn("flex flex-col gap-1.5", className)}>
       {label && (
-        <label className="text-xs font-medium text-text">
+        <label htmlFor={id} className="text-xs font-medium text-text">
           {label}
           {required && <span className="ml-0.5 text-danger-text">*</span>}
         </label>
@@ -32,6 +35,7 @@ export default function Input({
           </span>
         )}
         <input
+          id={id}
           type={type}
           placeholder={placeholder}
           value={value}
@@ -39,7 +43,7 @@ export default function Input({
           disabled={disabled}
           aria-invalid={!!error || undefined}
           className={cn(
-            "h-9 w-full rounded-lg border border-border-strong bg-surface px-3 text-[16px] text-text outline-none transition-colors sm:text-[13px] dark:border-border",
+            "h-9 max-md:h-10 w-full rounded-lg border border-border-strong bg-surface px-3 text-[16px] text-text outline-none transition-colors sm:text-[13px] dark:border-border",
             "placeholder:text-text-subtle focus:border-accent focus:shadow-focus disabled:cursor-not-allowed disabled:opacity-50",
             icon && "pl-9",
             error && "border-danger focus:border-danger",

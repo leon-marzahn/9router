@@ -41,10 +41,6 @@ export default function MitmToolCard({
   const mitmHosts = TOOL_HOSTS[tool.id] ?? [];
   const canRunWithoutPassword = isWin || hasCachedPassword || needsSudoPassword === false;
 
-  useEffect(() => {
-    if (isExpanded) loadSavedMappings();
-  }, [isExpanded]);
-
   const loadSavedMappings = async () => {
     try {
       const res = await fetch(`/api/cli-tools/antigravity-mitm/alias?tool=${tool.id}`);
@@ -54,6 +50,11 @@ export default function MitmToolCard({
       }
     } catch { /* ignore */ }
   };
+
+  useEffect(() => {
+    // eslint-disable-next-line react/set-state-in-effect -- loads saved mappings when opened (state is set after await)
+    if (isExpanded) loadSavedMappings();
+  }, [isExpanded]);
 
   const saveMappings = useCallback(async (mappings) => {
     try {
@@ -244,7 +245,7 @@ export default function MitmToolCard({
                 <button
                   onClick={handleDnsToggle}
                   disabled={!serverRunning || loading}
-                  className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2 text-xs font-medium text-red-500 transition-colors hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:py-1.5"
+                  className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-red-500/30 bg-danger-soft px-4 py-2 text-xs font-medium text-red-500 transition-colors hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:py-1.5"
                 >
                   <span className="material-symbols-outlined text-[16px]">stop_circle</span>
                   Stop DNS
@@ -289,7 +290,7 @@ export default function MitmToolCard({
               onKeyDown={(e) => { if (e.key === "Enter" && !loading) handleConfirmPassword(); }}
             />
             {modalError && (
-              <div className="flex items-center gap-2 px-2 py-1.5 rounded text-xs bg-red-500/10 text-red-600">
+              <div className="flex items-center gap-2 px-2 py-1.5 rounded text-xs bg-danger-soft text-danger-text">
                 <span className="material-symbols-outlined text-[14px]">error</span>
                 <span>{modalError}</span>
               </div>

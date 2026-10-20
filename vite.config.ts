@@ -2,7 +2,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { defineConfig } from "vite-plus";
+import { defineConfig, transformWithOxc } from "vite-plus";
 
 const r = (p: string) => fileURLToPath(new URL(p, import.meta.url));
 
@@ -18,6 +18,18 @@ for (const k of ["XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME", "XDG_CACH
 }
 
 export default defineConfig({
+  // Legacy UI (src/**/*.js, upstream style) has JSX in .js files, which Next
+  // accepts but Vite doesn't: compile those as JSX so tests can render them.
+  plugins: [
+    {
+      name: "regent:jsx-in-js",
+      enforce: "pre",
+      async transform(code, id) {
+        if (!/\/src\/.*\.js$/.test(id) || !/<\/|\/>/.test(code)) return null;
+        return transformWithOxc(code, id, { lang: "jsx", jsx: { runtime: "automatic" } });
+      },
+    },
+  ],
   // Unit tests live in tests/ (ESM via tests/package.json "type": "module").
   test: {
     dir: "tests",

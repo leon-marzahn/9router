@@ -29,7 +29,6 @@ function readModels(s: ToolStatus): string[] {
 
 /** Shown open up to this many slots; longer lists fold behind "Show all". */
 const SLOTS_OPEN = 4;
-const SELECT = "h-9 w-full min-w-0 rounded-lg border border-border bg-surface px-3 text-[13px] text-text";
 
 /** Endpoint, key and model for one tool, a preview of what gets written, and Connect / Disconnect / Restore. */
 export function ConnectPanel({ toolId, toolName, onChanged }: { toolId: string; toolName: string; onChanged: () => void }) {
@@ -214,24 +213,24 @@ export function ConnectPanel({ toolId, toolName, onChanged }: { toolId: string; 
       <Panel className="divide-y divide-border px-4">
         <div className="grid grid-cols-[minmax(0,1fr)] gap-3 py-4 sm:grid-cols-2">
           <Field className="min-w-0" label="Endpoint" hint="Where the tool sends requests.">
-            <select className={SELECT} value={endpoint} onChange={(e) => setEndpoint(e.target.value)}>
+            <Select className="min-w-0" value={endpoint} onChange={(e) => setEndpoint(e.target.value)}>
               {endpoints.map((e) => (
                 <option key={e.id} value={e.id}>
                   {e.label} · {e.url.replace(/^https?:\/\//, "")}
                 </option>
               ))}
               <option value="custom">Custom address…</option>
-            </select>
+            </Select>
           </Field>
           <Field className="min-w-0" label="API key" hint="The regent key the tool uses.">
-            <select className={SELECT} value={keyId} onChange={(e) => setKeyId(e.target.value)}>
+            <Select className="min-w-0" value={keyId} onChange={(e) => setKeyId(e.target.value)}>
               <option value="">{status.current?.hasKey ? "Keep current key" : "First active key"}</option>
               {ctx.keys.map((k) => (
                 <option key={k.id} value={k.id}>
                   {k.name}
                 </option>
               ))}
-            </select>
+            </Select>
           </Field>
           {endpoint === "custom" && (
             <Field label="Custom address" className="min-w-0 sm:col-span-2" hint="Saved in this browser when you connect, or now with Save.">
