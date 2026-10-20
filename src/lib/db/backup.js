@@ -18,7 +18,11 @@ const KEEP_BACKUPS = 3;
 // They live in PINNED_BACKUPS_DIR (db/pinned-backups), outside db/backups, because older
 // releases prune every folder in db/backups and a downgrade would delete them.
 export const PRE_USAGE_KEY_REFS = "pre-usage-key-refs";
-const PINNED_BACKUP_LABELS = [PRE_USAGE_KEY_REFS];
+// Holds the provider credentials in PLAINTEXT: the last copy before migration 006 (or a
+// heal after a downgrade) encrypted them. Treat it like the credentials themselves and
+// delete it once the encrypted install is known good.
+export const PRE_ENCRYPT_CREDENTIALS = "pre-encrypt-credentials";
+const PINNED_BACKUP_LABELS = [PRE_USAGE_KEY_REFS, PRE_ENCRYPT_CREDENTIALS];
 const isPinned = (name) => PINNED_BACKUP_LABELS.some((l) => name.startsWith(`${l}-`));
 
 // Tables excluded from safety backups (large, non-critical, reproducible).
@@ -29,7 +33,7 @@ export function makeBackupDir(label) {
   const ver = getAppVersion();
   const slug = `${label}-${ver}-${timestampSlug()}`;
   const dir = path.join(isPinned(slug) ? PINNED_BACKUPS_DIR : BACKUPS_DIR, slug);
-  fs.mkdirSync(dir, { recursive: true });
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   return dir;
 }
 
@@ -80,6 +84,32 @@ export function pruneOldBackups() {
   for (const old of entries.slice(KEEP_BACKUPS)) {
     try { fs.rmSync(old.full, { recursive: true, force: true }); } catch {}
   }
+}
+
+/**
+ * Backup directories (full paths). `pinned`: true = db/pinned-backups only (the restore
+ * points for older versions, which stay as taken: plaintext), false = db/backups only,
+ * undefined = both.
+ */
+export function listBackupDirs({ pinned } = {}) {
+  const roots = pinned === undefined ? [BACKUPS_DIR, PINNED_BACKUPS_DIR] : [pinned ? PINNED_BACKUPS_DIR : BACKUPS_DIR];
+  const out = [];
+  for (const root of roots) {
+    if (!fs.existsSync(root)) continue;
+    for (const e of fs.readdirSync(root, { withFileTypes: true })) {
+      if (e.isDirectory()) out.push(path.join(root, e.name));
+    }
+  }
+  return out;
+}
+
+/** Owner-only permissions on a backup: the directory 0700, every file 0600 (they hold credentials). */
+export function lockDownBackup(dir) {
+  if (process.platform === "win32") return;
+  try {
+    fs.chmodSync(dir, 0o700);
+    for (const f of fs.readdirSync(dir)) fs.chmodSync(path.join(dir, f), 0o600);
+  } catch {}
 }
 
 /**
@@ -178,6 +208,7 @@ export function requiredBackup(adapter, label) {
     } else {
       verifyBackup(adapter, backupDbLite(adapter, dir));
     }
+    lockDownBackup(dir);
     return dir;
   } catch (e) {
     if (dir) { try { fs.rmSync(dir, { recursive: true, force: true }); } catch {} }

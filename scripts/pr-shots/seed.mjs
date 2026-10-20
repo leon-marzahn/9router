@@ -17,6 +17,7 @@ import {
   updateSettings,
 } from "@/lib/db/index.js";
 import { saveRequestUsage } from "@/lib/db/repos/usageRepo.js";
+import { openRow, sealRow } from "@/lib/db/helpers/credentialsSeal.js";
 import { validatePipelines } from "@/lib/request-pipelines/config.js";
 
 if (!process.env.DATA_DIR || !process.env.HOME?.includes("pr-shots-")) {
@@ -37,7 +38,18 @@ async function seedConnection(id, data) {
     authType: "apikey",
     ...data,
   });
-  db.run(`UPDATE providerConnections SET id = ? WHERE id = ?`, [id, conn.id]);
+  // Credentials are encrypted bound to the row id: re-seal them under the new id.
+  const row = db.get(`SELECT data FROM providerConnections WHERE id = ?`, [conn.id]);
+  const data2 = sealRow(
+    "providerConnections",
+    id,
+    openRow("providerConnections", conn.id, JSON.parse(row.data)),
+  );
+  db.run(`UPDATE providerConnections SET id = ?, data = ? WHERE id = ?`, [
+    id,
+    JSON.stringify(data2),
+    conn.id,
+  ]);
   return { ...conn, id };
 }
 

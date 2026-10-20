@@ -145,6 +145,11 @@ function maskBody(value, depth = 0, parentKey = "") {
 }
 
 // Collect the credential strings a request is known to carry.
+const SECRET_VALUE_FIELDS = [
+  "apiKey", "accessToken", "refreshToken", "idToken", "sessionToken", "token",
+  "copilotToken", "clientSecret", "mimoPassToken", "cookie", "secretAccessKey",
+];
+
 function knownSecrets(...sources) {
   const out = new Set();
   const add = (v) => {
@@ -153,7 +158,13 @@ function knownSecrets(...sources) {
   for (const s of sources) {
     if (!s) continue;
     if (typeof s === "string") add(s);
-    else for (const f of ["apiKey", "accessToken", "refreshToken", "idToken", "sessionToken", "token"]) add(s[f]);
+    else {
+      // Credentials are stored encrypted (src/lib/credentials/fields.js) and decrypted in
+      // memory: redact them by value too, including those in providerSpecificData.
+      for (const f of SECRET_VALUE_FIELDS) add(s[f]);
+      const psd = s.providerSpecificData;
+      if (psd && typeof psd === "object") for (const f of SECRET_VALUE_FIELDS) add(psd[f]);
+    }
   }
   return [...out];
 }

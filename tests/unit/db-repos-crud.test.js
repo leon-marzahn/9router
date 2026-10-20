@@ -68,10 +68,10 @@ describe("connectionsRepo", () => {
     expect(fetched).toMatchObject({ provider: "openai", name: "main", apiKey: "sk-test-FAKE-SECRET", isActive: true });
     expect(fetched.providerSpecificData).toEqual({ region: "eu" });
 
-    // Secrets are not encrypted at rest: they live in the plaintext `data` JSON column.
-    // The DB file is protected by filesystem permissions only (documents current behaviour).
+    // Secrets are encrypted at rest (migration 006): the `data` column holds an envelope.
     const raw = adapter.get(`SELECT data FROM providerConnections WHERE id = ?`, [conn.id]);
-    expect(JSON.parse(raw.data).apiKey).toBe("sk-test-FAKE-SECRET");
+    expect(JSON.parse(raw.data).apiKey).toMatch(/^enc:v1:/);
+    expect(raw.data).not.toContain("sk-test-FAKE-SECRET");
 
     const list = await db.getProviderConnections({ provider: "openai" });
     expect(list.map((c) => c.id)).toContain(conn.id);

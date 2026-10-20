@@ -27,7 +27,7 @@ describe("DB SQLite layer — public API parity", () => {
   it("settings: get → defaults; update → merge", async () => {
     const s = await sqliteDb.getSettings();
     expect(s).toBeDefined();
-    expect(s.cloudEnabled).toBe(false);
+    expect(s.cloudEnabled).toBeUndefined(); // cloud sync was removed; no default
     expect(s.requireLogin).toBe(true);
 
     const updated = await sqliteDb.updateSettings({ cloudEnabled: true, customField: "x" });
@@ -67,7 +67,7 @@ describe("DB SQLite layer — public API parity", () => {
 
   it("providerConnections: CRUD + reorder by priority", async () => {
     const c1 = await sqliteDb.createProviderConnection({ provider: "test", authType: "apikey", name: "a", apiKey: "k1" });
-    const c2 = await sqliteDb.createProviderConnection({ provider: "test", authType: "apikey", name: "b", apiKey: "k2" });
+    await sqliteDb.createProviderConnection({ provider: "test", authType: "apikey", name: "b", apiKey: "k2" });
     const c3 = await sqliteDb.createProviderConnection({ provider: "test", authType: "apikey", name: "c", apiKey: "k3" });
 
     const list = await sqliteDb.getProviderConnections({ provider: "test" });

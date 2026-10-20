@@ -16,6 +16,7 @@ const SECRET_SUFFIXES = [
   "cookie",
   "cookies",
   "apikey",
+  "apikeys",
   "privatekey",
   "secretaccesskey",
   "credentials",
@@ -31,6 +32,8 @@ const SECRET_EXACT = new Set([
   "xauthtoken",
   "key",
   "sessionkey",
+  // Secrets whose name doesn't say so (also encrypted at rest, src/lib/credentials/fields.js).
+  "notifyresendkey",
 ]);
 
 function normalizeKey(key) {

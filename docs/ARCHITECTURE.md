@@ -542,7 +542,14 @@ Runtime visibility sources:
 - JWT secret (`JWT_SECRET`) secures dashboard session cookie verification/signing
 - Initial password fallback (`INITIAL_PASSWORD`, default `123456`) must be overridden in real deployments
 - API key HMAC secret (`API_KEY_SECRET`) secures generated local API key format
-- Provider secrets (API keys/tokens) are persisted in local DB and should be protected at filesystem level
+- Provider secrets (API keys, OAuth tokens, cookies, client secrets, proxy URLs, notification/SSO secrets) are encrypted at rest with AES-256-GCM (`src/lib/credentials/`, migration 006), keyed by `CREDENTIALS_KEY` or the generated `DATA_DIR/credentials.key`. Back the key up with the DB; a missing or wrong key stops the boot. Rotate with `vp run rotate-credentials-key`.
+  - Backups: everything in `db/pinned-backups/` is a restore point for an older version, which can't read encrypted values, so those backups stay exactly as taken, with credentials in **plaintext** (files 0600, directories 0700, paths logged every boot): `pre-usage-key-refs-*` restores v100.7.x (current: v100.7.2), `pre-encrypt-credentials-*` restores v101.0.x (current: v101.0.2). Unpinned backups in `db/backups/` are sealed in place and vacuumed after the upgrade. No backup is deleted automatically. `vp run purge-plaintext-backups` lists the pinned ones and what each restores; `--yes` deletes them once the upgrade is verified (this removes the way back).
+  - Downgrade (one-way door; older versions read `enc:v1:...` as the credential and every provider fails). Stop the server, move `DATA_DIR/db/data.sqlite*` aside, then:
+    - to v101.0.x (v101.0.2): copy `db/pinned-backups/pre-encrypt-credentials-<ver>-<ts>/data.sqlite` to `db/data.sqlite`;
+    - to v100.7.x (v100.7.2): copy `db/pinned-backups/pre-usage-key-refs-<ver>-<ts>/data.sqlite` to `db/data.sqlite` (usage keeps raw client keys there, as v100 expects);
+    - start the older version. Changes made after the backup are lost (and `requestDetails`, which backups exclude). To carry newer data instead, export it from this version (plaintext, Settings → Database) and import it into the older one.
+  - Reads accept a plaintext value only until the next boot's heal encrypts it (rows an older version wrote after a downgrade). This is confidentiality at rest, not integrity: whoever can write the DB file can plant values.
+  - Still in plaintext: client API keys (`apiKeys.key`, needed for the auth lookup), legacy `db.json` files left after a JSON import, the DB export (by design, behind password re-auth), and the CLI tool config files the dashboard or `regent connect` write (`~/.claude/settings.json`, Codex/OpenCode/... configs, 0600), which hold the client API key.
 - Cloud sync endpoints rely on API key auth + machine id semantics
 
 ## Environment and Runtime Matrix
@@ -552,6 +559,7 @@ Environment variables actively used by code:
 - App/auth: `JWT_SECRET`, `INITIAL_PASSWORD`
 - Storage: `DATA_DIR`
 - Security hashing: `API_KEY_SECRET`, `MACHINE_ID_SALT`
+- Credentials encryption: `CREDENTIALS_KEY`, `CREDENTIALS_KEY_PREVIOUS` (rotation)
 - Logging: `ENABLE_REQUEST_LOGS`
 - Sync/cloud URLing: `NEXT_PUBLIC_BASE_URL`, `NEXT_PUBLIC_CLOUD_URL`
 - Outbound proxy: `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, `NO_PROXY` and lowercase variants

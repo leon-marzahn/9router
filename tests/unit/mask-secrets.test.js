@@ -120,6 +120,14 @@ describe("value redaction", () => {
     expect(redactValues(text, [])).toBe(text);
     expect(redactValuesDeep({ a: [{ m: "prov-key-abcdef" }], n: 1 }, secrets)).toEqual({ a: [{ m: REDACTED }], n: 1 });
   });
+
+  it("collects the decrypted credentials kept in providerSpecificData and copilot tokens", () => {
+    const secrets = knownSecrets({
+      copilotToken: "copilot-tok-1234",
+      providerSpecificData: { sessionToken: "psd-session-1234", clientSecret: "psd-client-secret", mimoPassToken: "mimo-pass-12345", region: "us-east-1" },
+    });
+    expect(secrets).toEqual(["copilot-tok-1234", "psd-session-1234", "psd-client-secret", "mimo-pass-12345"]);
+  });
 });
 
 describe("over-masking guards", () => {
