@@ -9,6 +9,7 @@ import {
   netlifyHeaders,
   pollDeployReady,
 } from "@/lib/network/netlifyRelay.js";
+import { redactSecrets } from "@/lib/secretRedaction";
 
 function sanitizeSiteName(raw) {
   const name = typeof raw === "string" ? raw.trim().toLowerCase() : "";
@@ -138,7 +139,7 @@ export async function POST(request) {
       strictProxy: false,
     });
 
-    return NextResponse.json({ proxyPool, deployUrl: relayUrl }, { status: 201 });
+    return NextResponse.json({ proxyPool: redactSecrets(proxyPool), deployUrl: relayUrl }, { status: 201 });
   } catch (error) {
     console.log("Error deploying Netlify relay:", error);
     return NextResponse.json({ error: error.message || "Deploy failed" }, { status: 500 });

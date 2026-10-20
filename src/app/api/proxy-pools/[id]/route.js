@@ -5,6 +5,7 @@ import {
   getProxyPoolById,
   updateProxyPool,
 } from "@/models";
+import { MaskedUrlError, redactSecrets, restoreMaskedUrl } from "@/lib/secretRedaction";
 
 function normalizeProxyPoolUpdate(body = {}) {
   const updates = {};
@@ -59,7 +60,7 @@ export async function GET(request, { params }) {
       return NextResponse.json({ error: "Proxy pool not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ proxyPool });
+    return NextResponse.json({ proxyPool: redactSecrets(proxyPool) });
   } catch (error) {
     console.log("Error fetching proxy pool:", error);
     return NextResponse.json({ error: "Failed to fetch proxy pool" }, { status: 500 });
@@ -83,9 +84,16 @@ export async function PUT(request, { params }) {
       return NextResponse.json({ error: normalized.error }, { status: 400 });
     }
 
+    // The UI only ever sees the masked URL; saving it unchanged keeps the stored password.
+    if (normalized.updates.proxyUrl !== undefined) {
+      normalized.updates.proxyUrl = restoreMaskedUrl(normalized.updates.proxyUrl, existing.proxyUrl);
+    }
     const updated = await updateProxyPool(id, normalized.updates);
-    return NextResponse.json({ proxyPool: updated });
+    return NextResponse.json({ proxyPool: redactSecrets(updated) });
   } catch (error) {
+    if (error instanceof MaskedUrlError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
     console.log("Error updating proxy pool:", error);
     return NextResponse.json({ error: "Failed to update proxy pool" }, { status: 500 });
   }
