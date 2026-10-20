@@ -63,7 +63,7 @@ describe("apiKeys access columns: upgrade from the previous schema", () => {
 
     // The schema bump took the pre-change safety backup. Upgrading past migration 005 makes
     // it the required, pinned pre-usage-key-refs backup instead of a schema-X-to-Y one.
-    const backups = fs.readdirSync(path.join(tempDir, "db", "backups"));
+    const backups = fs.readdirSync(path.join(tempDir, "db", "pinned-backups"));
     expect(backups.some((d) => d.startsWith("pre-usage-key-refs-"))).toBe(true);
   });
 
