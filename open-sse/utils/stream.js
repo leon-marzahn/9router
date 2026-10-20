@@ -113,6 +113,14 @@ export function createSSEStream(options = {}) {
   let finalized = false;
   let completionFlushTimer = null;
 
+  // Translate mode, Claude client behind an OpenAI chat upstream: the upstream's
+  // finish chunk comes before its include_usage trailer, so message_delta (and
+  // everything after it) is held until real usage arrives, [DONE], the end of
+  // the stream, or PENDING_COMPLETION_FLUSH_MS — whichever is first. Content
+  // deltas before the finish are never held.
+  const holdClaudeFinish = mode === STREAM_MODE.TRANSLATE && sourceFormat === FORMATS.CLAUDE && targetFormat === FORMATS.OPENAI;
+  let heldTail = null;
+  let heldTailTimer = null;
   // Translate mode, OpenAI chat client: the stream must end with data: [DONE],
   // preceded by the usage-only trailer when the client asked for it.
   const endsWithOpenAIDone = mode === STREAM_MODE.TRANSLATE && sourceFormat === FORMATS.OPENAI;
@@ -168,7 +176,7 @@ export function createSSEStream(options = {}) {
   const applyFinishUsage = (item) => {
     const isFinishChunk = item.type === "message_delta" || item.choices?.[0]?.finish_reason;
     if (!state.finishReason || !isFinishChunk) return;
-    if (!hasValidUsage(item.usage) && totalContentLength > 0) {
+    if (!hasValidUsage(item.usage) && !hasValidUsage(state.usage) && totalContentLength > 0) {
       const estimated = estimateUsage(body, totalContentLength, sourceFormat);
       item.usage = filterUsageForFormat(addBufferToUsage(estimated), sourceFormat); // client copy gets the context buffer
       state.usage = estimated;
@@ -187,6 +195,17 @@ export function createSSEStream(options = {}) {
     reqLogger?.appendConvertedChunk?.(output);
     controller.enqueue(sharedEncoder.encode(output));
     sseEmittedCount++;
+  };
+
+  const emitHeldTail = (controller) => {
+    if (heldTailTimer) { clearTimeout(heldTailTimer); heldTailTimer = null; }
+    if (!heldTail) return;
+    const items = heldTail;
+    heldTail = null;
+    for (const item of items) {
+      applyFinishUsage(item);
+      emitTranslated(item, controller);
+    }
   };
 
   const emitOpenAIDone = (controller) => {
@@ -404,6 +423,7 @@ export function createSSEStream(options = {}) {
               state.completionPending && !state.completedSent) {
             flushPendingCompletion(controller);
           }
+          emitHeldTail(controller);
 
           // Synthesize response.failed if the Responses stream never sent a terminal event
           if (keepsOpenAIResponsesFormat && !openAIResponsesTerminalSeen) {
@@ -502,10 +522,22 @@ export function createSSEStream(options = {}) {
               continue; // Skip this empty chunk
             }
 
+            if (heldTail) { heldTail.push(item); continue; }
+            if (holdClaudeFinish && item.type === "message_delta" && state.finishReason && !hasValidUsage(state.usage)) {
+              heldTail = [item];
+              heldTailTimer = setTimeout(() => {
+                heldTailTimer = null;
+                try { emitHeldTail(controller); } catch { /* controller already closed */ }
+              }, PENDING_COMPLETION_FLUSH_MS);
+              continue;
+            }
+
             applyFinishUsage(item);
             emitTranslated(item, controller);
           }
         }
+        // Real usage arrived (the include_usage trailer): release the held finish.
+        if (heldTail && extracted && hasValidUsage(state.usage)) emitHeldTail(controller);
 
         // The completion deferral can outlive the upstream: a broken chat upstream
         // may stall after finish_reason with no usage trailer and no [DONE], holding
@@ -599,6 +631,7 @@ export function createSSEStream(options = {}) {
             if (translated?.length > 0) {
               for (const item of translated) {
                 if (item === null || item === undefined) continue;
+                if (heldTail) { heldTail.push(item); continue; }
                 const output = formatSSE(withClientUsageBuffer(item), sourceFormat);
                 reqLogger?.appendConvertedChunk?.(output);
                 controller.enqueue(sharedEncoder.encode(output));
@@ -607,6 +640,7 @@ export function createSSEStream(options = {}) {
           }
         }
 
+        emitHeldTail(controller);
         const flushed = translateResponse(targetFormat, sourceFormat, null, state);
 
         if (flushed?._openaiIntermediate) {
@@ -646,6 +680,7 @@ export function createSSEStream(options = {}) {
         finalizeStream();
       } catch (error) {
         console.log("Error in flush:", error);
+        if (heldTailTimer) { clearTimeout(heldTailTimer); heldTailTimer = null; }
         finalizeStream();
       }
     }

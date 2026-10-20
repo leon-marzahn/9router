@@ -57,6 +57,54 @@ const claudeEvents = (text) =>
 
 afterEach(() => vi.useRealTimers());
 
+describe("Claude client behind an OpenAI chat stream", () => {
+  const claude = () => createSSETransformStreamWithLogger(FORMATS.OPENAI, FORMATS.CLAUDE, "test", null, null, "m", null, body);
+
+  it("streams content immediately and puts the trailer's real usage on message_delta", async () => {
+    const s = drive(claude());
+    s.send(contentChunk);
+    // Time to first token: the text delta is out before the upstream has finished.
+    expect(await s.readUntil((t) => t.includes("Hello"))).toContain("text_delta");
+
+    s.send(finishChunk);
+    // message_delta waits for the usage trailer (no estimate goes out).
+    expect(await s.readUntil((t) => t.includes("message_delta"), 5)).not.toContain("message_delta");
+
+    s.send(trailer);
+    await s.readUntil((t) => t.includes("message_stop"));
+    s.send("data: [DONE]\n\n");
+    s.end();
+    const events = claudeEvents(await s.readAll());
+    const delta = events.find((e) => e.event === "message_delta");
+    expect(delta.data.usage).toEqual({ input_tokens: USAGE.prompt_tokens + BUF, output_tokens: USAGE.completion_tokens });
+    expect(events.at(-1).event).toBe("message_stop");
+    expect(events.filter((e) => e.event === "message_stop")).toHaveLength(1);
+  });
+
+  it("releases message_delta at [DONE] with an estimate when the upstream sends no usage", async () => {
+    const s = drive(claude());
+    s.send(contentChunk + finishChunk + "data: [DONE]\n\n");
+    const events = claudeEvents(await s.readUntil((t) => t.includes("message_stop")));
+    const delta = events.find((e) => e.event === "message_delta");
+    expect(delta.data.usage.estimated).toBe(true);
+    s.end();
+    await s.readAll();
+  });
+
+  it("does not hold message_delta longer than the flush timeout on a stalled upstream", async () => {
+    vi.useFakeTimers();
+    const s = drive(claude());
+    s.send(contentChunk + finishChunk);
+    await vi.advanceTimersByTimeAsync(10);
+    expect(s.text).not.toContain("message_delta");
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(s.text).toContain("message_delta");
+    expect(s.text.trimEnd().endsWith("data: {\"type\":\"message_stop\"}")).toBe(true);
+    s.end();
+    await s.readAll();
+  });
+});
+
 describe("OpenAI client, passthrough stream", () => {
   it("folds an unrequested usage trailer into the finish chunk and drops it", async () => {
     // No stream_options sent upstream (strict node), but the upstream sends a trailer anyway.
