@@ -61,10 +61,30 @@ export function stepPattern(rule) {
   throw new Error(`Unknown step kind: ${kind}`);
 }
 
+/** Required text fields per step kind, with the label used in validation errors. */
+export const STEP_REQUIRED_FIELDS = {
+  regex: { regex: "Regex" },
+  tag: { tag: "Tag" },
+  markers: { start: "Start marker", end: "End marker" },
+  details: { title: "Section title" },
+  redact: {},
+};
+
+/** First required field of a step that is still blank ({ key, label }), or null. */
+export function blankRequiredField(rule) {
+  const fields = STEP_REQUIRED_FIELDS[rule?.kind ?? "regex"] ?? {};
+  for (const [key, label] of Object.entries(fields)) {
+    if (typeof rule[key] !== "string" || !rule[key].trim()) return { key, label };
+  }
+  return null;
+}
+
 function validateRule(rule) {
   if (!rule || typeof rule !== "object") throw new Error("Invalid rule");
   const kind = rule.kind ?? "regex";
   if (!STEP_KINDS.includes(kind)) throw new Error(`Unknown step kind: ${kind}`);
+  const blank = blankRequiredField(rule);
+  if (blank) throw new Error(`${blank.label} must contain 1–${kind === "regex" ? 4096 : MAX_PARAM} characters`);
   const regex = stepPattern(rule);
   compilePattern(regex);
   const replacement = kind === "redact" ? "[redacted]" : (rule.replacement ?? "");

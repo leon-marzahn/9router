@@ -1,12 +1,8 @@
 import { runPipelines } from "@/lib/request-pipelines/run.js";
-
-const REQUIRED = { regex: ["regex"], tag: ["tag"], markers: ["start", "end"], details: ["title"], redact: [] };
+import { blankRequiredField } from "@/lib/request-pipelines/config.js";
 
 /** A step the user is still filling in (a required field is blank). Malformed values still fail. */
-function isIncomplete(rule) {
-  const fields = REQUIRED[rule?.kind ?? "regex"];
-  return Boolean(fields?.some((key) => typeof rule[key] !== "string" || !rule[key].trim()));
-}
+const isIncomplete = (rule) => Boolean(rule && typeof rule === "object" && blankRequiredField(rule));
 
 export async function POST(request) {
   try {
