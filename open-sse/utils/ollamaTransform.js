@@ -1,85 +1,143 @@
-// Transform OpenAI SSE stream to Ollama JSON lines format
-export function transformToOllama(response, model) {
-  let buffer = "";
-  let pendingToolCalls = {};
-  
-  const transform = new TransformStream({
-    transform(chunk, controller) {
-      const text = new TextDecoder().decode(chunk);
-      buffer += text;
-      const lines = buffer.split("\n");
-      buffer = lines.pop() || "";
+// Transform an OpenAI chat completion (SSE stream or JSON body) to Ollama's /api/chat format.
 
-      for (const line of lines) {
-        if (!line.startsWith("data:")) continue;
-        const data = line.slice(5).trim();
-        
-        if (data === "[DONE]") {
-          const ollamaEnd = JSON.stringify({ model, message: { role: "assistant", content: "" }, done: true }) + "\n";
-          controller.enqueue(new TextEncoder().encode(ollamaEnd));
-          return;
-        }
+const DONE_REASON = { stop: "stop", length: "length", tool_calls: "stop", content_filter: "stop" };
 
-        try {
-          const parsed = JSON.parse(data);
-          const delta = parsed.choices?.[0]?.delta || {};
-          const content = delta.content || "";
-          const toolCalls = delta.tool_calls;
+function parseArgs(args) {
+  if (args && typeof args === "object") return args;
+  try {
+    return JSON.parse(args || "{}");
+  } catch {
+    return {};
+  }
+}
 
-          if (toolCalls) {
-            for (const tc of toolCalls) {
-              const idx = tc.index;
-              if (!pendingToolCalls[idx]) {
-                pendingToolCalls[idx] = { id: tc.id, function: { name: "", arguments: "" } };
-              }
-              if (tc.function?.name) pendingToolCalls[idx].function.name += tc.function.name;
-              if (tc.function?.arguments) pendingToolCalls[idx].function.arguments += tc.function.arguments;
-            }
-          }
+function toolCallsOut(calls) {
+  return calls.map((tc) => ({ function: { name: tc.function?.name || "", arguments: parseArgs(tc.function?.arguments) } }));
+}
 
-          if (content) {
-            const ollama = JSON.stringify({ model, message: { role: "assistant", content }, done: false }) + "\n";
-            controller.enqueue(new TextEncoder().encode(ollama));
-          }
+// No finish reason (upstream closed early) → no done_reason, so a cut-off reply doesn't look complete.
+function finalFields(usage, finishReason) {
+  const out = { done: true };
+  // "error" and unknown reasons get none either.
+  if (DONE_REASON[finishReason]) out.done_reason = DONE_REASON[finishReason];
+  if (usage) {
+    if (Number.isFinite(usage.prompt_tokens)) out.prompt_eval_count = usage.prompt_tokens;
+    if (Number.isFinite(usage.completion_tokens)) out.eval_count = usage.completion_tokens;
+  }
+  return out;
+}
 
-          const finishReason = parsed.choices?.[0]?.finish_reason;
-          if (finishReason === "tool_calls" || finishReason === "stop") {
-            const toolCallsArr = Object.values(pendingToolCalls);
-            if (toolCallsArr.length > 0) {
-              const formattedCalls = toolCallsArr.map(tc => ({
-                function: {
-                  name: tc.function.name,
-                  arguments: (() => { try { return JSON.parse(tc.function.arguments || "{}"); } catch { return {}; } })()
-                }
-              }));
-              const ollama = JSON.stringify({ 
-                model, 
-                message: { role: "assistant", content: "", tool_calls: formattedCalls }, 
-                done: true
-              }) + "\n";
-              controller.enqueue(new TextEncoder().encode(ollama));
-              pendingToolCalls = {};
-            } else if (finishReason === "stop") {
-              const ollamaEnd = JSON.stringify({ model, message: { role: "assistant", content: "" }, done: true }) + "\n";
-              controller.enqueue(new TextEncoder().encode(ollamaEnd));
-            }
-          }
-        } catch (e) {
-          // Silently ignore parse errors
-        }
-      }
-    },
-    flush(controller) {
-      const ollamaEnd = JSON.stringify({ model, message: { role: "assistant", content: "" }, done: true }) + "\n";
-      controller.enqueue(new TextEncoder().encode(ollamaEnd));
-    }
-  });
+/** One Ollama response object from an OpenAI chat.completion body. */
+export function openAIBodyToOllama(body, model) {
+  const choice = body?.choices?.[0] || {};
+  const msg = choice.message || {};
+  const message = { role: "assistant", content: typeof msg.content === "string" ? msg.content : "" };
+  const thinking = msg.reasoning_content || msg.reasoning;
+  if (typeof thinking === "string" && thinking) message.thinking = thinking;
+  if (Array.isArray(msg.tool_calls) && msg.tool_calls.length) message.tool_calls = toolCallsOut(msg.tool_calls);
+  return { model, created_at: new Date().toISOString(), message, ...finalFields(body?.usage, choice.finish_reason) };
+}
 
+const JSON_HEADERS = { "Access-Control-Allow-Origin": "*" };
+
+export async function transformToOllama(response, model) {
+  // Errors keep their status; the body becomes Ollama's { error: "<message>" }.
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    let message = text;
+    try {
+      const body = JSON.parse(text);
+      const err = body?.error?.message ?? body?.error ?? body?.message;
+      if (err !== undefined) message = typeof err === "string" ? err : JSON.stringify(err);
+    } catch {}
+    return Response.json({ error: message || `HTTP ${response.status}` }, { status: response.status, headers: JSON_HEADERS });
+  }
   if (!response.body) {
     return new Response("", { status: response.status, headers: { "Content-Type": "application/x-ndjson" } });
   }
+
+  const contentType = response.headers.get("content-type") || "";
+  if (!contentType.includes("text/event-stream")) {
+    const text = await response.text();
+    let out = text;
+    try {
+      out = JSON.stringify(openAIBodyToOllama(JSON.parse(text), model));
+    } catch {}
+    return new Response(out, { status: response.status, headers: { "Content-Type": "application/json", ...JSON_HEADERS } });
+  }
+
+  const encoder = new TextEncoder();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let pendingToolCalls = {};
+  let finishReason = null;
+  let usage = null;
+  let ended = false;
+  const line = (obj) => encoder.encode(JSON.stringify(obj) + "\n");
+
+  // Tool calls go out in their own done:false line (as Ollama does), then exactly
+  // one done:true line with the finish reason and token counts.
+  function end(controller) {
+    if (ended) return;
+    ended = true;
+    const calls = Object.values(pendingToolCalls);
+    if (calls.length) {
+      const message = { role: "assistant", content: "", tool_calls: toolCallsOut(calls) };
+      controller.enqueue(line({ model, created_at: new Date().toISOString(), message, done: false }));
+    }
+    const message = { role: "assistant", content: "" };
+    controller.enqueue(line({ model, created_at: new Date().toISOString(), message, ...finalFields(usage, finishReason) }));
+  }
+
+  function handle(raw, controller) {
+    if (ended || !raw.startsWith("data:")) return;
+    const data = raw.slice(5).trim();
+    if (data === "[DONE]") return end(controller);
+    let parsed;
+    try {
+      parsed = JSON.parse(data);
+    } catch {
+      return;
+    }
+    // Mid-stream failure (e.g. upstream connection lost): Ollama's NDJSON error line.
+    if (parsed?.error) {
+      const err = parsed.error.message ?? parsed.error;
+      controller.enqueue(line({ error: typeof err === "string" ? err : JSON.stringify(err) }));
+      return;
+    }
+    if (parsed.usage) usage = parsed.usage;
+    const choice = parsed.choices?.[0];
+    if (!choice) return;
+    const delta = choice.delta || {};
+    for (const tc of delta.tool_calls || []) {
+      const idx = tc.index ?? 0;
+      pendingToolCalls[idx] ??= { id: tc.id, function: { name: "", arguments: "" } };
+      if (tc.function?.name) pendingToolCalls[idx].function.name += tc.function.name;
+      if (tc.function?.arguments) pendingToolCalls[idx].function.arguments += tc.function.arguments;
+    }
+    const thinking = delta.reasoning_content || delta.reasoning;
+    const message = { role: "assistant", content: delta.content || "" };
+    if (typeof thinking === "string" && thinking) message.thinking = thinking;
+    if (message.content || message.thinking) {
+      controller.enqueue(line({ model, created_at: new Date().toISOString(), message, done: false }));
+    }
+    if (choice.finish_reason) finishReason = choice.finish_reason;
+  }
+
+  const transform = new TransformStream({
+    transform(chunk, controller) {
+      buffer += decoder.decode(chunk, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+      for (const raw of lines) handle(raw, controller);
+    },
+    flush(controller) {
+      if (buffer) handle(buffer, controller);
+      end(controller);
+    },
+  });
+
   return new Response(response.body.pipeThrough(transform), {
-    headers: { "Content-Type": "application/x-ndjson", "Access-Control-Allow-Origin": "*" }
+    headers: { "Content-Type": "application/x-ndjson", ...JSON_HEADERS },
   });
 }
-

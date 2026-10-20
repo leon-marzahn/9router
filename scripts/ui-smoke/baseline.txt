@@ -1,5 +1,3 @@
 # Known UI smoke findings (scripts/ui-smoke.mjs). Format: check | viewport | route | detail
 # `*` matches any field; a trailing ` @dev` or ` @prod` limits a line to that server mode. Every entry is a real bug to fix: delete the line when it is.
 # Regenerate with `node scripts/ui-smoke.mjs --update-baseline` only to accept current findings.
-http | desktop | state:pipelines-new | POST /api/settings/request-pipelines/preview 400  # TODO: fix failing request (preview of the new blank step's empty regex)
-http | mobile | state:pipelines-new | POST /api/settings/request-pipelines/preview 400  # TODO: fix failing request (preview of the new blank step's empty regex)
