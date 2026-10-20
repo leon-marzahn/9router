@@ -77,9 +77,16 @@ export async function updateApiKey(id, data) {
 
 export async function deleteApiKey(id) {
   const db = await getAdapter();
-  const res = db.run(`DELETE FROM apiKeys WHERE id = ?`, [id]);
-  db.run(`DELETE FROM budgets WHERE scope = ?`, [`key:${id}`]);
-  db.run(`DELETE FROM apiKeyPlans WHERE keyId = ?`, [id]);
+  const { retireKeyRef } = await import("../helpers/usageKeyRef.js");
+  let res;
+  db.transaction(() => {
+    // Usage "id:" refs must always name an existing key: move this key's to its hash first.
+    const row = db.get(`SELECT key FROM apiKeys WHERE id = ?`, [id]);
+    if (row) retireKeyRef(db, id, row.key);
+    res = db.run(`DELETE FROM apiKeys WHERE id = ?`, [id]);
+    db.run(`DELETE FROM budgets WHERE scope = ?`, [`key:${id}`]);
+    db.run(`DELETE FROM apiKeyPlans WHERE keyId = ?`, [id]);
+  });
   return (res?.changes ?? 0) > 0;
 }
 

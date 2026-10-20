@@ -96,6 +96,7 @@ function dailyTotals(keyOf) {
 let before;
 let beforeDaily;
 let deletedRaw;
+let forged;
 
 beforeAll(async () => {
   tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "regent-keyrefs-"));
@@ -114,6 +115,7 @@ beforeAll(async () => {
 
   // Fixture: a DB at schema 4 holding raw keys everywhere.
   adapter.run("UPDATE _meta SET value = '4' WHERE key = 'schemaVersion'");
+  adapter.run("DELETE FROM _meta WHERE key IN ('usageKeyRefsMigrated', 'usageKeysScrubbed')");
   legacyRow(keyA.key, { day: DAY1, cost: 1, charge: 2 });
   legacyRow(keyA.key, { day: DAY1, cost: 2, charge: 3 });
   legacyRow(keyA.key, { day: DAY2, model: "m2", cost: 0.5, charge: 0.5 });
@@ -122,7 +124,14 @@ beforeAll(async () => {
   legacyRow(deletedRaw, { day: DAY1, cost: 3, charge: 3 });
   legacyRow(UNKNOWN, { day: DAY2, cost: 5, charge: 5 });
   legacyRow(null, { day: DAY2, cost: 7, charge: 7 });
-  await db.deleteApiKey(deleted.id);
+  // Pre-005, a client without a valid key (requireApiKey off) could send "Bearer id:<victim id>".
+  forged = `id:${keyB.id}`;
+  adapter.run(
+    "INSERT INTO usageHistory(timestamp, provider, model, apiKey, promptTokens, completionTokens, cost, charge, status) VALUES(?, 'p', 'forged', ?, 1, 1, 0, 0, 'ok')",
+    [`${DAY1}T11:00:00.000Z`, forged],
+  );
+  // Deleted before the upgrade: the old deleteApiKey doesn't retire anything.
+  adapter.run("DELETE FROM apiKeys WHERE id = ?", [deleted.id]);
 
   before = totalsByStoredKey();
   beforeDaily = dailyTotals((id, b) => (b.apiKey ?? "none").trim());
@@ -140,16 +149,14 @@ afterAll(() => {
 });
 
 const sum = (...ts) =>
-  ts
-    .filter(Boolean)
-    .reduce(
-      (a, t) => ({
-        requests: a.requests + t.requests,
-        cost: a.cost + t.cost,
-        charge: a.charge + t.charge,
-      }),
-      { requests: 0, cost: 0, charge: 0 },
-    );
+  ts.filter(Boolean).reduce(
+    (a, t) => ({
+      requests: a.requests + t.requests,
+      cost: a.cost + t.cost,
+      charge: a.charge + t.charge,
+    }),
+    { requests: 0, cost: 0, charge: 0 },
+  );
 
 describe("migration 005", () => {
   it("replaces every raw key in usageHistory and usageDaily with a reference", () => {
@@ -174,7 +181,11 @@ describe("migration 005", () => {
     expect(after[refs.hashedKeyRef(deletedRaw)]).toEqual(before[deletedRaw]);
     expect(after[refs.hashedKeyRef(UNKNOWN)]).toEqual(before[UNKNOWN]);
     expect(after.none).toEqual(before.none);
-    expect(Object.keys(after)).toHaveLength(5);
+    // A forged "id:<victim>" is hashed like any raw key, never attributed to the victim.
+    expect(after[refs.hashedKeyRef(forged)]).toEqual(before[forged]);
+    expect(after[`id:${keyB.id}`].requests).toBe(1);
+    expect(Object.keys(after)).toHaveLength(6);
+    expect(adapter.get("SELECT value FROM _meta WHERE key = 'usageKeysScrubbed'").value).toBe("0");
   });
 
   it("re-keys the daily buckets with the same per-key totals", () => {
@@ -204,20 +215,41 @@ describe("migration 005", () => {
     expect(refs.hasRawUsageKeys(adapter)).toBe(false);
   });
 
-  it("keeps a deleted key's id reference stable (not re-hashed) after the key is gone", async () => {
+  it("retires a deleted key's id refs to its hash, so every id: ref names a live key", async () => {
     const tmp = await db.createApiKey("temp", "machine-fixture");
-    await db.saveRequestUsage({
-      provider: "p",
-      model: "m9",
-      apiKey: tmp.key,
-      tokens: { prompt_tokens: 1, completion_tokens: 1 },
-    });
+    for (let i = 0; i < 2; i++)
+      await db.saveRequestUsage({
+        provider: "p",
+        model: "m9",
+        apiKey: tmp.key,
+        tokens: { prompt_tokens: 1, completion_tokens: 1 },
+      });
+    const count = (v) =>
+      adapter.get("SELECT COUNT(*) AS c FROM usageHistory WHERE apiKey = ?", [v]).c;
+    expect(count(`id:${tmp.id}`)).toBe(2);
     await db.deleteApiKey(tmp.id);
+    const gone = refs.hashedKeyRef(tmp.key);
+    expect(count(gone)).toBe(2);
     const snapshot = dump();
+    expect(snapshot).not.toContain(`id:${tmp.id}`);
+    expect(snapshot).toContain(`${gone}|m9|p`);
+    expect(refs.hasRawUsageKeys(adapter)).toBe(false);
     adapter.transaction(() => refs.backfillUsageKeyRefs(adapter));
     expect(dump()).toBe(snapshot);
-    expect(snapshot).toContain(`id:${tmp.id}`);
     adapter.run("DELETE FROM usageHistory WHERE model = 'm9'");
+  });
+
+  it("the boot heal never trusts an id: ref that names no key", () => {
+    adapter.run(
+      "INSERT INTO usageHistory(timestamp, provider, model, apiKey, promptTokens, completionTokens, cost, status) VALUES(?, 'p', 'forged2', ?, 1, 1, 0, 'ok')",
+      [`${DAY1}T11:00:00.000Z`, "id:no-such-key"],
+    );
+    expect(refs.hasRawUsageKeys(adapter)).toBe(true);
+    adapter.transaction(() => refs.backfillUsageKeyRefs(adapter));
+    const row = adapter.get("SELECT apiKey FROM usageHistory WHERE model = 'forged2'");
+    expect(row.apiKey).toBe(refs.hashedKeyRef("id:no-such-key"));
+    expect(refs.hasRawUsageKeys(adapter)).toBe(false);
+    adapter.run("DELETE FROM usageHistory WHERE model = 'forged2'");
   });
 });
 
@@ -345,8 +377,43 @@ describe("downgrade then upgrade", () => {
     expect(
       adapter.get("SELECT COUNT(*) AS c FROM usageHistory WHERE apiKey = ?", [`id:${keyA.id}`]).c,
     ).toBeGreaterThanOrEqual(5);
+    // The heal flagged a scrub and the same boot vacuumed: the flag is back to 1.
+    expect(r.needsUsageScrub(adapter)).toBe(false);
+    expect(fileBytesContain(UNKNOWN)).toBe(false);
+  });
+
+  it("a crash between the backfill and the VACUUM is retried on the next boot", async () => {
+    // Old build writes a raw key; the heal's backfill commits, then the process dies.
+    legacyRow(UNKNOWN, { day: "2026-03-08", cost: 1, charge: 1 });
+    const r0 = await import("@/lib/db/helpers/usageKeyRef.js");
+    adapter.transaction(() => r0.backfillUsageKeyRefs(adapter));
+    expect(r0.needsUsageScrub(adapter)).toBe(true);
+    expect(r0.hasRawUsageKeys(adapter)).toBe(false); // nothing left for the heal to find
+    await reboot();
+    const r = await import("@/lib/db/helpers/usageKeyRef.js");
+    expect(r.needsUsageScrub(adapter)).toBe(false);
+    expect(fileBytesContain(UNKNOWN)).toBe(false);
   });
 });
+
+async function reboot() {
+  try {
+    global._dbAdapter?.instance?.close?.();
+  } catch {}
+  delete global._dbAdapter;
+  vi.resetModules();
+  adapter = await (await import("@/lib/db/driver.js")).getAdapter();
+}
+
+/** Does the raw key appear anywhere in the DB files on disk (main file + WAL)? */
+function fileBytesContain(raw) {
+  adapter.exec("PRAGMA wal_checkpoint(PASSIVE)");
+  const dir = path.join(tempDir, "db");
+  return fs
+    .readdirSync(dir)
+    .filter((f) => f.startsWith("data.sqlite"))
+    .some((f) => fs.readFileSync(path.join(dir, f)).includes(Buffer.from(raw)));
+}
 
 describe("refs", () => {
   it("are recognised and resolved", () => {

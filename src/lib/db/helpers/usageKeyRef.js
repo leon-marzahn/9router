@@ -1,15 +1,21 @@
 // Usage rows never store a client's raw API key. They store a key reference:
-//   - "id:<apiKeys.id>" when the key is known (it stays that after the key is deleted), or
+//   - "id:<apiKeys.id>" for a key that exists in apiKeys, or
 //   - "key-<16 hex>" (first 64 bits of SHA-256 of the trimmed key) for a key that is
-//     not in apiKeys (deleted before the backfill ran, or never issued). Stable, so
-//     history still aggregates per key, and not reversible for generated keys.
+//     not in apiKeys: never issued, or deleted (deleteApiKey retires its "id:" refs
+//     to this hash). Stable, so history still aggregates per key, and not reversible
+//     for generated keys.
+// Invariant: every "id:" ref names an existing key. A stored "id:" value that doesn't
+// is not trusted as a ref (a client could have sent it as its key); it is hashed.
 // apiKeys is the only table that holds key strings.
 import { createHash } from "node:crypto";
 import { parseJson, stringifyJson } from "./jsonCol.js";
+import { getMetaSync, setMetaSync } from "./metaStore.js";
 
 export const NO_KEY_BUCKET = "local-no-key";
 const HASHED_REF_RE = /^key-[0-9a-f]{16}$/;
 const ID_PREFIX = "id:";
+/** _meta flag: "1" once the file has been vacuumed after raw keys were rewritten. */
+export const SCRUBBED_META_KEY = "usageKeysScrubbed";
 
 export function hashedKeyRef(rawKey) {
   return `key-${createHash("sha256").update(String(rawKey).trim()).digest("hex").slice(0, 16)}`;
@@ -20,12 +26,20 @@ export const isHashedKeyRef = (ref) => typeof ref === "string" && HASHED_REF_RE.
 /** Reference for an apiKeys.id. */
 export const keyRefForId = (id) => `${ID_PREFIX}${id}`;
 
-/** The apiKeys.id a reference points at (the key may since have been deleted), else null. */
+/** The apiKeys.id an "id:" reference points at, else null. */
 export const keyIdFromRef = (ref) =>
   typeof ref === "string" && ref.startsWith(ID_PREFIX) ? ref.slice(ID_PREFIX.length) : null;
 
-/** True for a stored reference, false for anything else (a raw key). */
-export const isKeyRef = (v) => isHashedKeyRef(v) || (typeof v === "string" && v.startsWith(ID_PREFIX) && v.length > ID_PREFIX.length);
+/** Shape check only: does this look like a stored reference? */
+export const isKeyRef = (v) =>
+  isHashedKeyRef(v) || (typeof v === "string" && v.startsWith(ID_PREFIX) && v.length > ID_PREFIX.length);
+
+/** A stored value that is a real reference: a hash, or "id:" of a key that exists. */
+function isValidRef(db, v) {
+  if (isHashedKeyRef(v)) return true;
+  const id = keyIdFromRef(v);
+  return !!id && !!db.get(`SELECT 1 AS x FROM apiKeys WHERE id = ?`, [id]);
+}
 
 /** Key reference for a raw key string (sync, `db` is an adapter). Null when there's no key. */
 export function usageKeyRef(db, rawKey) {
@@ -36,14 +50,6 @@ export function usageKeyRef(db, rawKey) {
   return row ? keyRefForId(row.id) : hashedKeyRef(trimmed);
 }
 
-/** Value already stored in usage → its reference. Refs pass through, raw keys are converted. */
-function toRef(db, value, cache) {
-  if (cache.has(value)) return cache.get(value);
-  const ref = isKeyRef(value) ? value : usageKeyRef(db, value);
-  cache.set(value, ref);
-  return ref;
-}
-
 const SUM_FIELDS = ["requests", "promptTokens", "completionTokens", "cachedTokens", "cost", "credits", "creditCost"];
 
 function mergeBucket(into, from) {
@@ -52,8 +58,12 @@ function mergeBucket(into, from) {
   into.charge = charge;
 }
 
-/** One day's byApiKey with every bucket keyed by reference. Returns null when nothing changed. */
-function rekeyDay(db, byApiKey, cache) {
+/**
+ * One day's byApiKey with every bucket re-keyed by `mapValue(storedValue)` → ref.
+ * The stored value is the bucket's raw `apiKey` (pre-005), else its `keyRef`, else the
+ * bucket id's key part. Returns null when nothing changed.
+ */
+function rekeyDay(byApiKey, mapValue) {
   let changed = false;
   const out = {};
   for (const [bucketId, bucket] of Object.entries(byApiKey || {})) {
@@ -61,18 +71,26 @@ function rekeyDay(db, byApiKey, cache) {
     const idPart = sep < 0 ? bucketId : bucketId.slice(0, sep);
     const rest = sep < 0 ? "" : bucketId.slice(sep);
     const b = { ...bucket };
-    let ref;
-    if (idPart === NO_KEY_BUCKET) ref = null;
-    else if (typeof b.keyRef === "string" && b.apiKey === undefined) ref = b.keyRef;
-    else ref = toRef(db, typeof b.apiKey === "string" && b.apiKey ? b.apiKey : idPart, cache);
-    if ("apiKey" in b) { delete b.apiKey; changed = true; }
-    if (ref) {
-      if (b.keyRef !== ref) { b.keyRef = ref; changed = true; }
+    let ref = null;
+    if (idPart !== NO_KEY_BUCKET) {
+      const stored =
+        typeof b.apiKey === "string" && b.apiKey ? b.apiKey : typeof b.keyRef === "string" && b.keyRef ? b.keyRef : idPart;
+      ref = mapValue(stored);
+    }
+    if ("apiKey" in b) {
+      delete b.apiKey;
+      changed = true;
+    }
+    if (ref && b.keyRef !== ref) {
+      b.keyRef = ref;
+      changed = true;
     }
     const newId = ref ? `${ref}${rest}` : bucketId;
     if (newId !== bucketId) changed = true;
-    if (out[newId]) { mergeBucket(out[newId], b); changed = true; }
-    else out[newId] = b;
+    if (out[newId]) {
+      mergeBucket(out[newId], b);
+      changed = true;
+    } else out[newId] = b;
   }
   return changed ? out : null;
 }
@@ -80,18 +98,12 @@ function rekeyDay(db, byApiKey, cache) {
 const hasTable = (db, name) =>
   !!db.get(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?`, [name]);
 
-/**
- * Replace raw keys in usageHistory.apiKey and usageDaily.data.byApiKey with key
- * references. Idempotent: refs are left as they are. Returns how many rows changed.
- */
-export function backfillUsageKeyRefs(db) {
-  const cache = new Map();
+function rewriteUsage(db, mapValue, historyValues) {
   let history = 0;
   let daily = 0;
-  if (!hasTable(db, "apiKeys")) return { history, daily };
   if (hasTable(db, "usageHistory")) {
-    for (const { apiKey } of db.all(`SELECT DISTINCT apiKey FROM usageHistory WHERE apiKey IS NOT NULL`)) {
-      const ref = typeof apiKey === "string" ? toRef(db, apiKey, cache) : null;
+    for (const apiKey of historyValues) {
+      const ref = mapValue(apiKey);
       if (ref === apiKey) continue;
       const res = db.run(`UPDATE usageHistory SET apiKey = ? WHERE apiKey = ?`, [ref, apiKey]);
       history += res?.changes ?? 0;
@@ -101,26 +113,85 @@ export function backfillUsageKeyRefs(db) {
     for (const row of db.all(`SELECT dateKey, data FROM usageDaily`)) {
       const day = parseJson(row.data, null);
       if (!day || typeof day !== "object" || !day.byApiKey) continue;
-      const next = rekeyDay(db, day.byApiKey, cache);
+      const next = rekeyDay(day.byApiKey, mapValue);
       if (!next) continue;
       day.byApiKey = next;
       db.run(`UPDATE usageDaily SET data = ? WHERE dateKey = ?`, [stringifyJson(day), row.dateKey]);
       daily++;
     }
   }
+  if (history || daily) setMetaSync(db, SCRUBBED_META_KEY, "0");
   return { history, daily };
 }
 
-/** Cheap check for the boot-time heal: is any raw key left in usage? */
+/**
+ * Replace raw keys in usageHistory.apiKey and usageDaily.data.byApiKey with key
+ * references. Valid refs are kept (idempotent). `allRaw` (migration 005, before any
+ * ref existed) treats every stored value as a raw key, including ref-shaped ones.
+ * Marks the DB as needing a VACUUM when it changed anything. Returns rows changed.
+ */
+export function backfillUsageKeyRefs(db, { allRaw = false } = {}) {
+  if (!hasTable(db, "apiKeys")) return { history: 0, daily: 0 };
+  const cache = new Map();
+  const mapValue = (value) => {
+    if (typeof value !== "string") return null;
+    if (cache.has(value)) return cache.get(value);
+    const ref = !allRaw && isValidRef(db, value) ? value : usageKeyRef(db, value);
+    cache.set(value, ref);
+    return ref;
+  };
+  const values = hasTable(db, "usageHistory")
+    ? db.all(`SELECT DISTINCT apiKey FROM usageHistory WHERE apiKey IS NOT NULL`).map((r) => r.apiKey)
+    : [];
+  return rewriteUsage(db, mapValue, values);
+}
+
+/**
+ * Before a key is deleted: its "id:" refs become the hash of its key string, so the
+ * invariant (every "id:" ref names an existing key) holds and its history stays grouped.
+ */
+export function retireKeyRef(db, id, rawKey) {
+  if (typeof rawKey !== "string" || !rawKey.trim()) return { history: 0, daily: 0 };
+  const from = keyRefForId(id);
+  const to = hashedKeyRef(rawKey);
+  const before = getMetaSync(db, SCRUBBED_META_KEY, "1");
+  const res = rewriteUsage(db, (v) => (v === from ? to : v), [from]);
+  // Only ids were rewritten, never a key string: this alone needs no VACUUM.
+  setMetaSync(db, SCRUBBED_META_KEY, before);
+  return res;
+}
+
+/** Boot-time check: does usage hold anything that isn't a valid reference? */
 export function hasRawUsageKeys(db) {
   if (!hasTable(db, "usageHistory") || !hasTable(db, "apiKeys")) return false;
   const raw = db.get(
     `SELECT 1 AS x FROM usageHistory WHERE apiKey IS NOT NULL
-       AND apiKey NOT LIKE 'id:_%'
+       AND apiKey NOT IN (SELECT 'id:' || id FROM apiKeys)
        AND NOT (apiKey GLOB 'key-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]')
      LIMIT 1`,
   );
   if (raw) return true;
   if (!hasTable(db, "usageDaily")) return false;
-  return !!db.get(`SELECT 1 AS x FROM usageDaily WHERE data LIKE '%"apiKey":%' LIMIT 1`);
+  for (const row of db.all(`SELECT data FROM usageDaily`)) {
+    const day = parseJson(row.data, null);
+    for (const [bucketId, b] of Object.entries(day?.byApiKey || {})) {
+      if (bucketId.startsWith(`${NO_KEY_BUCKET}|`) || bucketId === NO_KEY_BUCKET) continue;
+      if (b && "apiKey" in b) return true;
+      if (!isValidRef(db, b?.keyRef)) return true;
+    }
+  }
+  return false;
+}
+
+/** True when raw keys were rewritten and the file hasn't been vacuumed since. */
+export function needsUsageScrub(db) {
+  return getMetaSync(db, SCRUBBED_META_KEY, "1") !== "1";
+}
+
+/** VACUUM so rewritten key bytes leave free pages and the WAL; then record it. */
+export function scrubUsageKeys(db) {
+  db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+  db.exec("VACUUM");
+  db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+  setMetaSync(db, SCRUBBED_META_KEY, "1");
 }

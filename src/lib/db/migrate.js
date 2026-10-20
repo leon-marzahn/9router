@@ -7,7 +7,7 @@ import { getMetaSync, setMetaSync } from "./helpers/metaStore.js";
 import { makeBackupDir, backupFile, backupDbLite, pruneOldBackups } from "./backup.js";
 import { getAppVersion } from "./version.js";
 import { stringifyJson } from "./helpers/jsonCol.js";
-import { backfillUsageKeyRefs, hasRawUsageKeys } from "./helpers/usageKeyRef.js";
+import { backfillUsageKeyRefs, hasRawUsageKeys, needsUsageScrub, scrubUsageKeys } from "./helpers/usageKeyRef.js";
 
 // Marker file: prevents re-importing legacy JSON when user wipes data.sqlite.
 const MIGRATED_MARKER = path.join(DB_DIR, ".migrated-from-json");
@@ -252,25 +252,23 @@ export async function runMigrationOnce(adapter) {
 
   // Usage rows hold key references, never raw keys (migration 005). Rows written by an
   // older version after a downgrade bring raw keys back: convert them again.
-  let scrub = migInfo.from < 5 && migInfo.to >= 5 && !fresh;
   try {
     if (hasRawUsageKeys(adapter)) {
       const healed = adapter.transaction(() => backfillUsageKeyRefs(adapter));
       console.log(`[DB][migrate] usage key refs restored (${healed?.history ?? 0} history rows, ${healed?.daily ?? 0} days)`);
-      scrub = true;
     }
   } catch (e) {
     console.warn(`[DB][migrate] usage key ref backfill failed: ${e.message}`);
   }
   // Overwritten rows leave the old key strings in free pages and the WAL until they are
-  // reused. Rebuild the file once so the raw keys are really gone from usage.
-  if (scrub) {
+  // reused. The backfill sets usageKeysScrubbed = 0 in the same transaction as its
+  // rewrite; it turns 1 only after a VACUUM succeeds, so a crash in between retries.
+  if (needsUsageScrub(adapter)) {
     try {
-      adapter.exec("PRAGMA wal_checkpoint(TRUNCATE)");
-      adapter.exec("VACUUM");
-      adapter.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+      scrubUsageKeys(adapter);
+      console.log("[DB][migrate] vacuumed after usage key refs");
     } catch (e) {
-      console.warn(`[DB][migrate] vacuum after usage key refs failed: ${e.message}`);
+      console.warn(`[DB][migrate] vacuum after usage key refs failed (retried next boot): ${e.message}`);
     }
   }
 
@@ -296,7 +294,7 @@ export async function runMigrationOnce(adapter) {
         importLegacyUsage(adapter, legacyUsage);
         importLegacyDisabled(adapter, legacyDisabled);
         importLegacyDetails(adapter, legacyDetails);
-        backfillUsageKeyRefs(adapter);
+        backfillUsageKeyRefs(adapter, { allRaw: true });
         setMetaSync(adapter, "appVersion", getAppVersion());
         setMetaSync(adapter, "backupSchemaVersion", SCHEMA_VERSION);
         setMetaSync(adapter, "migratedAt", new Date().toISOString());
