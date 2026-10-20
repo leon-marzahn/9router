@@ -7,6 +7,7 @@ import { validatePipelines } from "@/lib/request-pipelines/config.js";
 import { UPDATE_STATE_KEYS, webhookHost } from "@/lib/updates/webhook.js";
 import { NOTIFY_KEYS } from "@/lib/notify/config.js";
 import { validateCustomerViewPatch } from "@/lib/customerView/index.js";
+import { maskUrlCredentials, restoreMaskedUrl } from "@/lib/secretRedaction";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -27,6 +28,8 @@ function toPublicSettings({ password, oidcClientSecret, updateWebhookUrl, update
   safe.updateWebhookHost = updateWebhookUrl ? webhookHost(updateWebhookUrl) : null;
   // Email delivery has its own route (GET /api/settings/notifications) that reports secrets as booleans.
   for (const key of NOTIFY_KEYS) delete safe[key];
+  // The proxy URL may carry user:pass; the browser only sees user:***.
+  if (safe.outboundProxyUrl) safe.outboundProxyUrl = maskUrlCredentials(safe.outboundProxyUrl);
   return { safe, password };
 }
 
@@ -140,6 +143,10 @@ export async function PATCH(request) {
       }
     }
 
+    // Saving the masked proxy URL unchanged keeps the stored password.
+    if (typeof body.outboundProxyUrl === "string") {
+      body.outboundProxyUrl = restoreMaskedUrl(body.outboundProxyUrl, (await getSettings()).outboundProxyUrl);
+    }
     const settings = await updateSettings(body);
 
     // Apply outbound proxy settings immediately (no restart required)

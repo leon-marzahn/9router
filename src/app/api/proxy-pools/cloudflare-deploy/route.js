@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createProxyPool } from "@/models";
+import { redactSecrets } from "@/lib/secretRedaction";
 
 // Relay worker source code deployed to Cloudflare
 const RELAY_WORKER_CODE = `
@@ -137,7 +138,7 @@ export async function POST(request) {
       strictProxy: false,
     });
 
-    return NextResponse.json({ proxyPool, deployUrl }, { status: 201 });
+    return NextResponse.json({ proxyPool: redactSecrets(proxyPool), deployUrl }, { status: 201 });
   } catch (error) {
     console.log("Error deploying Cloudflare relay:", error);
     return NextResponse.json({ error: error.message || "Deploy failed" }, { status: 500 });

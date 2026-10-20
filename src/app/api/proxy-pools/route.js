@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createProxyPool, getProviderConnections, getProxyPools } from "@/models";
+import { redactSecrets } from "@/lib/secretRedaction";
 
 function toBoolean(value) {
   if (value === "true") return true;
@@ -56,7 +57,7 @@ export async function GET(request) {
     const proxyPools = await getProxyPools(filter);
 
     if (!includeUsage) {
-      return NextResponse.json({ proxyPools });
+      return NextResponse.json({ proxyPools: redactSecrets(proxyPools) });
     }
 
     const connections = await getProviderConnections();
@@ -67,7 +68,7 @@ export async function GET(request) {
       boundConnectionCount: usageMap.get(pool.id) || 0,
     }));
 
-    return NextResponse.json({ proxyPools: enrichedProxyPools });
+    return NextResponse.json({ proxyPools: redactSecrets(enrichedProxyPools) });
   } catch (error) {
     console.log("Error fetching proxy pools:", error);
     return NextResponse.json({ error: "Failed to fetch proxy pools" }, { status: 500 });
@@ -85,7 +86,7 @@ export async function POST(request) {
     }
 
     const proxyPool = await createProxyPool(normalized);
-    return NextResponse.json({ proxyPool }, { status: 201 });
+    return NextResponse.json({ proxyPool: redactSecrets(proxyPool) }, { status: 201 });
   } catch (error) {
     console.log("Error creating proxy pool:", error);
     return NextResponse.json({ error: "Failed to create proxy pool" }, { status: 500 });
