@@ -5,7 +5,7 @@ raw-color :: src/app/(dashboard)/dashboard/providers/model.ts :: 2
 raw-color :: src/ui/Switch.tsx :: 1
 raw-color :: src/ui/Tag.tsx :: 1
 raw-control :: src/app/(dashboard)/dashboard/basic-chat/workbench/ChatWorkbench.tsx :: 2
-raw-control :: src/app/(dashboard)/dashboard/cli-tools/connect/ConnectPanel.tsx :: 3
+raw-control :: src/app/(dashboard)/dashboard/cli-tools/connect/ConnectPanel.tsx :: 1
 raw-control :: src/app/(dashboard)/dashboard/cli-tools/connect/McpMarketplace.tsx :: 2
 raw-control :: src/app/(dashboard)/dashboard/combos/workbench/ComboDetail.tsx :: 1
 raw-control :: src/app/(dashboard)/dashboard/console-log/ConsoleLog.tsx :: 1
@@ -18,7 +18,7 @@ raw-control :: src/app/(dashboard)/dashboard/profile/settings/General.tsx :: 1
 raw-control :: src/app/(dashboard)/dashboard/profile/settings/Sso.tsx :: 2
 raw-control :: src/app/(dashboard)/dashboard/providers/workbench/ProvidersWorkbench.tsx :: 1
 raw-control :: src/app/(dashboard)/dashboard/proxy-pools/workbench/dialogs.tsx :: 1
-raw-control :: src/app/(dashboard)/dashboard/proxy-pools/workbench/Overview.tsx :: 3
+raw-control :: src/app/(dashboard)/dashboard/proxy-pools/workbench/Overview.tsx :: 1
 raw-control :: src/app/(dashboard)/dashboard/quota/workbench/parts.tsx :: 1
 raw-control :: src/app/(dashboard)/dashboard/quota/workbench/QuotaWorkbench.tsx :: 6
 raw-control :: src/app/(dashboard)/dashboard/quota/workbench/ResetTimeline.tsx :: 1

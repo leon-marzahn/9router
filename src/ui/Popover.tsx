@@ -110,7 +110,7 @@ export function MenuItem({
   active?: boolean;
 }) {
   const cls = cn(
-    "flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors",
+    "flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors max-md:min-h-10",
     danger ? "text-danger-text hover:bg-danger-soft" : "text-text hover:bg-surface-2",
     active && "bg-accent-soft text-accent-text",
   );

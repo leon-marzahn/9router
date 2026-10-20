@@ -71,7 +71,7 @@ export const SearchInput = forwardRef<
       <Icon name="search" size={17} className="text-text-subtle" />
       <input
         ref={ref}
-        className="min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-text-subtle"
+        className="h-full min-w-0 flex-1 self-stretch bg-transparent text-[13px] outline-none placeholder:text-text-subtle"
         {...rest}
       />
       {shortcut && <Kbd>{shortcut}</Kbd>}

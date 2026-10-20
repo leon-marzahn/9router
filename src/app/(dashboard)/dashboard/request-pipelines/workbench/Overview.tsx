@@ -84,7 +84,7 @@ export function Overview({
                   <button
                     type="button"
                     onClick={() => onOpen(r.pipeline.name)}
-                    className="truncate text-left font-mono text-[13px] text-accent-text hover:underline"
+                    className="truncate text-left font-mono text-[13px] text-accent-text hover:underline max-md:min-h-10 max-md:min-w-10"
                   >
                     {r.pipeline.name}
                   </button>

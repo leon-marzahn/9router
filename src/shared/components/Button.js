@@ -14,9 +14,9 @@ const variants = {
 };
 
 const sizes = {
-  xs: "h-7 gap-1 rounded-md px-2.5 text-[11px]",
-  sm: "h-8 gap-1.5 rounded-lg px-3 text-xs",
-  md: "h-9 gap-2 rounded-lg px-4 text-[13px]",
+  xs: "h-7 max-md:h-10 gap-1 rounded-md px-2.5 text-[11px]",
+  sm: "h-8 max-md:h-10 gap-1.5 rounded-lg px-3 text-xs",
+  md: "h-9 max-md:h-10 gap-2 rounded-lg px-4 text-[13px]",
   lg: "h-10 gap-2 rounded-lg px-5 text-[13px]",
 };
 

@@ -72,7 +72,7 @@ function Source({ href, children }: { href: string; children: ReactNode }) {
       href={href}
       target="_blank"
       rel="noreferrer"
-      className="ml-1.5 inline-flex items-center gap-0.5 text-[11px] font-normal text-text-subtle hover:text-text"
+      className="ml-1.5 inline-flex items-center gap-0.5 text-[11px] font-normal text-text-subtle hover:text-text relative after:absolute after:-inset-x-1 after:-inset-y-3.5"
     >
       {children}
       <Icon name="open_in_new" size={11} />

@@ -38,6 +38,8 @@ export default function Toggle({
         onClick={handleClick}
         className={cn(
           "relative inline-flex shrink-0 cursor-pointer items-center rounded-full",
+          // Visual size stays; the ::after stretches the tap target past 40px (as in src/ui/Switch).
+          "after:absolute after:-inset-x-1 after:-inset-y-3",
           "transition-colors duration-200 ease-in-out",
           "focus-visible:outline-none focus-visible:shadow-focus",
           checked ? "bg-success" : "bg-surface-3",

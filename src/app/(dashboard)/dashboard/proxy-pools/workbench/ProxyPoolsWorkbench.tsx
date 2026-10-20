@@ -104,6 +104,7 @@ export function ProxyPoolsWorkbench() {
           size="sm"
           variant="secondary"
           icon="rocket_launch"
+          aria-label="Deploy relay"
           onClick={() => setRelayMenu(true)}
         >
           <span className="hidden sm:inline">Deploy relay</span>
@@ -132,6 +133,7 @@ export function ProxyPoolsWorkbench() {
           size="sm"
           variant="secondary"
           icon="upload"
+          aria-label="Batch import"
           onClick={() => setOpen({ kind: "import" })}
         >
           <span className="hidden sm:inline">Batch import</span>

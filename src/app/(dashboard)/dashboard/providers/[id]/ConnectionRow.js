@@ -192,11 +192,11 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
   return (
     <div className={cn("group flex min-w-0 items-center gap-3 px-3 py-2.5", connection.isActive === false && "opacity-55")}>
       {/* Priority */}
-      <div className="flex shrink-0 flex-col text-text-subtle">
-        <button type="button" onClick={onMoveUp} disabled={isFirst} aria-label="Move up" className="rounded leading-none hover:text-text disabled:opacity-25">
+      <div className="flex shrink-0 flex-col text-text-subtle max-md:-ml-2 max-md:flex-row">
+        <button type="button" onClick={onMoveUp} disabled={isFirst} aria-label="Move up" className="rounded leading-none hover:text-text disabled:opacity-25 max-md:inline-flex max-md:size-10 max-md:items-center max-md:justify-center">
           <Icon name="keyboard_arrow_up" size={16} />
         </button>
-        <button type="button" onClick={onMoveDown} disabled={isLast} aria-label="Move down" className="rounded leading-none hover:text-text disabled:opacity-25">
+        <button type="button" onClick={onMoveDown} disabled={isLast} aria-label="Move down" className="rounded leading-none hover:text-text disabled:opacity-25 max-md:inline-flex max-md:size-10 max-md:items-center max-md:justify-center">
           <Icon name="keyboard_arrow_down" size={16} />
         </button>
       </div>

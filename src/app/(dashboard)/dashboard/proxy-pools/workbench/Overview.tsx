@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Button, EmptyState, Eyebrow, Panel, StatGrid, StatusDot, Tag, needsAttention } from "@/ui";
+import { Button, Checkbox, EmptyState, Eyebrow, Panel, StatGrid, StatusDot, Tag, needsAttention } from "@/ui";
 import { cn } from "@/ui/cn";
 import { RELAY_LABEL, poolStatus, type ProxyPool } from "./pools";
 import type { ProxyPoolsApi } from "./useProxyPools";
@@ -118,15 +118,12 @@ export function Overview({
               </div>
             </div>
             <Panel className="divide-y divide-border">
-              <label className="flex cursor-pointer items-center gap-3 px-4 py-2 text-[11px] uppercase tracking-wider text-text-subtle">
-                <input
-                  type="checkbox"
-                  className="size-4 accent-accent"
-                  checked={all}
-                  onChange={() => setPicked(all ? [] : list.map((p) => p.id))}
-                />
-                {all ? "Unselect all" : "Select all"}
-              </label>
+              <Checkbox
+                className="flex gap-3 px-4 py-2 text-[11px] uppercase tracking-wider text-text-subtle"
+                checked={all}
+                onChange={() => setPicked(all ? [] : list.map((p) => p.id))}
+                label={all ? "Unselect all" : "Select all"}
+              />
               {list.map((p) => (
                 <PoolLine
                   key={p.id}
@@ -158,15 +155,9 @@ function PoolLine({
   const status = poolStatus(p);
   return (
     <div className={cn("flex items-center gap-3 px-4 py-2.5", checked && "bg-accent-soft")}>
-      <input
-        type="checkbox"
-        className="size-4 shrink-0 accent-accent"
-        aria-label={`Select ${p.name}`}
-        checked={checked}
-        onChange={onCheck}
-      />
+      <Checkbox aria-label={`Select ${p.name}`} checked={checked} onChange={onCheck} />
       <StatusDot status={status} />
-      <button type="button" onClick={onOpen} className="min-w-0 flex-1 text-left">
+      <button type="button" onClick={onOpen} className="min-w-0 flex-1 text-left max-md:min-h-10">
         <span className="block truncate text-[13px] hover:underline">{p.name}</span>
         <span className="block truncate font-mono text-[11px] text-text-muted">{p.proxyUrl}</span>
       </button>

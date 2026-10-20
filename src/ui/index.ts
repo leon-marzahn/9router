@@ -2,6 +2,7 @@ export { cn } from "./cn";
 export { Icon } from "./Icon";
 export { Button, IconButton, type ButtonProps } from "./Button";
 export { Switch } from "./Switch";
+export { Checkbox } from "./Checkbox";
 export { Field, Input, Select, SearchInput, Kbd, inputClass } from "./Field";
 export { Segmented, type SegmentedOption } from "./Segmented";
 export { StatusDot, StatusLabel } from "./StatusDot";

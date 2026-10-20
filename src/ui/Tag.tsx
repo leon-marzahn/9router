@@ -10,7 +10,7 @@ const TONES: Record<Tone, string> = {
   warning: "bg-warning/12 text-warning-text",
   danger: "bg-danger/10 text-danger-text",
   info: "bg-info/12 text-info-text",
-  "solid-danger": "bg-danger text-white",
+  "solid-danger": "bg-danger text-white dark:bg-danger-text dark:text-bg",
 };
 
 /** Small label. Use `mono` for codes (429, AUTH, model ids). */

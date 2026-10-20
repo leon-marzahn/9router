@@ -15,7 +15,7 @@ import { useModelCaps } from "@/shared/hooks/useModelCaps";
 import { translate } from "@/i18n/runtime";
 import { fetchSuggestedModels } from "@/shared/utils/providerModelsFetcher";
 import { getProviderCustomModelRows } from "@/shared/utils/providerCustomModels";
-import { Button as UiButton, EmptyState, Eyebrow, Icon, Input as UiInput, Switch, cn } from "@/ui";
+import { Button as UiButton, Checkbox, EmptyState, Eyebrow, Icon, Input as UiInput, Select as UiSelect, Switch, cn } from "@/ui";
 import ModelRow from "./ModelRow";
 import PassthroughModelsSection from "./PassthroughModelsSection";
 import CompatibleModelsSection from "./CompatibleModelsSection";
@@ -1078,15 +1078,13 @@ export default function ProviderManager({ providerId, embedded = false, liveVers
       {connections
         .map((conn, index) => (
           <div key={conn.id} className={cn("group flex min-w-0 items-stretch transition-colors", isSelected(conn.id) ? "bg-accent-soft" : "hover:bg-surface-2/60")}>
-            <label className="flex shrink-0 cursor-pointer items-center pl-3">
-              <input
-                type="checkbox"
+            <div className="flex shrink-0 items-center pl-3">
+              <Checkbox
                 aria-label={`Select ${conn.name || conn.email || "account"}`}
                 checked={isSelected(conn.id)}
                 onChange={() => toggleSelectConnection(conn.id)}
-                className="size-3.5 accent-accent"
               />
-            </label>
+            </div>
             <div className="flex-1 min-w-0">
               <ConnectionRow
                 connection={conn}
@@ -1420,7 +1418,7 @@ export default function ProviderManager({ providerId, embedded = false, liveVers
       <div className="min-w-0">
         <Link
           href="/dashboard/providers"
-          className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-primary transition-colors mb-4"
+          className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-primary transition-colors mb-4 max-md:min-h-10"
         >
           <span className="material-symbols-outlined text-lg">arrow_back</span>
           Back to Providers
@@ -1459,7 +1457,7 @@ export default function ProviderManager({ providerId, embedded = false, liveVers
                   href={providerInfo.notice?.apiKeyUrl || providerInfo.notice?.signupUrl || providerInfo.website}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-xs text-primary hover:underline inline-flex items-center gap-1"
+                  className="text-xs text-accent-text hover:underline inline-flex items-center gap-1 max-md:min-h-10"
                 >
                   <span className="material-symbols-outlined text-sm">open_in_new</span>
                   {providerInfo.notice?.apiKeyUrl ? "Get API Key" : "Sign up / Learn more"}
@@ -1596,10 +1594,12 @@ export default function ProviderManager({ providerId, embedded = false, liveVers
               )}
               <div className="overflow-hidden rounded-xl border border-border bg-surface">
                 <div className="flex h-9 items-center gap-2 border-b border-border px-3 text-xs text-text-muted">
-                  <label className="flex cursor-pointer items-center gap-2 hover:text-text">
-                    <input type="checkbox" checked={allSelected} onChange={toggleSelectAllConnections} className="size-3.5 accent-accent" />
-                    {selectedConnectionIds.length > 0 ? `${selectedConnectionIds.length} selected` : "Select all"}
-                  </label>
+                  <Checkbox
+                    className="hover:text-text"
+                    checked={allSelected}
+                    onChange={toggleSelectAllConnections}
+                    label={selectedConnectionIds.length > 0 ? `${selectedConnectionIds.length} selected` : "Select all"}
+                  />
                   {selectedConnectionIds.length > 0 && (
                     <UiButton variant="ghost" icon="delete" onClick={handleBulkDelete} className="ml-auto h-7 text-danger-text hover:bg-danger-soft hover:text-danger-text">
                       Delete {selectedConnectionIds.length}
@@ -1646,16 +1646,17 @@ export default function ProviderManager({ providerId, embedded = false, liveVers
         <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-2">
           <Eyebrow>Models</Eyebrow>
           {providerThinkingLevels && !isMedia && (
-            <select
+            <UiSelect
               value={thinkingMode}
               onChange={(e) => handleThinkingModeChange(e.target.value)}
+              aria-label="Thinking level"
               title="Appends (level) suffix to copied model names"
-              className="h-7 rounded-lg border border-border bg-surface px-2 text-xs text-text outline-none focus:border-accent"
+              className="h-7 w-auto px-2 text-xs"
             >
               {providerThinkingLevels.map((opt) => (
                 <option key={opt} value={opt}>{`Thinking: ${opt.charAt(0).toUpperCase() + opt.slice(1)}`}</option>
               ))}
-            </select>
+            </UiSelect>
           )}
           {!isCompatible && (() => {
             const allIds = [
