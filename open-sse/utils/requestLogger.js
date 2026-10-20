@@ -1,3 +1,5 @@
+import { maskHeaders, maskBody, maskString } from "./maskSecrets.cjs";
+
 // Check if running in Node.js environment (has fs module)
 const isNode = typeof process !== "undefined" && process.versions?.node && typeof window === "undefined";
 
@@ -14,7 +16,7 @@ async function ensureNodeModules() {
   try {
     fs = await import("fs");
     path = await import("path");
-    LOGS_DIR = path.join(typeof process !== "undefined" && process.cwd ? process.cwd() : ".", "logs");
+    LOGS_DIR = process.env.REQUEST_LOGS_DIR || path.join(typeof process !== "undefined" && process.cwd ? process.cwd() : ".", "logs");
   } catch {
     // Running in non-Node environment (Worker, Browser, etc.)
   }
@@ -63,31 +65,15 @@ function writeJsonFile(sessionPath, filename, data) {
   
   try {
     const filePath = path.join(sessionPath, filename);
-    fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+    fs.writeFileSync(filePath, JSON.stringify(maskBody(data), null, 2));
   } catch (err) {
     console.log(`[LOG] Failed to write ${filename}:`, err.message);
   }
 }
 
-// Mask sensitive data in headers (DISABLED - keep full token for testing)
+// Every value written under logs/ goes through these maskers (see maskSecrets.cjs).
 function maskSensitiveHeaders(headers) {
-  if (!headers) return {};
-  return { ...headers };
-  
-  // Old masking code (disabled):
-  // const masked = { ...headers };
-  // const sensitiveKeys = ["authorization", "x-api-key", "cookie", "token"];
-  // 
-  // for (const key of Object.keys(masked)) {
-  //   const lowerKey = key.toLowerCase();
-  //   if (sensitiveKeys.some(sk => lowerKey.includes(sk))) {
-  //     const value = masked[key];
-  //     if (value && value.length > 20) {
-  //       masked[key] = value.slice(0, 10) + "..." + value.slice(-5);
-  //     }
-  //   }
-  // }
-  // return masked;
+  return maskHeaders(headers);
 }
 
 // No-op logger when logging is disabled
@@ -170,7 +156,7 @@ export async function createRequestLogger(sourceFormat, targetFormat, model) {
         timestamp: new Date().toISOString(),
         status,
         statusText,
-        headers: headers ? (typeof headers.entries === "function" ? Object.fromEntries(headers.entries()) : headers) : {},
+        headers: maskSensitiveHeaders(headers),
         body
       });
     },
@@ -180,7 +166,7 @@ export async function createRequestLogger(sourceFormat, targetFormat, model) {
       if (!fs || !sessionPath) return;
       try {
         const filePath = path.join(sessionPath, "5_res_provider.txt");
-        fs.appendFileSync(filePath, chunk);
+        fs.appendFileSync(filePath, typeof chunk === "string" ? maskString(chunk) : maskString(Buffer.from(chunk).toString("utf8")));
       } catch (err) {
         // Ignore append errors
       }
@@ -191,7 +177,7 @@ export async function createRequestLogger(sourceFormat, targetFormat, model) {
       if (!fs || !sessionPath) return;
       try {
         const filePath = path.join(sessionPath, "6_res_openai.txt");
-        fs.appendFileSync(filePath, chunk);
+        fs.appendFileSync(filePath, typeof chunk === "string" ? maskString(chunk) : maskString(Buffer.from(chunk).toString("utf8")));
       } catch (err) {
         // Ignore append errors
       }
@@ -210,7 +196,7 @@ export async function createRequestLogger(sourceFormat, targetFormat, model) {
       if (!fs || !sessionPath) return;
       try {
         const filePath = path.join(sessionPath, "7_res_client.txt");
-        fs.appendFileSync(filePath, chunk);
+        fs.appendFileSync(filePath, typeof chunk === "string" ? maskString(chunk) : maskString(Buffer.from(chunk).toString("utf8")));
       } catch (err) {
         // Ignore append errors
       }
@@ -253,7 +239,7 @@ export function logError(provider, { error, url, model, requestBody }) {
       requestBody
     };
     
-    fs.appendFileSync(logPath, JSON.stringify(logEntry) + "\n");
+    fs.appendFileSync(logPath, JSON.stringify(maskBody(logEntry)) + "\n");
   } catch (err) {
     console.log("[LOG] Failed to write error log:", err.message);
   }

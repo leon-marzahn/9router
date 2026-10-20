@@ -6,6 +6,7 @@
 
 import fs from "fs";
 import path from "path";
+import { maskString } from "../utils/maskSecrets.cjs";
 
 // Create log directory for responses (Node.js only)
 export function createResponsesLogger(model, logsDir = null) {
@@ -37,8 +38,8 @@ export function createResponsesLogger(model, logsDir = null) {
     },
     flush: () => {
       try {
-        fs.writeFileSync(path.join(logDir, "1_input_stream.txt"), inputEvents.join("\n"));
-        fs.writeFileSync(path.join(logDir, "2_output_stream.txt"), outputEvents.join("\n"));
+        fs.writeFileSync(path.join(logDir, "1_input_stream.txt"), maskString(inputEvents.join("\n")));
+        fs.writeFileSync(path.join(logDir, "2_output_stream.txt"), maskString(outputEvents.join("\n")));
       } catch (e) {
         console.log("[RESPONSES] Failed to write logs:", e.message);
       }
