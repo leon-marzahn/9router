@@ -222,6 +222,8 @@ export default defineConfig({
       "!/tests/unit/budgets.test.js",
       "!/tests/unit/key-pricing.test.js",
       "!/tests/unit/key-pricing-guard.test.js",
+      "!/tests/unit/usage-key-refs.test.js",
+      "!/tests/unit/usage-key-backup.test.js",
       "!/tests/unit/mitm-port-owner.test.js",
       "!/tests/unit/dockerfile-mitm-copy.test.js",
     ],

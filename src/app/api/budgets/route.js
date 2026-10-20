@@ -17,12 +17,12 @@ export async function GET() {
     const out = { global: null, keys: {} };
     if (budgets[GLOBAL_SCOPE]) {
       const budget = budgets[GLOBAL_SCOPE];
-      out.global = { budget, status: await budgetStatus(GLOBAL_SCOPE, budget, null) };
+      out.global = { budget, status: await budgetStatus(GLOBAL_SCOPE, budget) };
     }
     for (const k of keys) {
       const budget = budgets[keyScope(k.id)];
       if (!budget) continue;
-      out.keys[k.id] = { budget, status: await budgetStatus(keyScope(k.id), budget, k.key) };
+      out.keys[k.id] = { budget, status: await budgetStatus(keyScope(k.id), budget) };
     }
     return NextResponse.json(out, { headers: NO_STORE });
   } catch (error) {

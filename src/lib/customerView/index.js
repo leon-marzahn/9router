@@ -11,6 +11,7 @@
 //   - Spend is the per-row `charge` column when it exists (per-key pricing), `cost`
 //     otherwise. Budget status only supplies the budget card's ratio/state.
 import crypto from "node:crypto";
+import { keyRefForId } from "@/lib/db/helpers/usageKeyRef.js";
 import { getApiKeys } from "@/lib/db/repos/apiKeysRepo.js";
 import { getBudget } from "@/lib/db/repos/budgetsRepo.js";
 import { getSettings } from "@/lib/db/repos/settingsRepo.js";
@@ -140,25 +141,27 @@ export async function getCustomerUsage(rec, { now = new Date() } = {}) {
   const budget = await getBudget(keyScope(rec.id));
   // The budget counter only drives the budget card's ratio/state. Every number shown
   // (totals, breakdown, chart) comes from the fresh queries below, so they add up.
-  const status = budget ? await budgetStatus(keyScope(rec.id), budget, rec.key, { now }) : null;
+  const status = budget ? await budgetStatus(keyScope(rec.id), budget, { now }) : null;
   const period = budget?.period === "day" ? "day" : "month";
   const { start, end } = periodBounds(period, now);
   const startIso = start.toISOString();
 
   const db = await getAdapter();
   const spend = spendExpr(db);
+  // Usage rows store the key reference, never the key string.
+  const keyRef = keyRefForId(rec.id);
 
   const totals = db.get(
     `SELECT COUNT(*) AS requests, COALESCE(SUM(promptTokens + completionTokens), 0) AS tokens, SUM(${spend}) AS spend
      FROM usageHistory WHERE apiKey = ? AND timestamp >= ?`,
-    [rec.key, startIso],
+    [keyRef, startIso],
   );
 
   const byModel = db
     .all(
       `SELECT ${REQUESTED} AS model, COUNT(*) AS requests, COALESCE(SUM(promptTokens), 0) AS inputTokens, COALESCE(SUM(completionTokens), 0) AS outputTokens, SUM(${spend}) AS spend
        FROM usageHistory WHERE apiKey = ? AND timestamp >= ? GROUP BY 1 ORDER BY spend DESC, requests DESC LIMIT 100`,
-      [rec.key, startIso],
+      [keyRef, startIso],
     )
     .map((r) => ({
       model: r.model || UNKNOWN_MODEL,
@@ -173,7 +176,7 @@ export async function getCustomerUsage(rec, { now = new Date() } = {}) {
   const dayRows = db.all(
     `SELECT substr(timestamp, 1, 10) AS day, COUNT(*) AS requests, COALESCE(SUM(promptTokens + completionTokens), 0) AS tokens, SUM(${spend}) AS spend
      FROM usageHistory WHERE apiKey = ? AND timestamp >= ? GROUP BY day`,
-    [rec.key, chartStart.toISOString()],
+    [keyRef, chartStart.toISOString()],
   );
   const byDay = new Map(dayRows.map((r) => [r.day, r]));
   const daily = [];
@@ -187,7 +190,7 @@ export async function getCustomerUsage(rec, { now = new Date() } = {}) {
     .all(
       `SELECT timestamp, ${REQUESTED} AS model, status, promptTokens, completionTokens, ${spend} AS spend
        FROM usageHistory WHERE apiKey = ? ORDER BY timestamp DESC, id DESC LIMIT ${RECENT_LIMIT}`,
-      [rec.key],
+      [keyRef],
     )
     .map((r) => ({
       time: r.timestamp,

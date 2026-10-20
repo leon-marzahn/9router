@@ -4,9 +4,39 @@ import { LEGACY_FILES, DB_DIR } from "./paths.js";
 import { TABLES, buildCreateTableSql, SCHEMA_VERSION } from "./schema.js";
 import { MIGRATIONS, latestVersion } from "./migrations/index.js";
 import { getMetaSync, setMetaSync } from "./helpers/metaStore.js";
-import { makeBackupDir, backupFile, backupDbLite, pruneOldBackups } from "./backup.js";
+import {
+  PRE_USAGE_KEY_REFS,
+  backupDbLite,
+  backupFile,
+  makeBackupDir,
+  pruneOldBackups,
+  requiredBackup,
+} from "./backup.js";
+
+const USAGE_KEY_REFS_VERSION = 5;
+
+/** Thrown when a backup required before rewriting usage keys can't be taken or verified. */
+export class BackupRequired extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "BackupRequired";
+  }
+}
+
+function requiredUsageBackup(adapter, label) {
+  try {
+    return requiredBackup(adapter, label);
+  } catch (e) {
+    const msg =
+      `[DB][migrate] ${e.message}. Refusing to rewrite usage API keys without a verified backup; ` +
+      `no usage rows were changed. Free disk space / fix permissions on DATA_DIR/db/backups and restart.`;
+    console.error(msg);
+    throw new BackupRequired(msg);
+  }
+}
 import { getAppVersion } from "./version.js";
 import { stringifyJson } from "./helpers/jsonCol.js";
+import { backfillUsageKeyRefs, hasRawUsageKeys, needsUsageScrub, scrubUsageKeys } from "./helpers/usageKeyRef.js";
 
 // Marker file: prevents re-importing legacy JSON when user wipes data.sqlite.
 const MIGRATED_MARKER = path.join(DB_DIR, ".migrated-from-json");
@@ -232,7 +262,17 @@ export async function runMigrationOnce(adapter) {
   // A lightweight backup is taken BEFORE any schema mutation below.
   const storedSchemaVer = parseInt(getMetaSync(adapter, "backupSchemaVersion", "0"), 10) || 0;
   const schemaChanging = !fresh && storedSchemaVer < SCHEMA_VERSION;
-  if (schemaChanging) {
+  // Migration 005 rewrites usage rows one way: its backup is required (taken, verified,
+  // pinned against pruning). If it can't be taken, the boot stops here, untouched.
+  const usageRefsPending =
+    !fresh && (parseInt(getMetaSync(adapter, "schemaVersion", "0"), 10) || 0) < USAGE_KEY_REFS_VERSION;
+  let backedUp = false;
+  if (usageRefsPending) {
+    const dir = requiredUsageBackup(adapter, PRE_USAGE_KEY_REFS);
+    pruneOldBackups();
+    backedUp = true;
+    console.log(`[DB][migrate] pre-usage-key-refs backup (pinned, verified): ${dir}`);
+  } else if (schemaChanging) {
     try {
       const backupDir = makeBackupDir(`schema-${storedSchemaVer}-to-${SCHEMA_VERSION}`);
       backupDbLite(adapter, backupDir);
@@ -248,6 +288,40 @@ export async function runMigrationOnce(adapter) {
 
   // 2. Additive sync (auto add missing columns/indexes declared in TABLES)
   syncSchemaFromTables(adapter);
+
+  // Usage rows hold key references, never raw keys (migration 005). Rows written by an
+  // older version after a downgrade bring raw keys back: convert them again, after a
+  // required backup of their own (a failed backup stops the boot before any rewrite).
+  if (hasRawUsageKeys(adapter)) {
+    if (!backedUp) {
+      const dir = requiredUsageBackup(adapter, "pre-usage-key-heal");
+      pruneOldBackups();
+      backedUp = true;
+      console.log(`[DB][migrate] pre-usage-key-heal backup (verified): ${dir}`);
+    }
+    try {
+      const healed = adapter.transaction(() => backfillUsageKeyRefs(adapter));
+      console.log(`[DB][migrate] usage key refs restored (${healed?.history ?? 0} history rows, ${healed?.daily ?? 0} days)`);
+    } catch (e) {
+      console.warn(`[DB][migrate] usage key ref backfill failed: ${e.message}`);
+    }
+  }
+  // Overwritten rows leave the old key strings in free pages and the WAL until they are
+  // reused. The backfill sets usageKeysScrubbed = 0 in the same transaction as its
+  // rewrite; it turns 1 only after a VACUUM succeeds, so a crash in between retries.
+  if (needsUsageScrub(adapter)) {
+    if (!backedUp) {
+      const dir = requiredUsageBackup(adapter, "pre-usage-key-scrub");
+      pruneOldBackups();
+      console.log(`[DB][migrate] pre-usage-key-scrub backup (verified): ${dir}`);
+    }
+    try {
+      scrubUsageKeys(adapter);
+      console.log("[DB][migrate] vacuumed after usage key refs");
+    } catch (e) {
+      console.warn(`[DB][migrate] vacuum after usage key refs failed (retried next boot): ${e.message}`);
+    }
+  }
 
   // Stamp the schema version we just reached so future boots skip re-backup.
   setMetaSync(adapter, "backupSchemaVersion", SCHEMA_VERSION);
@@ -271,6 +345,7 @@ export async function runMigrationOnce(adapter) {
         importLegacyUsage(adapter, legacyUsage);
         importLegacyDisabled(adapter, legacyDisabled);
         importLegacyDetails(adapter, legacyDetails);
+        backfillUsageKeyRefs(adapter, { allRaw: true });
         setMetaSync(adapter, "appVersion", getAppVersion());
         setMetaSync(adapter, "backupSchemaVersion", SCHEMA_VERSION);
         setMetaSync(adapter, "migratedAt", new Date().toISOString());

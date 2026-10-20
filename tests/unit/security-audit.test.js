@@ -21,12 +21,13 @@ describe("AUDIT-002: API key masking", () => {
       "utf-8"
     );
     // The REST response should use apiKeyMasked
-    expect(source).toContain("apiKeyMasked: maskApiKey(r.apiKey)");
+    // Usage rows hold key references; the response describes them (masked current key, never the string)
+    expect(source).toContain("describeKeyRef(r.apiKey, keysById)");
     // The return mapping in getUsageHistory should not have raw apiKey
     // (The internal ring buffer still uses apiKey: r.apiKey for internal state - that's fine)
     const historyReturn = source.match(/return rows\.map\(\(r\)\s*=>\s*\(\{[\s\S]*?\}\)\);/);
     expect(historyReturn).not.toBeNull();
-    expect(historyReturn[0]).toContain("apiKeyMasked");
+    expect(historyReturn[0]).toContain("describeKeyRef");
     expect(historyReturn[0]).not.toContain("apiKey: r.apiKey");
   });
 

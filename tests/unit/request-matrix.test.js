@@ -137,6 +137,7 @@ let adapter;
 let budgets;
 let routes;
 let clientKey;
+let clientKeyRef; // usage rows store "id:<keyId>", never the key string
 let db;
 const connectionIds = [];
 let budgetScope;
@@ -195,6 +196,7 @@ beforeAll(async () => {
 
   const key = await db.createApiKey("matrix", "machine-fixture");
   clientKey = key.key;
+  clientKeyRef = `id:${key.id}`;
   const { value } = billing.validatePlan({ name: "Markup", markupPercent: MARKUP });
   await plans.setPricePlan("markup", value);
   await plans.setKeyPlanId(key.id, "markup");
@@ -311,7 +313,7 @@ function expectBilled({ rows, before, after }, mode) {
   check(rows, "usage rows").toHaveLength(1);
   const [row = {}] = rows;
   check(row.provider, "provider").toBe(providerOf(mode));
-  check(row.apiKey, "api key").toBe(clientKey);
+  check(row.apiKey, "api key").toBe(clientKeyRef);
   check(row.promptTokens, "prompt tokens (real, no buffer/estimate)").toBe(USAGE.prompt_tokens);
   check(row.completionTokens, "completion tokens").toBe(USAGE.completion_tokens);
   check(row.cost, "cost").toBeCloseTo(COST, 10);

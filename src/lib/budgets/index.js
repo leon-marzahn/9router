@@ -26,6 +26,7 @@ import {
   sumUsageSince,
   zeroCostModelsSince,
 } from "@/lib/db/repos/budgetsRepo.js";
+import { keyRefForId } from "@/lib/db/helpers/usageKeyRef.js";
 import { isEmail } from "@/lib/notify/config.js";
 
 export { GLOBAL_SCOPE, keyScope };
@@ -129,11 +130,15 @@ export function periodBounds(period, now = new Date()) {
 
 // ---------- counters ----------
 
-async function getUsage(scope, apiKey, period, now = new Date()) {
+/** Usage rows store key references: "key:<id>" → "id:<id>"; the global scope → null (all rows). */
+const usageRefFor = (scope) =>
+  scope === GLOBAL_SCOPE ? null : keyRefForId(scope.slice("key:".length));
+
+async function getUsage(scope, period, now = new Date()) {
   const { start, key } = periodBounds(period, now);
   const c = state.counters.get(scope);
   if (c && c.periodKey === key && now.getTime() - c.loadedAt < COUNTER_REFRESH_MS) return c;
-  const sum = await sumUsageSince(apiKey, start.toISOString());
+  const sum = await sumUsageSince(usageRefFor(scope), start.toISOString());
   const spend = spendBasis(scope) === "cost" ? sum.cost : sum.charge;
   const next = { periodKey: key, loadedAt: now.getTime(), ...sum, spend };
   state.counters.set(scope, next);
@@ -158,9 +163,9 @@ async function scopesFor(apiKey, budgets) {
     if (rec) state.keyIds.set(apiKey, rec.id);
     if (state.keyIds.size > 10_000) state.keyIds.clear();
     const scope = rec ? keyScope(rec.id) : null;
-    if (scope && budgets[scope]?.enabled) out.push({ scope, apiKey, key: rec });
+    if (scope && budgets[scope]?.enabled) out.push({ scope, key: rec });
   }
-  if (budgets[GLOBAL_SCOPE]?.enabled) out.push({ scope: GLOBAL_SCOPE, apiKey: null, key: null });
+  if (budgets[GLOBAL_SCOPE]?.enabled) out.push({ scope: GLOBAL_SCOPE, key: null });
   return out;
 }
 
@@ -189,7 +194,7 @@ export async function checkBudget(apiKey, { now = new Date() } = {}) {
     for (const s of await scopesFor(apiKey, budgets)) {
       const b = budgets[s.scope];
       if (!b.hardStop) continue;
-      const usage = await getUsage(s.scope, s.apiKey, b.period, now);
+      const usage = await getUsage(s.scope, b.period, now);
       if (usageRatio(b, usage) >= 1) return refusal(s.scope, b, now);
     }
     return null;
@@ -325,7 +330,7 @@ export async function recordUsage(entry, { now = new Date() } = {}) {
         usage = c;
       } else {
         // Fresh load: the row is already in the table, so it's counted.
-        usage = await getUsage(s.scope, s.apiKey, b.period, now);
+        usage = await getUsage(s.scope, b.period, now);
       }
       await sendAlerts({ scope: s.scope, budget: b, usage, key: s.key, now });
     }
@@ -337,12 +342,12 @@ export async function recordUsage(entry, { now = new Date() } = {}) {
 // ---------- dashboard ----------
 
 /**
- * Current period status for one scope. `apiKey` null = global.
+ * Current period status for one scope ("global" or keyScope(id)).
  * `spend` is what the spend limit is measured against: `charge` (customer price) for a
  * key, `cost` (upstream) for global; `spendBasis` says which. Both are always reported.
  */
-export async function budgetStatus(scope, budget, apiKey, { now = new Date() } = {}) {
-  const usage = await getUsage(scope, apiKey, budget.period, now);
+export async function budgetStatus(scope, budget, { now = new Date() } = {}) {
+  const usage = await getUsage(scope, budget.period, now);
   const ratio = usageRatio(budget, usage);
   const warn = (budget.warnAt || [])[0];
   const { start, end } = periodBounds(budget.period, now);
@@ -358,7 +363,9 @@ export async function budgetStatus(scope, budget, apiKey, { now = new Date() } =
     ratio,
     state: ratio >= 1 ? "over" : warn && ratio * 100 >= warn ? "warning" : "ok",
     blocked: budget.enabled && budget.hardStop && ratio >= 1,
-    unpricedModels: budget.spendLimit ? await unpricedModels(apiKey, start, spendBasis(scope)) : [],
+    unpricedModels: budget.spendLimit
+      ? await unpricedModels(usageRefFor(scope), start, spendBasis(scope))
+      : [],
   };
 }
 
@@ -366,13 +373,13 @@ export async function budgetStatus(scope, budget, apiKey, { now = new Date() } =
  * "provider/model" used this period with no price configured: a spend limit
  * doesn't see them. (Zero-cost rows whose model does have a price are free models.)
  */
-async function unpricedModels(apiKey, start, basis) {
+async function unpricedModels(keyRef, start, basis) {
   try {
     const { getPricingForModel } = await import("@/lib/db/repos/pricingRepo.js");
     const { providerName } = await import("@/lib/providerName.js");
     const out = [];
     const names = new Map();
-    for (const r of await zeroCostModelsSince(apiKey, start.toISOString(), { basis })) {
+    for (const r of await zeroCostModelsSince(keyRef, start.toISOString(), { basis })) {
       if (await getPricingForModel(r.provider, r.model)) continue;
       // Custom nodes show their prefix (or name), never the internal openai-compatible-…-<uuid> id.
       out.push(`${await providerName(r.provider, names, { prefix: true })}/${r.model}`);
