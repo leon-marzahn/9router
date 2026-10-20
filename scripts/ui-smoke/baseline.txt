@@ -51,7 +51,6 @@ axe | mobile | /dashboard/basic-chat | color-contrast  # TODO: fix accessibility
 axe | mobile | /dashboard/cli-tools | color-contrast  # TODO: fix accessibility violation
 axe | mobile | /dashboard/combos | color-contrast  # TODO: fix accessibility violation
 axe | mobile | /dashboard/console-log | color-contrast  # TODO: fix accessibility violation
-axe | mobile | /dashboard/console-log | scrollable-region-focusable  # TODO: fix accessibility violation (only with --dev, whose log is long enough to scroll)
 axe | mobile | /dashboard/endpoint | color-contrast  # TODO: fix accessibility violation
 axe | mobile | /dashboard/media-providers | color-contrast  # TODO: fix accessibility violation
 axe | mobile | /dashboard/media-providers/web | color-contrast  # TODO: fix accessibility violation

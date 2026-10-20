@@ -14,7 +14,7 @@ name: UI smoke
 on:
   pull_request:
   push:
-    branches: [master, ci/smoke-states-speed]
+    branches: [master]
   workflow_dispatch:
 
 permissions:
@@ -73,14 +73,6 @@ jobs:
 
       - name: Smoke test
         run: node scripts/ui-smoke.mjs --out ui-smoke ${{ github.event_name == 'pull_request' && '--changed HEAD^1' || '' }}
-
-      - name: TEMP timing subset prod
-        if: always()
-        run: node scripts/ui-smoke.mjs --out ui-smoke-sub-p --routes /dashboard,/dashboard/endpoint,/dashboard/providers,/dashboard/usage --states usage-request-drawer
-
-      - name: TEMP timing subset dev
-        if: always()
-        run: node scripts/ui-smoke.mjs --dev --out ui-smoke-sub-d --routes /dashboard,/dashboard/endpoint,/dashboard/providers,/dashboard/usage --states usage-request-drawer
 
       - name: Upload screenshots and report
         if: always()

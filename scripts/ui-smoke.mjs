@@ -28,10 +28,10 @@
 //
 // --changed <ref> checks only what the diff <ref>..HEAD can affect (see
 // scripts/ui-smoke/affected.mjs); CI does that on pull requests and a full run on
-// master. --concurrency runs that many pages in parallel (default 4).
+// master. --concurrency runs that many pages in parallel (default 4, 1 with --dev).
 // It smokes a production build (`next build` into .next-smoke, then custom-server.js);
 // --dev (or SMOKE_MODE=dev) uses `next dev` instead (no build, but each route
-// compiles on first visit; use --concurrency 1 there if reloads interrupt visits).
+// compiles on first visit and live reloads open pages, so it visits one at a time).
 //
 // Known issues live in scripts/ui-smoke/baseline.txt, one `check | viewport | route | detail`
 // per line (`*` matches any field, `# ...` is a comment); a state's route is
@@ -69,7 +69,7 @@ const { values: args } = parseArgs({
     routes: { type: "string" },
     states: { type: "string" },
     changed: { type: "string" },
-    concurrency: { type: "string", default: "4" },
+    concurrency: { type: "string" },
     dev: { type: "boolean", default: false },
     "update-baseline": { type: "boolean", default: false },
     port: { type: "string" },
@@ -152,7 +152,8 @@ try {
   }
   for (const route of routes.filter((r) => DARK_ROUTES.includes(r)))
     jobs.push({ vp: "desktop", theme: "dark", route });
-  const workers = Math.max(1, Math.min(Number(args.concurrency) || 1, jobs.length));
+  const wanted = Number(args.concurrency) || (instance.mode === "dev" ? 1 : 4);
+  const workers = Math.max(1, Math.min(wanted, jobs.length));
   let next = 0;
   await Promise.all(
     Array.from({ length: workers }, async () => {
