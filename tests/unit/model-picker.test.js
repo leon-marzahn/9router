@@ -14,6 +14,10 @@ const { getProviderLabel, keyboardInset, parseRecentModels, toPickerGroups } = a
   "@/app/(dashboard)/dashboard/basic-chat/workbench/chat"
 );
 
+const { useKeyboardInset, useRecentModels } = await import(
+  "@/app/(dashboard)/dashboard/basic-chat/workbench/hooks"
+);
+
 const GROUPS = [
   {
     providerId: "anthropic",
@@ -157,11 +161,67 @@ describe("Playground helpers", () => {
   });
 });
 
+describe("Playground hooks", () => {
+  let root;
+  let host;
+  afterEach(() => {
+    void act(() => root?.unmount());
+    host?.remove();
+    localStorage.clear();
+  });
+  function mount(useHook) {
+    globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+    const out = { current: null };
+    function Probe() {
+      out.current = useHook();
+      return null;
+    }
+    host = document.createElement("div");
+    root = createRoot(host);
+    void act(() => root.render(h(Probe)));
+    return out;
+  }
+
+  it("remembers recently picked models in localStorage", () => {
+    localStorage.setItem("basic-chat.recentModels", JSON.stringify(["a"]));
+    const out = mount(useRecentModels);
+    expect(out.current[0]).toEqual(["a"]);
+    void act(() => out.current[1]("b"));
+    expect(out.current[0]).toEqual(["b", "a"]);
+    expect(JSON.parse(localStorage.getItem("basic-chat.recentModels"))).toEqual(["b", "a"]);
+  });
+
+  it("follows the visual viewport for the keyboard inset", () => {
+    const listeners = {};
+    const vv = {
+      height: 800,
+      offsetTop: 0,
+      scale: 1,
+      addEventListener: (t, f) => (listeners[t] = f),
+      removeEventListener: vi.fn(),
+    };
+    vi.stubGlobal("visualViewport", vv);
+    vi.stubGlobal("innerHeight", 800);
+    try {
+      const out = mount(useKeyboardInset);
+      expect(out.current).toBe(0);
+      vv.height = 450;
+      void act(() => listeners.resize());
+      expect(out.current).toBe(350);
+      void act(() => root.unmount());
+      root = null;
+      expect(vv.removeEventListener).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});
+
 describe("<ModelPicker>", () => {
   let root;
   let host;
   afterEach(() => {
-    act(() => root?.unmount());
+    void act(() => root?.unmount());
     host?.remove();
   });
 
@@ -170,24 +230,24 @@ describe("<ModelPicker>", () => {
     host = document.createElement("div");
     document.body.append(host);
     root = createRoot(host);
-    act(() => root.render(h(ModelPicker, { groups: GROUPS, ...props })));
+    void act(() => root.render(h(ModelPicker, { groups: GROUPS, ...props })));
   }
   const input = () => document.querySelector("[role=dialog] input");
   const type = (value) =>
-    act(() => {
+    void act(() => {
       const el = input();
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(el, value);
       el.dispatchEvent(new Event("input", { bubbles: true }));
     });
   const key = (k) =>
-    act(() => input().dispatchEvent(new KeyboardEvent("keydown", { key: k, bubbles: true })));
+    void act(() => input().dispatchEvent(new KeyboardEvent("keydown", { key: k, bubbles: true })));
 
   it("shows the current model, filters, and picks with the keyboard", () => {
     const onChange = vi.fn();
     render({ value: "claude/haiku", onChange, recent: ["openai/gpt-5"] });
     const trigger = host.querySelector("[data-model-picker]");
     expect(trigger.textContent).toContain("Claude Haiku");
-    act(() => trigger.click());
+    void act(() => trigger.click());
 
     const headers = [...document.querySelectorAll("[role=group]")].map(
       (g) => g.firstElementChild.textContent,
@@ -216,13 +276,13 @@ describe("<ModelPicker>", () => {
     const onChange = vi.fn();
     render({ value: null, onChange });
     expect(host.querySelector("[data-model-picker]").textContent).toContain("Select model");
-    act(() => host.querySelector("[data-model-picker]").click());
+    void act(() => host.querySelector("[data-model-picker]").click());
     type("zzz");
     expect(document.querySelector("[role=dialog]").textContent).toContain("No models match.");
     key("Enter");
     expect(onChange).not.toHaveBeenCalled();
     type("");
-    act(() => document.querySelectorAll("[role=option]")[0].click());
+    void act(() => document.querySelectorAll("[role=option]")[0].click());
     expect(onChange).toHaveBeenCalledWith("claude/opus");
   });
 });

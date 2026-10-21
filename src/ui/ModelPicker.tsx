@@ -100,15 +100,29 @@ function PickerDialog({
     [groups, query, recent],
   );
   const keys = useMemo(() => optionKeys(sections), [sections]);
-  const [active, setActive] = useState(-1);
+  // The highlighted option's key; null (or a key no longer listed) falls back to
+  // the first match while searching, else the current model.
+  const [activeKey, setActiveKey] = useState<string | null>(null);
+  const picked = activeKey ? keys.indexOf(activeKey) : -1;
+  const fallback = query.trim()
+    ? keys.length
+      ? 0
+      : -1
+    : keys.findIndex((k) => k.endsWith(`::${value}`));
+  const active = picked >= 0 ? picked : fallback;
+  const setActive = (i: number) => setActiveKey(keys[i] ?? null);
   const baseId = useId();
   const optId = (i: number) => `${baseId}-opt-${i}`;
-
-  // Start on the current model (or the first match) whenever the list changes.
-  useEffect(() => {
-    const cur = keys.findIndex((k) => k.endsWith(`::${value}`));
-    setActive(query.trim() ? (keys.length ? 0 : -1) : cur);
-  }, [keys, query, value]);
+  // Index of each section's first option (options are numbered across sections).
+  const starts = useMemo(() => {
+    const out: number[] = [];
+    let n = 0;
+    for (const s of sections) {
+      out.push(n);
+      n += s.models.length;
+    }
+    return out;
+  }, [sections]);
 
   useEffect(() => {
     if (active < 0) return;
@@ -126,12 +140,10 @@ function PickerDialog({
     }
   };
 
-  let index = -1;
   return (
     <Dialog open onClose={onClose} title={title} size="lg" className="md:h-[min(640px,80dvh)]">
       <div className="sticky -top-4 z-10 -mx-5 -mt-4 bg-surface px-5 pb-2 pt-4">
         <SearchInput
-          autoFocus
           data-autofocus
           role="combobox"
           aria-expanded="true"
@@ -140,7 +152,10 @@ function PickerDialog({
           aria-label="Search models"
           placeholder="Search models"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setActiveKey(null);
+          }}
           onKeyDown={onKeyDown}
           className="min-w-0"
         />
@@ -151,7 +166,7 @@ function PickerDialog({
             {query.trim() ? "No models match." : "No models available."}
           </p>
         )}
-        {sections.map((s) => (
+        {sections.map((s, si) => (
           <div key={s.key} role="group" aria-labelledby={`${baseId}-${s.key}`} className="pb-2">
             <div
               id={`${baseId}-${s.key}`}
@@ -165,9 +180,8 @@ function PickerDialog({
               <span className="min-w-0 truncate">{s.title}</span>
               <span className="tabular-nums">{s.models.length}</span>
             </div>
-            {s.models.map((m) => {
-              index += 1;
-              const i = index;
+            {s.models.map((m, mi) => {
+              const i = starts[si] + mi;
               return (
                 <Option
                   key={m.id}
@@ -212,6 +226,7 @@ function Option({
     <div
       id={id}
       role="option"
+      tabIndex={-1}
       aria-selected={selected}
       onMouseMove={onHover}
       onClick={onPick}

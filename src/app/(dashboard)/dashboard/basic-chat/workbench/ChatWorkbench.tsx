@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import {
   Button,
   ConfirmDialog,
@@ -14,7 +14,6 @@ import {
   ListRow,
   ListSkeleton,
   ModelPicker,
-  pushRecent,
   Note,
   SearchInput,
   Tag,
@@ -24,15 +23,13 @@ import {
   useListKeyboard,
 } from "@/ui";
 import {
-  STORAGE_KEYS,
   formatRelativeTime,
-  keyboardInset,
-  parseRecentModels,
   textValue,
   toPickerGroups,
   type ChatMessage,
   type ChatSession,
 } from "./chat";
+import { useKeyboardInset, useRecentModels } from "./hooks";
 import { MessageBody } from "./MessageBody";
 import { useChat } from "./useChat";
 
@@ -40,44 +37,6 @@ function lastUserText(session: ChatSession): string {
   const latest =
     [...session.messages].reverse().find((m) => m.role === "user") || session.messages[0];
   return textValue(latest?.content) || "Empty chat";
-}
-
-/** Recently picked model ids, kept in this browser (best effort). */
-function useRecentModels() {
-  const [recent, setRecent] = useState<string[]>([]);
-  useEffect(() => {
-    try {
-      setRecent(parseRecentModels(globalThis.localStorage.getItem(STORAGE_KEYS.recentModels)));
-    } catch {}
-  }, []);
-  const remember = useCallback((id: string) => {
-    setRecent((prev) => {
-      const next = pushRecent(prev, id);
-      try {
-        globalThis.localStorage.setItem(STORAGE_KEYS.recentModels, JSON.stringify(next));
-      } catch {}
-      return next;
-    });
-  }, []);
-  return [recent, remember] as const;
-}
-
-/** Bottom inset the on-screen keyboard covers, so the composer can sit above it. */
-function useKeyboardInset() {
-  const [inset, setInset] = useState(0);
-  useEffect(() => {
-    const vv = globalThis.visualViewport;
-    if (!vv) return;
-    const update = () => setInset(keyboardInset(globalThis.innerHeight, vv));
-    update();
-    vv.addEventListener("resize", update);
-    vv.addEventListener("scroll", update);
-    return () => {
-      vv.removeEventListener("resize", update);
-      vv.removeEventListener("scroll", update);
-    };
-  }, []);
-  return inset;
 }
 
 export function ChatWorkbench() {

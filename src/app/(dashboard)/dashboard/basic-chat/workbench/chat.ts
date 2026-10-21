@@ -282,9 +282,7 @@ export function splitFences(text: string): Segment[] {
 }
 
 /** Provider groups in the shape `ModelPicker` takes (the id sent upstream as detail). */
-export function toPickerGroups(
-  groups: ProviderGroup[],
-): {
+export function toPickerGroups(groups: ProviderGroup[]): {
   providerId: string;
   providerName: string;
   models: { id: string; name: string; detail: string }[];
