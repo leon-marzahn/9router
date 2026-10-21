@@ -64,7 +64,7 @@ export const SearchInput = forwardRef<
   return (
     <label
       className={cn(
-        "flex h-9 items-center gap-2 rounded-lg max-md:h-10 bg-surface px-3 ring-1 ring-border focus-within:ring-accent-ring",
+        "flex h-9 min-w-0 items-center gap-2 rounded-lg max-md:h-10 bg-surface px-3 ring-1 ring-border focus-within:ring-accent-ring",
         className,
       )}
     >
