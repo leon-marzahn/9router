@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 // ModelPicker: filtering / grouping / recent logic, keyboard navigation, and the
 // Playground helpers that feed it (picker groups, stored recents, keyboard inset).
-import { act, createElement as h } from "react";
+import { act, createElement as h, useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
@@ -173,7 +173,10 @@ describe("Playground hooks", () => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = true;
     const out = { current: null };
     function Probe() {
-      out.current = useHook();
+      const value = useHook();
+      useEffect(() => {
+        out.current = value;
+      });
       return null;
     }
     host = document.createElement("div");
