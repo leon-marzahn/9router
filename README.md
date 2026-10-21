@@ -138,7 +138,7 @@ Anything else: use base URL `http://localhost:20128/v1` and a key from **Endpoin
 ## Security
 
 - **Local by default.** Data stays on your machine in `~/.regent` (`%APPDATA%\regent` on Windows), or `DATA_DIR`. Nothing is reachable from the internet unless you start a tunnel or expose the port yourself.
-- **Login and keys on by default.** The dashboard requires login and the API requires a key out of the box. Routes that write tool configs, start tunnels or install software are limited to the local machine.
+- **Login and keys on by default.** The dashboard requires login and the API requires a key out of the box. Routes that write tool configs, start tunnels or install software are limited to the local machine (or the local CLI's token).
 - **Change the defaults.** Set `INITIAL_PASSWORD`, a long random `JWT_SECRET`, and your own `API_KEY_SECRET` and `MACHINE_ID_SALT`.
 - **Credentials encrypted at rest.** Provider API keys and OAuth tokens, proxy passwords and notification and SSO secrets are stored with AES-256-GCM. The key is `CREDENTIALS_KEY` or `DATA_DIR/credentials.key`; without it the server refuses to start rather than fall back to plaintext. Rotate it with `vp run rotate-credentials-key`. Not encrypted: client API keys, the password-protected DB export, and the config files the CLI Tools page writes.
 - **Secrets stay out of responses and logs.** Stored secrets are never sent back by the API (it reports only that one is set) and are left out of backups. Keys, tokens and cookies are redacted in request logs and debug output.
