@@ -85,6 +85,7 @@ export default defineConfig({
       "!/scripts/ci",
       "!/scripts/pr-shots",
       "!/scripts/pr-shots.mjs",
+      "!/scripts/readme-shots.mjs",
       "!/scripts/pr-shots-publish.mjs",
       "!/scripts/pxpipe-tree-hash.mjs",
       "!/scripts/ui-smoke",

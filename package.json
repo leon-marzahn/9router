@@ -27,6 +27,7 @@
     "cli:publish": "npm --prefix cli run publish:cli",
     "typecheck": "tsc --noEmit",
     "smoke": "node scripts/ui-smoke.mjs",
+    "readme:shots": "node scripts/readme-shots.mjs",
     "lint:design": "node scripts/ci/design-lint.mjs",
     "test": "vp test run",
     "coverage": "vp test run --coverage",

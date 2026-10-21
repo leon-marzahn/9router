@@ -1,44 +1,65 @@
 [
   {
-    "name": "providers",
+    "name": "hero",
     "route": "/dashboard/providers",
     "steps": [{ "wait": 3000 }],
-    "viewports": ["desktop"]
+    "themes": ["light", "dark"],
+    "width": 1440
   },
   {
     "name": "combos",
     "route": "/dashboard/combos",
-    "steps": [{ "wait": 2500 }, { "click": "text=coding" }, { "wait": 2000 }],
-    "viewports": ["desktop"]
+    "steps": [{ "wait": 2500 }, { "click": "text=coding" }, { "wait": 2000 }]
   },
   {
     "name": "usage",
     "route": "/dashboard/usage",
-    "steps": [{ "wait": 3000 }, { "click": "text=7d" }, { "wait": 2000 }],
-    "viewports": ["desktop"]
+    "steps": [{ "wait": 3000 }, { "click": "text=7d" }, { "wait": 2000 }]
+  },
+  {
+    "name": "request-inspector",
+    "route": "/dashboard/usage",
+    "steps": [
+      { "wait": 3000 },
+      { "click": "button[data-req]:not([disabled])" },
+      { "waitFor": "aside[aria-label='Request details'] :text('Route')" },
+      { "wait": 1500 }
+    ]
   },
   {
     "name": "quota",
     "route": "/dashboard/quota",
-    "steps": [{ "wait": 5000 }],
-    "viewports": ["desktop"]
+    "steps": [{ "wait": 5000 }]
   },
   {
     "name": "cli-tools",
     "route": "/dashboard/cli-tools",
-    "steps": [{ "wait": 2500 }, { "click": "text=Claude Code >> nth=0" }, { "wait": 2000 }],
-    "viewports": ["desktop"]
+    "steps": [{ "wait": 2500 }, { "click": "text=Claude Code >> nth=0" }, { "wait": 2000 }]
   },
   {
     "name": "request-pipelines",
     "route": "/dashboard/request-pipelines",
-    "steps": [{ "wait": 2500 }, { "click": "text=agent-trim" }, { "wait": 2500 }],
-    "viewports": ["desktop"]
+    "steps": [{ "wait": 2500 }, { "click": "text=agent-trim" }, { "wait": 2500 }]
   },
   {
     "name": "endpoint",
     "route": "/dashboard/endpoint",
+    "steps": [{ "wait": 3000 }]
+  },
+  {
+    "name": "key-billing",
+    "route": "/dashboard/endpoint",
     "steps": [{ "wait": 3000 }],
-    "viewports": ["desktop"]
+    "selector": "div:has(> div > div > div:text-is('Team share (demo)'))"
+  },
+  {
+    "name": "customer-view",
+    "route": "/customer",
+    "steps": [
+      { "fill": ["input[placeholder^='sk-']", "sk-regent-demo-team-00000000000000"] },
+      { "click": "button[type=submit]" },
+      { "waitFor": "button:has-text('Sign out')" },
+      { "wait": 1500 }
+    ]
   }
 ]
