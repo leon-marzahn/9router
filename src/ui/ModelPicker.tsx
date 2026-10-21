@@ -172,11 +172,14 @@ function PickerDialog({
               id={`${baseId}-${s.key}`}
               className="flex items-center gap-2 px-2.5 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wide text-text-subtle"
             >
-              {s.providerId ? (
-                <ProviderLogo providerId={s.providerId} name={s.title} size={16} />
-              ) : (
-                <Icon name="history" size={16} />
-              )}
+              {/* Decorative: a listbox may only own groups/options (axe aria-required-children). */}
+              <span aria-hidden="true" className="flex shrink-0">
+                {s.providerId ? (
+                  <ProviderLogo providerId={s.providerId} name={s.title} size={16} />
+                ) : (
+                  <Icon name="history" size={16} />
+                )}
+              </span>
               <span className="min-w-0 truncate">{s.title}</span>
               <span className="tabular-nums">{s.models.length}</span>
             </div>

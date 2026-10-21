@@ -1,7 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type KeyboardEvent,
+} from "react";
 import {
   Button,
   ConfirmDialog,
@@ -39,7 +46,30 @@ function lastUserText(session: ChatSession): string {
   return textValue(latest?.content) || "Empty chat";
 }
 
+const noopSubscribe = () => () => {};
+
+/**
+ * Chats live in localStorage, which the server can't see: render a skeleton until
+ * hydration is done so the restored state never causes a hydration mismatch.
+ */
 export function ChatWorkbench() {
+  const hydrated = useSyncExternalStore(
+    noopSubscribe,
+    () => true,
+    () => false,
+  );
+  if (!hydrated)
+    return (
+      <div className="flex min-h-0 flex-1">
+        <WorkbenchList selected={null} header={null}>
+          <ListSkeleton />
+        </WorkbenchList>
+      </div>
+    );
+  return <ChatWorkbenchInner />;
+}
+
+function ChatWorkbenchInner() {
   const chat = useChat();
   const [query, setQuery] = useState("");
   const [mobileDetail, setMobileDetail] = useState(false);
