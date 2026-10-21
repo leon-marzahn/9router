@@ -247,6 +247,29 @@ await createCombo({
   });
   await setKeyPlanId("demo-key-laptop", "plan_demo_pro");
   await setKeyPlanId("demo-key-team", "plan_demo_starter");
+
+  // Budgets: one per-key (charge) with warnings and a contact, plus a global one (cost).
+  const { setBudget } = await import("@/lib/db/repos/budgetsRepo.js");
+  await setBudget("key:demo-key-team", {
+    enabled: true,
+    period: "month",
+    spendLimit: 60,
+    tokenLimit: null,
+    requestLimit: null,
+    warnAt: [50, 80],
+    hardStop: true,
+    contactEmail: "team-lead@example.com",
+  });
+  await setBudget("global", {
+    enabled: true,
+    period: "month",
+    spendLimit: 400,
+    tokenLimit: null,
+    requestLimit: null,
+    warnAt: [80],
+    hardStop: false,
+    contactEmail: "",
+  });
 }
 
 // Usage over the last 30 days: busier on weekdays and during working hours,
@@ -282,6 +305,8 @@ for (let t = start; t < now - 5 * 60_000; t += hour) {
       timestamp: new Date(t + Math.floor(rand() * hour)).toISOString(),
       provider,
       model,
+      // What the client asked for (shown in the customer view): a combo or provider/model.
+      requestedModel: agentic ? "coding" : `${provider}/${model}`,
       connectionId: conns[ci].id,
       apiKey: keys[Math.floor(rand() * keys.length)][2],
       endpoint: provider === "claude" ? "/v1/messages" : "/v1/chat/completions",
