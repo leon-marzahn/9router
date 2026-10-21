@@ -82,13 +82,16 @@ const conns = [
   }),
 ];
 // A custom OpenAI-compatible node (its edit dialog has node-level settings).
+// PR_SHOTS_DEMO_LLM_URL points it at a local fake upstream, so a shot can send a real
+// chat through the gateway (e.g. the Playground); the default host never answers.
+const DEMO_LLM_URL = process.env.PR_SHOTS_DEMO_LLM_URL || "https://llm.example.com/v1";
 await createProviderNode({
   id: "openai-compatible-chat-demo",
   type: "openai-compatible",
   name: "Demo Compatible",
   prefix: "democ",
   apiType: "chat",
-  baseUrl: "https://llm.example.com/v1",
+  baseUrl: DEMO_LLM_URL,
 });
 await seedConnection("demo-conn-compatible-1", {
   provider: "openai-compatible-chat-demo",
@@ -97,7 +100,7 @@ await seedConnection("demo-conn-compatible-1", {
   providerSpecificData: {
     prefix: "democ",
     apiType: "chat",
-    baseUrl: "https://llm.example.com/v1",
+    baseUrl: DEMO_LLM_URL,
     nodeName: "Demo Compatible",
   },
 });

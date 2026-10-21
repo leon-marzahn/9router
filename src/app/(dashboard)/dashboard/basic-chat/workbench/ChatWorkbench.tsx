@@ -23,6 +23,7 @@ import {
   ModelPicker,
   Note,
   SearchInput,
+  Select,
   Tag,
   WorkbenchDetail,
   WorkbenchList,
@@ -39,6 +40,7 @@ import {
 import { useKeyboardInset, useRecentModels } from "./hooks";
 import { MessageBody } from "./MessageBody";
 import { useChat } from "./useChat";
+import { usePlaygroundKeys } from "./usePlaygroundKeys";
 
 function lastUserText(session: ChatSession): string {
   const latest =
@@ -71,6 +73,7 @@ export function ChatWorkbench() {
 
 function ChatWorkbenchInner() {
   const chat = useChat();
+  const keys = usePlaygroundKeys(chat.providerGroups);
   const [query, setQuery] = useState("");
   const [mobileDetail, setMobileDetail] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -167,7 +170,11 @@ function ChatWorkbenchInner() {
         onBack={() => setMobileDetail(false)}
       >
         {chat.currentSession ? (
-          <Conversation chat={chat} onDelete={() => setConfirmDelete(chat.activeSessionId)} />
+          <Conversation
+            chat={chat}
+            keys={keys}
+            onDelete={() => setConfirmDelete(chat.activeSessionId)}
+          />
         ) : (
           <div className="mx-auto max-w-3xl space-y-3 p-4 md:p-6">
             {chat.loadError && <Note tone="danger">{chat.loadError}</Note>}
@@ -220,13 +227,21 @@ function ChatWorkbenchInner() {
 
 type Chat = ReturnType<typeof useChat>;
 
-function Conversation({ chat, onDelete }: { chat: Chat; onDelete: () => void }) {
+function Conversation({
+  chat,
+  keys,
+  onDelete,
+}: {
+  chat: Chat;
+  keys: ReturnType<typeof usePlaygroundKeys>;
+  onDelete: () => void;
+}) {
   const session = chat.currentSession!;
   const fileInputRef = useRef<HTMLInputElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const last = session.messages[session.messages.length - 1];
   const lastLen = textValue(last?.content).length;
-  const pickerGroups = useMemo(() => toPickerGroups(chat.providerGroups), [chat.providerGroups]);
+  const pickerGroups = useMemo(() => toPickerGroups(keys.visibleGroups), [keys.visibleGroups]);
   const [recent, remember] = useRecentModels();
   const inset = useKeyboardInset();
 
@@ -237,7 +252,7 @@ function Conversation({ chat, onDelete }: { chat: Chat; onDelete: () => void }) 
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
-      if (chat.canSend) void chat.send();
+      if (chat.canSend) void chat.send(keys.keyId);
     }
   };
 
@@ -257,6 +272,21 @@ function Conversation({ chat, onDelete }: { chat: Chat; onDelete: () => void }) 
           </div>
         </div>
         <div className="flex min-w-0 max-w-[60%] items-center gap-1 lg:max-w-none">
+          <Select
+            aria-label="API key"
+            title="API key the chat runs as (its access list, budget and usage apply)"
+            value={keys.keyId}
+            disabled={chat.isSending}
+            onChange={(e) => keys.select(e.target.value)}
+            className="w-28 shrink-0 lg:w-40"
+          >
+            {keys.keys.map((k) => (
+              <option key={k.id} value={k.id} disabled={!k.isActive}>
+                {k.name}
+                {k.isActive ? "" : " (disabled)"}
+              </option>
+            ))}
+          </Select>
           <ModelPicker
             groups={pickerGroups}
             value={chat.activeModel?.id ?? null}
@@ -357,7 +387,7 @@ function Conversation({ chat, onDelete }: { chat: Chat; onDelete: () => void }) 
                   size="sm"
                   icon="arrow_upward"
                   disabled={!chat.canSend}
-                  onClick={() => void chat.send()}
+                  onClick={() => void chat.send(keys.keyId)}
                 >
                   Send
                 </Button>

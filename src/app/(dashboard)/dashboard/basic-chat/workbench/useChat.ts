@@ -339,7 +339,8 @@ export function useChat() {
 
   const stop = () => abortRef.current?.abort();
 
-  const send = async () => {
+  /** `keyId`: the API key the chat runs as (see usePlaygroundKeys). */
+  const send = async (keyId = "playground") => {
     const model = activeModel || activeProviderGroup?.models?.[0] || null;
     if (!model) return;
     const userText = draft.trim();
@@ -409,6 +410,7 @@ export function useChat() {
         headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
         body: JSON.stringify({
           model: model.requestModel || model.id,
+          keyId,
           messages: requestMessages,
           stream: true,
         }),
