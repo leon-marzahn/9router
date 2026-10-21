@@ -1,24 +1,23 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ProviderGroup } from "./chat";
+import {
+  KEY_STORAGE,
+  allowedFor,
+  billsAnotherKey,
+  filterGroups,
+  parseKeys,
+  requestModelIds,
+  resolveKeyId,
+  type PlaygroundKey,
+} from "./playgroundKeys";
 
-/** A key as the picker sees it: never the secret. */
-export interface PlaygroundKey {
-  id: string;
-  name: string;
-  isActive: boolean;
-  restricted: boolean;
-  playground: boolean;
-}
+export type { PlaygroundKey } from "./playgroundKeys";
 
-const STORAGE_KEY = "basic-chat.keyId";
-/** Placeholder the server turns into the auto-created "Playground" key. */
-export const PLAYGROUND_KEY_ID = "playground";
-
-function readKeyId(): string {
+function readSaved(): string {
   try {
-    return globalThis.localStorage?.getItem(STORAGE_KEY) || "";
+    return globalThis.localStorage?.getItem(KEY_STORAGE) || "";
   } catch {
     return "";
   }
@@ -26,39 +25,36 @@ function readKeyId(): string {
 
 /**
  * The API key the Playground sends as (remembered in localStorage, defaulting to the
- * Playground key), and for a restricted key the model ids it may call.
+ * Playground key) and the provider groups limited to what that key may call.
  */
 export function usePlaygroundKeys(groups: ProviderGroup[]) {
-  const [keys, setKeys] = useState<PlaygroundKey[]>([]);
-  const [saved, setSaved] = useState(readKeyId);
-  const [fetched, setFetched] = useState<{ keyId: string; models: Set<string> } | null>(null);
+  const [keys, setKeys] = useState<PlaygroundKey[] | null>(null);
+  const [saved, setSaved] = useState(readSaved);
+  const [fetched, setFetched] = useState<{ keyId: string; models: string[] } | null>(null);
+  const [version, setVersion] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
     fetch("/api/dashboard/chat/keys", { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : { keys: [] }))
+      .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
-        if (!cancelled) setKeys(Array.isArray(d.keys) ? d.keys : []);
+        if (!cancelled) setKeys(parseKeys(d));
       })
-      .catch(() => {});
+      .catch(() => {
+        if (!cancelled) setKeys(null);
+      });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [version]);
 
-  const fallback = keys.find((k) => k.playground)?.id ?? PLAYGROUND_KEY_ID;
-  const keyId = keys.some((k) => k.id === saved) ? saved : fallback;
-  const key = keys.find((k) => k.id === keyId) ?? null;
-  const modelIds = useMemo(
-    () => groups.flatMap((g) => g.models.map((m) => m.requestModel || m.id)),
-    [groups],
-  );
-
-  // Restricted keys only; null (no filter) for an open key or until the answer arrives.
-  const allowed = key?.restricted && fetched?.keyId === keyId ? fetched.models : null;
+  const keyId = resolveKeyId(keys, saved);
+  const key = keys?.find((k) => k.id === keyId) ?? null;
+  const modelIds = useMemo(() => requestModelIds(groups), [groups]);
+  const restricted = !!key?.restricted;
 
   useEffect(() => {
-    if (!key?.restricted) return;
+    if (!restricted || !keyId) return;
     let cancelled = false;
     fetch("/api/dashboard/chat/models", {
       method: "POST",
@@ -67,37 +63,35 @@ export function usePlaygroundKeys(groups: ProviderGroup[]) {
     })
       .then((r) => (r.ok ? r.json() : { models: [] }))
       .then((d) => {
-        if (!cancelled)
-          setFetched({ keyId, models: new Set(Array.isArray(d.models) ? d.models : []) });
+        if (!cancelled) setFetched({ keyId, models: Array.isArray(d.models) ? d.models : [] });
       })
       .catch(() => {});
     return () => {
       cancelled = true;
     };
-  }, [key?.restricted, keyId, modelIds]);
+  }, [restricted, keyId, modelIds]);
+
+  const allowed = useMemo(() => allowedFor(key, fetched), [key, fetched]);
+  const visibleGroups = useMemo(() => filterGroups(groups, allowed), [groups, allowed]);
 
   const select = (id: string) => {
     setSaved(id);
     try {
-      globalThis.localStorage.setItem(STORAGE_KEY, id);
+      globalThis.localStorage.setItem(KEY_STORAGE, id);
     } catch {
       // Ignore storage errors.
     }
   };
 
-  /** Groups limited to what the key may call (all of them for an unrestricted key). */
-  const visibleGroups = useMemo(
-    () =>
-      allowed
-        ? groups
-            .map((g) => ({
-              ...g,
-              models: g.models.filter((m) => allowed.has(m.requestModel || m.id)),
-            }))
-            .filter((g) => g.models.length > 0)
-        : groups,
-    [groups, allowed],
-  );
+  /** Re-read the list (after the first send created the Playground key). */
+  const refresh = useCallback(() => setVersion((v) => v + 1), []);
 
-  return { keys, keyId, select, visibleGroups };
+  return {
+    keys: keys ?? [],
+    keyId,
+    select,
+    refresh,
+    visibleGroups,
+    billsAnotherKey: billsAnotherKey(keys, keyId),
+  };
 }

@@ -19,20 +19,23 @@ export const isValidKeyId = (v) => typeof v === "string" && KEY_ID_RE.test(v);
 
 let creating = null;
 
+/** The Playground key if it exists (bound only through _meta, never by name), else null. */
+export async function findPlaygroundKey() {
+  const recorded = await getMeta(META_KEY);
+  return recorded ? getApiKeyById(recorded) : null;
+}
+
 /**
- * The Playground key: the one recorded in _meta, else an existing key named
- * "Playground", else a new one (no price plan, unrestricted). Idempotent, and
- * concurrent first uses share one creation.
+ * The Playground key: the one recorded in _meta, else a new one (no price plan,
+ * unrestricted) that gets recorded. Never adopts a key just because of its name: a
+ * customer key may well be called "Playground". Idempotent; concurrent first uses
+ * share one creation.
  */
 export function ensurePlaygroundKey() {
   creating ??= (async () => {
-    const recorded = await getMeta(META_KEY);
-    if (recorded) {
-      const rec = await getApiKeyById(recorded);
-      if (rec) return rec;
-    }
-    const byName = (await getApiKeys()).find((k) => k.name === PLAYGROUND_KEY_NAME);
-    const rec = byName || (await createApiKey(PLAYGROUND_KEY_NAME, await getConsistentMachineId()));
+    const existing = await findPlaygroundKey();
+    if (existing) return existing;
+    const rec = await createApiKey(PLAYGROUND_KEY_NAME, await getConsistentMachineId());
     await setMeta(META_KEY, rec.id);
     return rec;
   })().finally(() => {
@@ -52,8 +55,7 @@ export async function resolvePlaygroundKey(keyId) {
 export async function listPlaygroundKeys() {
   const keys = await getApiKeys();
   const recorded = await getMeta(META_KEY);
-  const playground =
-    keys.find((k) => k.id === recorded) || keys.find((k) => k.name === PLAYGROUND_KEY_NAME);
+  const playground = recorded ? keys.find((k) => k.id === recorded) : null;
   const out = keys.map((k) => ({
     id: k.id,
     name: k.name || k.id.slice(0, 8),
@@ -73,14 +75,18 @@ export async function listPlaygroundKeys() {
   return out;
 }
 
-/** The subset of `models` the key may call (same check as /v1), or null for an unknown key. */
+/**
+ * The subset of `models` the key may call (same check as /v1), or null for an unknown
+ * key. Lookup only: never creates the Playground key. The placeholder before (or after
+ * deleting) the Playground key gets every id, as the key it will create is unrestricted.
+ */
 export async function allowedModelsFor(keyId, models) {
   const ids = (Array.isArray(models) ? models : [])
     .filter((m) => typeof m === "string" && m.length <= 200)
     .slice(0, MAX_MODEL_IDS);
-  if (keyId === PLAYGROUND_KEY_ID && !(await getMeta(META_KEY))) return ids;
-  const rec = await resolvePlaygroundKey(keyId);
-  if (!rec) return null;
+  if (!isValidKeyId(keyId)) return null;
+  const rec = keyId === PLAYGROUND_KEY_ID ? await findPlaygroundKey() : await getApiKeyById(keyId);
+  if (!rec) return keyId === PLAYGROUND_KEY_ID ? ids : null;
   if (!rec.access?.restricted) return ids;
   const ctx = {
     keyId: rec.id,

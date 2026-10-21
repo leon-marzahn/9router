@@ -40,7 +40,6 @@ import {
 import { useKeyboardInset, useRecentModels } from "./hooks";
 import { MessageBody } from "./MessageBody";
 import { useChat } from "./useChat";
-import { usePlaygroundKeys } from "./usePlaygroundKeys";
 
 function lastUserText(session: ChatSession): string {
   const latest =
@@ -73,7 +72,6 @@ export function ChatWorkbench() {
 
 function ChatWorkbenchInner() {
   const chat = useChat();
-  const keys = usePlaygroundKeys(chat.providerGroups);
   const [query, setQuery] = useState("");
   const [mobileDetail, setMobileDetail] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -170,11 +168,7 @@ function ChatWorkbenchInner() {
         onBack={() => setMobileDetail(false)}
       >
         {chat.currentSession ? (
-          <Conversation
-            chat={chat}
-            keys={keys}
-            onDelete={() => setConfirmDelete(chat.activeSessionId)}
-          />
+          <Conversation chat={chat} onDelete={() => setConfirmDelete(chat.activeSessionId)} />
         ) : (
           <div className="mx-auto max-w-3xl space-y-3 p-4 md:p-6">
             {chat.loadError && <Note tone="danger">{chat.loadError}</Note>}
@@ -227,21 +221,14 @@ function ChatWorkbenchInner() {
 
 type Chat = ReturnType<typeof useChat>;
 
-function Conversation({
-  chat,
-  keys,
-  onDelete,
-}: {
-  chat: Chat;
-  keys: ReturnType<typeof usePlaygroundKeys>;
-  onDelete: () => void;
-}) {
+function Conversation({ chat, onDelete }: { chat: Chat; onDelete: () => void }) {
   const session = chat.currentSession!;
   const fileInputRef = useRef<HTMLInputElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const last = session.messages[session.messages.length - 1];
   const lastLen = textValue(last?.content).length;
-  const pickerGroups = useMemo(() => toPickerGroups(keys.visibleGroups), [keys.visibleGroups]);
+  const pickerGroups = useMemo(() => toPickerGroups(chat.providerGroups), [chat.providerGroups]);
+  const keys = chat.keys;
   const [recent, remember] = useRecentModels();
   const inset = useKeyboardInset();
 
@@ -252,14 +239,15 @@ function Conversation({
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
-      if (chat.canSend) void chat.send(keys.keyId);
+      if (chat.canSend) void chat.send();
     }
   };
 
   return (
     <div className="flex min-h-full flex-col">
-      {/* Compact one-row header on mobile so the messages get the screen; full title on lg+. */}
-      <header className="mx-auto flex w-full max-w-3xl items-center gap-2 px-4 md:gap-3 lg:items-start md:px-6 md:pt-6">
+      {/* Compact header on mobile: title + delete, then key and model pickers on one full-width
+          row; everything on one row with the full title on lg+. */}
+      <header className="mx-auto flex w-full max-w-3xl flex-wrap items-center gap-x-2 gap-y-2 px-4 md:gap-x-3 lg:flex-nowrap lg:items-start md:px-6 md:pt-6">
         <div className="min-w-0 flex-1">
           <h2 className="truncate text-[13px] font-medium md:text-sm lg:font-display lg:text-3xl lg:font-normal lg:tracking-tight">
             {session.title}
@@ -271,14 +259,14 @@ function Conversation({
             </span>
           </div>
         </div>
-        <div className="flex min-w-0 max-w-[72%] items-center gap-1 lg:max-w-none">
+        <div className="order-3 flex w-full min-w-0 items-center gap-2 lg:order-2 lg:w-auto">
           <Select
             aria-label="API key"
             title="API key the chat runs as (its access list, budget and usage apply)"
-            value={keys.keyId}
+            value={keys.keyId ?? ""}
             disabled={chat.isSending}
             onChange={(e) => keys.select(e.target.value)}
-            className="w-24 shrink-0 lg:w-40"
+            className="w-2/5 min-w-0 lg:w-40"
           >
             {keys.keys.map((k) => (
               <option key={k.id} value={k.id} disabled={!k.isActive}>
@@ -296,10 +284,20 @@ function Conversation({
               chat.selectModel(id);
               remember(id);
             }}
-            className="flex-1 lg:w-64 lg:flex-none"
+            className="min-w-0 flex-1 lg:w-64 lg:flex-none"
           />
-          <IconButton icon="delete" label="Delete chat" onClick={onDelete} />
         </div>
+        <IconButton
+          icon="delete"
+          label="Delete chat"
+          onClick={onDelete}
+          className="order-2 lg:order-3"
+        />
+        {keys.billsAnotherKey && (
+          <p className="order-4 w-full text-[12px] text-text-muted">
+            Requests are billed to and visible on this key.
+          </p>
+        )}
       </header>
 
       {chat.loadError && (
@@ -387,7 +385,7 @@ function Conversation({
                   size="sm"
                   icon="arrow_upward"
                   disabled={!chat.canSend}
-                  onClick={() => void chat.send(keys.keyId)}
+                  onClick={() => void chat.send()}
                 >
                   Send
                 </Button>

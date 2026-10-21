@@ -129,13 +129,19 @@ async function isConfiguredModel(model) {
 const URL_RE = /\b[a-z][a-z0-9+.-]*:\/\/[^\s"'<>]+/gi;
 
 /** Client-safe error message: credentials and upstream URLs removed. */
-export function redactErrorMessage(message, secrets = []) {
+export function redactErrorMessage(message, secrets = [], keep = []) {
   let text = typeof message === "string" ? message : message == null ? "" : JSON.stringify(message);
   for (const secret of secrets) if (secret) text = text.split(secret).join("***");
-  return redactSecrets(text.replace(URL_RE, "[url]")) || "Request failed";
+  // Strings the caller sent and we validated (the model id) are not secrets; a provider-node
+  // id inside one is long enough to look like a token, so shield them from redactSecrets.
+  const shields = keep.filter((k) => typeof k === "string" && k.length > 0 && !secrets.includes(k));
+  shields.forEach((k, i) => (text = text.split(k).join(`\u0000${i}\u0000`)));
+  let out = redactSecrets(text.replace(URL_RE, "[url]")) || "Request failed";
+  shields.forEach((k, i) => (out = out.split(`\u0000${i}\u0000`).join(k)));
+  return out;
 }
 
-async function errorFrom(response, secrets) {
+async function errorFrom(response, secrets, keep) {
   let message = `Request failed (${response.status})`;
   try {
     const data = JSON.parse(await response.text());
@@ -147,7 +153,7 @@ async function errorFrom(response, secrets) {
   const retryAfter = response.headers.get("retry-after");
   return json(
     response.status,
-    redactErrorMessage(message, secrets),
+    redactErrorMessage(message, secrets, keep),
     retryAfter ? { "Retry-After": retryAfter } : {},
   );
 }
@@ -184,11 +190,24 @@ function passThrough(response, release) {
   return new Response(body, { status: response.status, headers });
 }
 
-export async function handlePlaygroundChat(request) {
+/**
+ * Shared gate for every Playground route: a dashboard session (local-only when
+ * requireLogin is off) and, for POSTs, same-origin JSON. Returns { sessionKey } or
+ * { error: Response }.
+ */
+export async function checkPlaygroundRequest(request, { post = true } = {}) {
   const sessionKey = await authenticate(request);
-  if (!sessionKey) return json(401, "Sign in to the dashboard to use the Playground");
-  if (!isSameOrigin(request)) return json(403, "Cross-origin request refused");
-  if (!isJsonContentType(request)) return json(415, "Content-Type must be application/json");
+  if (!sessionKey) return { error: json(401, "Sign in to the dashboard to use the Playground") };
+  if (post && !isSameOrigin(request)) return { error: json(403, "Cross-origin request refused") };
+  if (post && !isJsonContentType(request))
+    return { error: json(415, "Content-Type must be application/json") };
+  return { sessionKey };
+}
+
+export async function handlePlaygroundChat(request) {
+  const gate = await checkPlaygroundRequest(request);
+  if (gate.error) return gate.error;
+  const { sessionKey } = gate;
 
   const slot = acquirePlaygroundSlot([sessionKey, `ip:${getClientIp(request)}`]);
   if (slot.error) return json(429, slot.error, { "Retry-After": String(slot.retryAfter) });
@@ -230,7 +249,7 @@ export async function handlePlaygroundChat(request) {
     await ensureTranslators();
     const response = await handleChat(internal);
     if (!response) return json(502, "No response");
-    if (!response.ok) return await errorFrom(response, [secret]);
+    if (!response.ok) return await errorFrom(response, [secret], [body.model]);
     handedOff = true;
     return passThrough(response, () => slot.release());
   } catch (e) {

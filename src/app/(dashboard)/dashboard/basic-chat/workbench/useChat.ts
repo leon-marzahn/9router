@@ -30,6 +30,8 @@ import {
   type Connection,
   type ProviderGroup,
 } from "./chat";
+import { PLAYGROUND_KEY_ID } from "./playgroundKeys";
+import { usePlaygroundKeys } from "./usePlaygroundKeys";
 
 function readStorage(key: string): string {
   if (typeof window === "undefined") return "";
@@ -186,9 +188,14 @@ export function useChat() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // The API key the chat runs as. Its access list narrows the models everywhere in this
+  // hook, so a model the key may not call is never active (the first allowed one is).
+  const keys = usePlaygroundKeys(providerGroups);
+  const groups = keys.visibleGroups;
+
   const modelIndex = useMemo(() => {
     const map = new Map<string, ChatModel>();
-    for (const group of providerGroups) {
+    for (const group of groups) {
       for (const model of group.models) {
         map.set(model.id, {
           ...model,
@@ -198,12 +205,11 @@ export function useChat() {
       }
     }
     return map;
-  }, [providerGroups]);
+  }, [groups]);
 
   const activeProviderGroup = useMemo(
-    () =>
-      providerGroups.find((g) => g.providerId === activeProviderId) || providerGroups[0] || null,
-    [providerGroups, activeProviderId],
+    () => groups.find((g) => g.providerId === activeProviderId) || groups[0] || null,
+    [groups, activeProviderId],
   );
 
   const activeModel = useMemo<ChatModel | null>(() => {
@@ -228,7 +234,10 @@ export function useChat() {
     [sessions],
   );
   const canSend =
-    !isSending && !!activeModel && (draft.trim().length > 0 || attachments.length > 0);
+    !isSending &&
+    !!activeModel &&
+    !!keys.keyId &&
+    (draft.trim().length > 0 || attachments.length > 0);
 
   useEffect(() => {
     try {
@@ -339,8 +348,9 @@ export function useChat() {
 
   const stop = () => abortRef.current?.abort();
 
-  /** `keyId`: the API key the chat runs as (see usePlaygroundKeys). */
-  const send = async (keyId = "playground") => {
+  const send = async () => {
+    const keyId = keys.keyId;
+    if (!keyId) return;
     const model = activeModel || activeProviderGroup?.models?.[0] || null;
     if (!model) return;
     const userText = draft.trim();
@@ -495,11 +505,14 @@ export function useChat() {
       setIsSending(false);
       setStreamingMessageId("");
       abortRef.current = null;
+      // The first send as the placeholder created the Playground key: pick up its real id.
+      if (keyId === PLAYGROUND_KEY_ID) keys.refresh();
     }
   };
 
   return {
-    providerGroups,
+    providerGroups: groups,
+    keys,
     loadingData,
     loadError,
     sessions: sessionItems,

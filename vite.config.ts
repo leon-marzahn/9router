@@ -234,6 +234,7 @@ export default defineConfig({
       "!/tests/unit/pxpipe-pin.live.test.js",
       "!/tests/unit/playground-chat-route.test.js",
       "!/tests/unit/playground-keys.test.js",
+      "!/tests/unit/playground-key-picker.test.js",
       "!/tests/unit/helpers",
       "/tests/unit/helpers/*",
       "!/tests/unit/helpers/pxpipeImportGraph.js",

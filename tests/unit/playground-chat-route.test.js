@@ -351,6 +351,81 @@ describe("engine hand-off", () => {
   });
 });
 
+describe("edge paths", () => {
+  it("refuses an unparseable Origin", async () => {
+    expect((await POST(req(body(), { headers: { origin: "not a url" } }))).status).toBe(403);
+  });
+
+  it("refuses a declared Content-Length over the cap without reading the body", async () => {
+    const fake = {
+      url: URL_,
+      headers: new Headers({
+        host: HOST,
+        origin: `http://${HOST}`,
+        "content-type": "application/json",
+        cookie: "auth_token=valid-session",
+        "content-length": String(MAX_BODY_BYTES + 1),
+      }),
+      body: null,
+    };
+    expect((await POST(fake)).status).toBe(413);
+  });
+
+  it("answers 502 when the engine returns nothing", async () => {
+    handleChat.mockImplementationOnce(async () => null);
+    expect((await POST(req())).status).toBe(502);
+  });
+
+  it("passes a body-less engine response through", async () => {
+    handleChat.mockImplementationOnce(async () => new Response(null, { status: 204 }));
+    const res = await POST(req());
+    expect(res.status).toBe(204);
+    expect(await res.text()).toBe("");
+  });
+
+  it("errors the stream (and frees the slot) when the engine stream fails", async () => {
+    handleChat.mockImplementation(
+      async () =>
+        new Response(
+          new ReadableStream({
+            pull(c) {
+              c.error(new Error("upstream reset"));
+            },
+          }),
+          { headers: { "content-type": "text/event-stream" } },
+        ),
+    );
+    for (let i = 0; i < MAX_CONCURRENT + 1; i++) {
+      const res = await POST(req(body({ stream: true })));
+      expect(res.status).toBe(200);
+      await expect(res.text()).rejects.toThrow();
+    }
+  });
+
+  it("keeps the requested model id readable in errors without weakening redaction", () => {
+    const model = "openai-compatible-chat-3b0165af-f3d5-471d-ae25-b35c66c59c3a/demo-chat";
+    const msg = `This API key is not allowed to use model "${model}" (key sk-abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG)`;
+    const out = redactErrorMessage(msg, [], [model]);
+    expect(out).toContain(model);
+    expect(out).not.toContain("sk-abcdefghijklmnopqrstuvwxyz");
+    expect(redactErrorMessage(msg)).not.toContain(model.slice(0, 50));
+  });
+
+  it("validates image detail and reasoning_effort", () => {
+    const img = (image_url) =>
+      body({ messages: [{ role: "user", content: [{ type: "image_url", image_url }] }] });
+    expect(validatePlaygroundBody(img("data:image/png;base64,AAAA")).error).toBeTruthy();
+    expect(
+      validatePlaygroundBody(img({ url: "data:image/png;base64,AAAA", detail: "max" })).error,
+    ).toMatch(/detail/);
+    expect(
+      validatePlaygroundBody(img({ url: "data:image/png;base64,AAAA", detail: "low" })).body,
+    ).toBeTruthy();
+    expect(validatePlaygroundBody(body({ reasoning_effort: "high" })).body).toBeTruthy();
+    expect(validatePlaygroundBody(body({ reasoning_effort: "max" })).error).toBeTruthy();
+  });
+});
+
 describe("abuse limits", () => {
   it("rate-limits per session with a clear 429", async () => {
     for (let i = 0; i < RATE_LIMIT_PER_MIN; i++) {

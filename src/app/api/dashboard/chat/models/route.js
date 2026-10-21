@@ -1,10 +1,14 @@
 // Playground model filter: which of the given model ids the picked key may call (the
-// same resolution /v1/models uses for a restricted key). Behind the dashboard guard.
+// same resolution /v1/models uses for a restricted key). Session + same-origin JSON,
+// like the chat route. Lookup only: it never creates a key.
+import { checkPlaygroundRequest } from "@/lib/playground/handler.js";
 import { allowedModelsFor, isValidKeyId } from "@/lib/playground/keys.js";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request) {
+  const gate = await checkPlaygroundRequest(request);
+  if (gate.error) return gate.error;
   let body;
   try {
     body = await request.json();

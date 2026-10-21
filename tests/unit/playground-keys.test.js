@@ -98,6 +98,9 @@ beforeEach(() => {
 });
 
 const HOST = "localhost:20137";
+const SESSION = { host: HOST, origin: `http://${HOST}`, cookie: "auth_token=valid-session" };
+const getKeys = (headers = SESSION) =>
+  keysRoute.GET(new Request(`http://${HOST}/api/dashboard/chat/keys`, { headers }));
 function post(body) {
   return route.POST(
     new Request(`http://${HOST}/api/dashboard/chat/completions`, {
@@ -180,7 +183,7 @@ describe("the Playground key", () => {
   });
 
   it("the key list has ids and names only, never a secret", async () => {
-    const res = await keysRoute.GET();
+    const res = await getKeys();
     const text = await res.text();
     for (const k of await db.getApiKeys()) expect(text).not.toContain(k.key);
     const { keys } = JSON.parse(text);
@@ -197,19 +200,77 @@ describe("the Playground key", () => {
   it("before it exists, the list offers the placeholder", async () => {
     adapter.run("DELETE FROM _meta WHERE key = 'playgroundKeyId'");
     adapter.run("DELETE FROM apiKeys WHERE name = 'My playground'");
-    const { keys } = await (await keysRoute.GET()).json();
+    const { keys } = await (await getKeys()).json();
     expect(keys[0]).toMatchObject({ id: "playground", name: "Playground", playground: true });
+  });
+
+  it("never adopts a key just because it is named Playground", async () => {
+    const lookalike = await db.createApiKey("Playground", "machine-fixture");
+    const { keys } = await (await getKeys()).json();
+    expect(keys.find((k) => k.id === lookalike.id).playground).toBe(false);
+    const pg = await pgKeys.ensurePlaygroundKey();
+    expect(pg.id).not.toBe(lookalike.id);
+    expect((await post({ keyId: "playground" })).status).toBe(200);
+    const row = adapter.get("SELECT apiKey FROM usageHistory ORDER BY id DESC LIMIT 1");
+    expect(row.apiKey).toBe(`id:${pg.id}`);
+  });
+});
+
+describe("session gate on the helper routes", () => {
+  it("both refuse without a session, and with requireLogin off for a non-local caller", async () => {
+    const noCookie = { host: HOST, origin: `http://${HOST}` };
+    expect((await getKeys(noCookie)).status).toBe(401);
+    await db.updateSettings({ requireLogin: false });
+    try {
+      // A tunnel / DNS-rebinding style caller: not loopback, so still refused.
+      const remote = { host: "evil.example", origin: "http://evil.example" };
+      expect((await getKeys(remote)).status).toBe(401);
+      const res = await modelsRoute.POST(
+        new Request("http://evil.example/api/dashboard/chat/models", {
+          method: "POST",
+          headers: { ...remote, "content-type": "application/json" },
+          body: JSON.stringify({ keyId: open.id, models: [] }),
+        }),
+      );
+      expect(res.status).toBe(401);
+    } finally {
+      await db.updateSettings({ requireLogin: true });
+    }
   });
 });
 
 describe("model filter", () => {
-  const ask = (body) =>
+  const ask = (body, headers = {}) =>
     modelsRoute.POST(
-      new Request("http://x/api/dashboard/chat/models", {
+      new Request(`http://${HOST}/api/dashboard/chat/models`, {
         method: "POST",
+        headers: { ...SESSION, "content-type": "application/json", ...headers },
         body: JSON.stringify(body),
       }),
     );
+
+  it("never creates a key: a stale or missing Playground binding gets every id", async () => {
+    const models = ["openai/gpt-4o"];
+    adapter.run(
+      "INSERT INTO _meta(key, value) VALUES('playgroundKeyId', 'deleted-key-id') ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+    );
+    const before = (await db.getApiKeys()).length;
+    expect((await (await ask({ keyId: "playground", models })).json()).models).toEqual(models);
+    adapter.run("DELETE FROM _meta WHERE key = 'playgroundKeyId'");
+    expect((await (await ask({ keyId: "playground", models })).json()).models).toEqual(models);
+    expect((await db.getApiKeys()).length).toBe(before);
+  });
+
+  it("is same-origin JSON only", async () => {
+    const models = ["openai/gpt-4o"];
+    expect((await ask({ keyId: open.id, models }, { origin: "https://evil.example" })).status).toBe(
+      403,
+    );
+    expect((await ask({ keyId: open.id, models }, { "content-type": "text/plain" })).status).toBe(
+      415,
+    );
+    expect((await ask({ keyId: open.id, models }, { cookie: "" })).status).toBe(401);
+  });
 
   it("returns what a restricted key may call, everything for an open key", async () => {
     const models = ["openai/gpt-4o", "openai/gpt-4o-mini"];
