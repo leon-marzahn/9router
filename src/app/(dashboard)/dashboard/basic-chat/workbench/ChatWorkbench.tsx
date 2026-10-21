@@ -266,7 +266,7 @@ function Conversation({ chat, onDelete }: { chat: Chat; onDelete: () => void }) 
             value={keys.keyId ?? ""}
             disabled={chat.isSending}
             onChange={(e) => keys.select(e.target.value)}
-            className="w-2/5 min-w-0 lg:w-40"
+            className="w-[45%] min-w-0 lg:w-40"
           >
             {keys.keys.map((k) => (
               <option key={k.id} value={k.id} disabled={!k.isActive}>
