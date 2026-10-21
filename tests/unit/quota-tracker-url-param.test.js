@@ -15,8 +15,7 @@ const src = fs.readFileSync(
 describe("Quota workbench — URL selection sync (#4217)", () => {
   it("reads the selection from ?provider= and ?account=", () => {
     expect(src).toContain("useSearchParams");
-    expect(src).toMatch(/searchParams\.get\("provider"\)/);
-    expect(src).toMatch(/searchParams\.get\("account"\)/);
+    expect(src).toContain("quotaViewFromParams(searchParams)");
   });
 
   it("writes the selection back with router.replace", () => {
@@ -26,9 +25,10 @@ describe("Quota workbench — URL selection sync (#4217)", () => {
     expect(src).toMatch(/p\.set\(next\.kind === "provider"/);
   });
 
-  it("keeps the timeline range in ?range= and restores the last view", () => {
-    expect(src).toMatch(/searchParams\.get\("range"\)/);
+  it("keeps the timeline range in ?range= and never restores a stored view", () => {
+    expect(src).toContain("quotaViewFromParams(searchParams)");
     expect(src).toContain('p.set("range"');
-    expect(src).toContain("LAST_VIEW_KEY");
+    expect(src).not.toMatch(/localStorage\.getItem/);
+    expect(src).toContain("localStorage.removeItem(LEGACY_LAST_VIEW_KEY)");
   });
 });
