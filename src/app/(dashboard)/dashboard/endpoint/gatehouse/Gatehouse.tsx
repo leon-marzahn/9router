@@ -463,7 +463,6 @@ function CreateKey({
     >
       <Field label="Name" hint="Where it's used, so you can tell keys apart." error={error}>
         <Input
-          autoFocus
           value={name}
           placeholder="Claude Code on my laptop"
           onChange={(e) => setName(e.target.value)}
