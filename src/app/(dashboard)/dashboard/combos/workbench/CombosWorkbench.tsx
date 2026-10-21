@@ -292,7 +292,6 @@ function NameDialog({
     >
       <Field label="Name" hint="This is what apps send as the model." error={problem || error}>
         <Input
-          autoFocus
           mono
           value={name}
           placeholder="claude-best"

@@ -11,6 +11,42 @@ const SIZES = { sm: "md:max-w-sm", md: "md:max-w-md", lg: "md:max-w-lg", xl: "md
 const FOCUSABLE =
   'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
 
+/** Controls that open the on-screen keyboard when focused. */
+const TEXT_ENTRY =
+  "input:not([type=hidden],[type=checkbox],[type=radio],[type=button],[type=submit],[type=reset],[type=range],[type=color],[type=file],[disabled],[readonly]),textarea:not([disabled],[readonly]),[contenteditable]:not([contenteditable=false])";
+
+/**
+ * Whether opening a dialog may focus its first field: only with a mouse/trackpad
+ * (hover + fine pointer). On touch the dialog is a bottom sheet, and a focused
+ * field would pop the keyboard over it.
+ */
+export function fieldAutofocus(): boolean {
+  try {
+    return window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The one initial-focus rule for every dialog. With a fine pointer: a
+ * `[data-autofocus]` element, else the first text field in the body, else the
+ * first focusable body control, else the panel. On touch: `[data-autofocus]`
+ * unless it is a text field, else the panel itself (Esc and screen readers still
+ * land in the dialog, no keyboard pops). Use `data-autofocus`, never `autoFocus`.
+ */
+export function initialFocus(panel: HTMLElement, fields: boolean): HTMLElement {
+  const marked = panel.querySelector<HTMLElement>("[data-autofocus]");
+  const isText = (el: Element) => el.matches(TEXT_ENTRY) || !!el.querySelector(TEXT_ENTRY);
+  if (!fields) return marked && !isText(marked) ? marked : panel;
+  return (
+    marked ??
+    panel.querySelector<HTMLElement>(`[data-dialog-body] :is(${TEXT_ENTRY})`) ??
+    panel.querySelector<HTMLElement>(`[data-dialog-body] :is(${FOCUSABLE})`) ??
+    panel
+  );
+}
+
 /** Open dialog panels, innermost last: only the top one handles Esc / Tab, so a picker opened from a dialog neither closes its parent nor has focus pulled back into it. */
 const openStack: HTMLElement[] = [];
 
@@ -55,13 +91,7 @@ export function Dialog({
     if (!open) return;
     const returnTo = document.activeElement as HTMLElement | null;
     const panel = panelRef.current;
-    // Keep an autoFocus child's focus; else [data-autofocus], the first body field, or the panel.
-    if (!panel?.contains(document.activeElement))
-      (
-        panel?.querySelector<HTMLElement>("[data-autofocus]") ??
-        panel?.querySelector<HTMLElement>(`[data-dialog-body] :is(${FOCUSABLE})`) ??
-        panel
-      )?.focus();
+    if (panel) initialFocus(panel, fieldAutofocus()).focus();
     if (panel) openStack.push(panel);
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";

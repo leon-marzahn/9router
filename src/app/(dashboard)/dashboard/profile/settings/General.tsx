@@ -491,7 +491,6 @@ export function Backup({ api }: { api: SettingsApi }) {
         <Field label="Dashboard password">
           <Input
             type="password"
-            autoFocus
             autoComplete="current-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}

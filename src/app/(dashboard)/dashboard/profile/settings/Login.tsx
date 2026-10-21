@@ -105,7 +105,6 @@ function TurnOffWithPassword({
         <Field label="Your password" error={error}>
           <Input
             type="password"
-            autoFocus
             autoComplete="current-password"
             value={pw}
             onChange={(e) => setPw(e.target.value)}

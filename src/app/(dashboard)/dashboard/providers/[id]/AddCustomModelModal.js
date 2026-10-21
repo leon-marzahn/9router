@@ -90,7 +90,6 @@ export default function AddCustomModelModal({ isOpen, providerAlias, providerDis
                 placeholder="claude-opus-4.6"
                 className="min-w-0 flex-1 bg-transparent px-2.5 py-2 font-mono text-sm focus:outline-none"
                 readOnly={isEdit}
-                autoFocus={!isEdit}
                 autoCapitalize="off"
                 autoCorrect="off"
                 spellCheck={false}

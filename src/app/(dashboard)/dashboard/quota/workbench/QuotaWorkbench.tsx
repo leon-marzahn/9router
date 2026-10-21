@@ -35,6 +35,7 @@ import { STATUS_ORDER } from "@/ui/status";
 import { cn } from "@/ui/cn";
 import { AccountActions, AccountStatus, WindowBar, statusWord, type Actions } from "./parts";
 import { ResetTimeline, type Span } from "./ResetTimeline";
+import { LEGACY_LAST_VIEW_KEY, SPAN_TO_RANGE, quotaViewFromParams, type Sel } from "./viewState";
 import {
   EXHAUSTED,
   LOW,
@@ -49,11 +50,6 @@ import {
 } from "./useQuota";
 
 type Scope = "all" | "low" | "off";
-type Sel = { kind: "provider" | "account"; id: string } | null;
-
-const LAST_VIEW_KEY = "regent.quotaUrl.v1";
-const RANGE_TO_SPAN: Record<string, Span> = { "6h": 6, "24h": 24, "7d": 168 };
-const SPAN_TO_RANGE: Record<Span, string> = { 6: "6h", 24: "24h", 168: "7d" };
 
 interface Group {
   provider: string;
@@ -95,18 +91,11 @@ export function QuotaWorkbench({
   const now = useNow();
   // View state lives in the URL so it can be linked and survives reloads:
   // ?provider=claude | ?account=<id>, ?range=6h|24h|7d, ?view=overview (mobile).
-  // Opening the page bare (e.g. from the sidebar) restores the last one.
+  // Opening the page bare (e.g. from the sidebar) shows the default overview.
   const searchParams = useSearchParams();
   const router = useRouter();
   const qs = searchParams.toString();
-  const urlProvider = searchParams.get("provider");
-  const urlAccount = searchParams.get("account");
-  const sel: Sel = urlAccount
-    ? { kind: "account", id: urlAccount }
-    : urlProvider
-      ? { kind: "provider", id: urlProvider }
-      : null;
-  const span: Span = RANGE_TO_SPAN[searchParams.get("range") ?? ""] ?? 24;
+  const { sel, span, overview } = quotaViewFromParams(searchParams);
   const update = (edit: (p: URLSearchParams) => void) => {
     const params = new URLSearchParams(qs);
     edit(params);
@@ -132,22 +121,14 @@ export function QuotaWorkbench({
       if (on) p.set("view", "overview");
       else p.delete("view");
     });
-  const restored = useRef(false);
   useEffect(() => {
     try {
-      if (!restored.current) {
-        restored.current = true;
-        const last = localStorage.getItem(LAST_VIEW_KEY);
-        if (!qs && last) {
-          router.replace(`/dashboard/quota?${last}`, { scroll: false });
-          return;
-        }
-      }
-      localStorage.setItem(LAST_VIEW_KEY, qs);
+      // Drop the old "restore last view" entry so it can't come back.
+      localStorage.removeItem(LEGACY_LAST_VIEW_KEY);
     } catch {
-      // Storage blocked: the URL still works, it just isn't remembered.
+      // Storage blocked: nothing to clean up.
     }
-  }, [qs, router]);
+  }, []);
   const [scope, setScope] = useState<Scope>("all");
   const [q, setQ] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
@@ -169,7 +150,6 @@ export function QuotaWorkbench({
     sel?.kind === "account" ? (accounts.find((a) => a.id === sel.id) ?? null) : null;
   const selProvider = sel?.kind === "provider" ? sel.id : (selAccount?.provider ?? null);
   // Mobile only: the overview as its own screen (desktop shows it with nothing selected)
-  const overview = !sel && searchParams.get("view") === "overview";
 
   // List rows: each provider group starts with its summary row, then its accounts.
   const rowId = (s: NonNullable<Sel>) => `${s.kind === "provider" ? "p" : "a"}:${s.id}`;
