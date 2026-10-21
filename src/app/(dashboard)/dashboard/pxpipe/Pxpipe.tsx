@@ -250,7 +250,10 @@ export function Pxpipe() {
         </p>
       </header>
 
+      {/* Compact on phones like the request drawer; two columns so "Not installed" fits. */}
       <StatGrid
+        compactOnMobile
+        className="max-md:grid-cols-2"
         items={[
           {
             label: "Status",
