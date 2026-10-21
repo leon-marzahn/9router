@@ -95,5 +95,15 @@
       { "click": "button[type=submit]" },
       { "waitFor": "button:has-text('Sign out')" }
     ]
+  },
+  {
+    "name": "playground-model-picker",
+    "route": "/dashboard/basic-chat",
+    "steps": [
+      { "click": "button:has-text('New')" },
+      { "click": "[data-model-picker]" },
+      { "waitFor": "[role=dialog] input" }
+    ],
+    "selector": "[role=dialog]"
   }
 ]

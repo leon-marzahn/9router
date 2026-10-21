@@ -25,3 +25,5 @@ export { Dialog, ConfirmDialog } from "./Dialog";
 export { WorkbenchList, WorkbenchDetail, WorkbenchOverviewRow } from "./Workbench";
 export { useListKeyboard, type ListKeyboardOptions } from "./useListKeyboard";
 export { CodeBlock } from "./CodeBlock";
+export { ModelPicker } from "./ModelPicker";
+export { pushRecent, type PickerGroup, type PickerModel } from "./modelPickerLogic";

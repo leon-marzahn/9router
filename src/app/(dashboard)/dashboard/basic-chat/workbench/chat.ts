@@ -1,5 +1,6 @@
 import { getModelsByProviderId } from "@/shared/constants/models";
 import {
+  AI_PROVIDERS,
   isAnthropicCompatibleProvider,
   isOpenAICompatibleProvider,
 } from "@/shared/constants/providers";
@@ -9,6 +10,7 @@ export const STORAGE_KEYS = {
   activeSessionId: "basic-chat.activeSessionId",
   activeProviderId: "basic-chat.activeProviderId",
   draft: "basic-chat.draft",
+  recentModels: "basic-chat.recentModels",
 };
 
 export interface Attachment {
@@ -62,6 +64,7 @@ export interface Connection {
   provider?: string;
   name?: string;
   isActive?: boolean;
+  providerSpecificData?: { nodeName?: string };
 }
 
 export function createId(): string {
@@ -170,8 +173,15 @@ export function cloneSession(session: ChatSession): ChatSession {
   };
 }
 
+/** The provider's display name (registry name, compatible node name), not the account's. */
 export function getProviderLabel(connection: Connection | undefined): string {
-  return connection?.name || humanize(connection?.provider || connection?.id || "provider");
+  const known = (AI_PROVIDERS as Record<string, { name?: string }>)[connection?.provider ?? ""];
+  return (
+    known?.name ||
+    connection?.providerSpecificData?.nodeName ||
+    connection?.name ||
+    humanize(connection?.provider || connection?.id || "provider")
+  );
 }
 
 export function normalizeStaticModel(
@@ -269,4 +279,43 @@ export function splitFences(text: string): Segment[] {
   }
   if (last < text.length) out.push({ kind: "text", text: text.slice(last) });
   return out.filter((s) => s.kind === "code" || s.text.trim());
+}
+
+/** Provider groups in the shape `ModelPicker` takes (the id sent upstream as detail). */
+export function toPickerGroups(
+  groups: ProviderGroup[],
+): {
+  providerId: string;
+  providerName: string;
+  models: { id: string; name: string; detail: string }[];
+}[] {
+  return groups.map((g) => ({
+    providerId: g.providerId,
+    providerName: g.providerName,
+    models: g.models.map((m) => ({ id: m.id, name: m.name, detail: m.requestModel })),
+  }));
+}
+
+/** Recently used model ids from storage; anything malformed reads as none. */
+export function parseRecentModels(raw: string | null): string[] {
+  try {
+    const v = JSON.parse(raw || "[]");
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Height the on-screen keyboard covers at the bottom of the layout viewport,
+ * from `window.innerHeight` and the visual viewport. 0 while pinch-zoomed or
+ * when the gap is too small to be a keyboard (URL bar / toolbar changes).
+ */
+export function keyboardInset(
+  layoutHeight: number,
+  viewport: { height: number; offsetTop: number; scale: number },
+): number {
+  if (viewport.scale > 1.01) return 0;
+  const gap = Math.round(layoutHeight - viewport.height - viewport.offsetTop);
+  return gap > 80 ? gap : 0;
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import {
   Button,
   ConfirmDialog,
@@ -13,16 +13,26 @@ import {
   ListGroup,
   ListRow,
   ListSkeleton,
+  ModelPicker,
+  pushRecent,
   Note,
   SearchInput,
-  Select,
   Tag,
   WorkbenchDetail,
   WorkbenchList,
   cn,
   useListKeyboard,
 } from "@/ui";
-import { formatRelativeTime, textValue, type ChatMessage, type ChatSession } from "./chat";
+import {
+  STORAGE_KEYS,
+  formatRelativeTime,
+  keyboardInset,
+  parseRecentModels,
+  textValue,
+  toPickerGroups,
+  type ChatMessage,
+  type ChatSession,
+} from "./chat";
 import { MessageBody } from "./MessageBody";
 import { useChat } from "./useChat";
 
@@ -30,6 +40,44 @@ function lastUserText(session: ChatSession): string {
   const latest =
     [...session.messages].reverse().find((m) => m.role === "user") || session.messages[0];
   return textValue(latest?.content) || "Empty chat";
+}
+
+/** Recently picked model ids, kept in this browser (best effort). */
+function useRecentModels() {
+  const [recent, setRecent] = useState<string[]>([]);
+  useEffect(() => {
+    try {
+      setRecent(parseRecentModels(globalThis.localStorage.getItem(STORAGE_KEYS.recentModels)));
+    } catch {}
+  }, []);
+  const remember = useCallback((id: string) => {
+    setRecent((prev) => {
+      const next = pushRecent(prev, id);
+      try {
+        globalThis.localStorage.setItem(STORAGE_KEYS.recentModels, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  }, []);
+  return [recent, remember] as const;
+}
+
+/** Bottom inset the on-screen keyboard covers, so the composer can sit above it. */
+function useKeyboardInset() {
+  const [inset, setInset] = useState(0);
+  useEffect(() => {
+    const vv = globalThis.visualViewport;
+    if (!vv) return;
+    const update = () => setInset(keyboardInset(globalThis.innerHeight, vv));
+    update();
+    vv.addEventListener("resize", update);
+    vv.addEventListener("scroll", update);
+    return () => {
+      vv.removeEventListener("resize", update);
+      vv.removeEventListener("scroll", update);
+    };
+  }, []);
+  return inset;
 }
 
 export function ChatWorkbench() {
@@ -189,6 +237,9 @@ function Conversation({ chat, onDelete }: { chat: Chat; onDelete: () => void }) 
   const endRef = useRef<HTMLDivElement>(null);
   const last = session.messages[session.messages.length - 1];
   const lastLen = textValue(last?.content).length;
+  const pickerGroups = useMemo(() => toPickerGroups(chat.providerGroups), [chat.providerGroups]);
+  const [recent, remember] = useRecentModels();
+  const inset = useKeyboardInset();
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: "end" });
@@ -203,35 +254,31 @@ function Conversation({ chat, onDelete }: { chat: Chat; onDelete: () => void }) 
 
   return (
     <div className="flex min-h-full flex-col">
-      <header className="mx-auto flex w-full max-w-3xl flex-wrap items-start gap-3 px-4 pt-4 md:px-6 md:pt-6">
+      {/* Compact one-row header on mobile so the messages get the screen; full title on md+. */}
+      <header className="mx-auto flex w-full max-w-3xl items-center gap-2 px-4 md:items-start md:gap-3 md:px-6 md:pt-6">
         <div className="min-w-0 flex-1">
-          <h2 className="truncate font-display text-3xl tracking-tight">{session.title}</h2>
-          <div className="mt-1 flex flex-wrap items-center gap-2 text-[12px] text-text-muted">
+          <h2 className="truncate text-[13px] font-medium md:font-display md:text-3xl md:font-normal md:tracking-tight">
+            {session.title}
+          </h2>
+          <div className="mt-1 hidden flex-wrap items-center gap-2 text-[12px] text-text-muted md:flex">
             <Tag mono>{chat.activeModel?.requestModel ?? session.modelId}</Tag>
             <span>
               {session.messages.length} message{session.messages.length === 1 ? "" : "s"}
             </span>
           </div>
         </div>
-        <div className="flex w-full items-center gap-1 sm:w-auto">
-          <Select
-            aria-label="Model"
-            className="min-w-0 flex-1 sm:w-64"
-            value={chat.activeModel?.id ?? ""}
+        <div className="flex min-w-0 max-w-[60%] items-center gap-1 md:max-w-none">
+          <ModelPicker
+            groups={pickerGroups}
+            value={chat.activeModel?.id ?? null}
+            recent={recent}
             disabled={chat.providerGroups.length === 0 || chat.isSending}
-            onChange={(e) => chat.selectModel(e.target.value)}
-          >
-            {!chat.activeModel && <option value="">Select model</option>}
-            {chat.providerGroups.map((g) => (
-              <optgroup key={g.providerId} label={`${g.providerName} (${g.models.length})`}>
-                {g.models.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </Select>
+            onChange={(id) => {
+              chat.selectModel(id);
+              remember(id);
+            }}
+            className="flex-1 md:w-64 md:flex-none"
+          />
           <IconButton icon="delete" label="Delete chat" onClick={onDelete} />
         </div>
       </header>
@@ -242,7 +289,7 @@ function Conversation({ chat, onDelete }: { chat: Chat; onDelete: () => void }) 
         </div>
       )}
 
-      <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-5 px-4 py-6 md:px-6">
+      <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-5 px-4 py-4 md:px-6 md:py-6">
         {session.messages.length === 0 && (
           <EmptyState icon="chat">
             Ask {chat.activeModel?.name ?? "a model"} anything. Enter sends, Shift+Enter adds a
@@ -260,7 +307,10 @@ function Conversation({ chat, onDelete }: { chat: Chat; onDelete: () => void }) 
         <div ref={endRef} />
       </div>
 
-      <div className="sticky bottom-0 bg-bg pb-4">
+      <div
+        className="sticky bottom-0 bg-bg pb-3 md:pb-4"
+        style={inset ? { paddingBottom: inset + 12 } : undefined}
+      >
         <div className="mx-auto w-full max-w-3xl px-4 md:px-6">
           {chat.attachments.length > 0 && (
             <div className="mb-2 flex flex-wrap gap-1.5">
@@ -287,7 +337,7 @@ function Conversation({ chat, onDelete }: { chat: Chat; onDelete: () => void }) 
               onKeyDown={onKeyDown}
               placeholder={chat.activeModel ? `Message ${chat.activeModel.name}` : "Message AI"}
               rows={2}
-              className="max-h-[25vh] w-full resize-none bg-transparent px-2 py-1 text-[14px] leading-relaxed text-text outline-none placeholder:text-text-subtle"
+              className="max-h-[25dvh] w-full resize-none bg-transparent px-2 py-1 text-[14px] leading-relaxed text-text outline-none placeholder:text-text-subtle"
             />
             <div className="flex items-center gap-1">
               <IconButton
