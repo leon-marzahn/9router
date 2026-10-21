@@ -302,7 +302,7 @@ describe("engine hand-off", () => {
   });
 
   it("needs a keyId; unknown ids are 404 and disabled keys 403", async () => {
-    const { keyId, ...noKey } = body();
+    const { keyId: _keyId, ...noKey } = body();
     expect((await POST(req(noKey))).status).toBe(400);
     expect((await POST(req(body({ keyId: "../x" })))).status).toBe(400);
     expect((await POST(req(body({ keyId: "nope" })))).status).toBe(404);

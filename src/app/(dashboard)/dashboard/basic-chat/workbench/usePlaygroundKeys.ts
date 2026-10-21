@@ -31,7 +31,7 @@ function readKeyId(): string {
 export function usePlaygroundKeys(groups: ProviderGroup[]) {
   const [keys, setKeys] = useState<PlaygroundKey[]>([]);
   const [saved, setSaved] = useState(readKeyId);
-  const [allowed, setAllowed] = useState<Set<string> | null>(null);
+  const [fetched, setFetched] = useState<{ keyId: string; models: Set<string> } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -54,11 +54,11 @@ export function usePlaygroundKeys(groups: ProviderGroup[]) {
     [groups],
   );
 
+  // Restricted keys only; null (no filter) for an open key or until the answer arrives.
+  const allowed = key?.restricted && fetched?.keyId === keyId ? fetched.models : null;
+
   useEffect(() => {
-    if (!key?.restricted) {
-      setAllowed(null);
-      return;
-    }
+    if (!key?.restricted) return;
     let cancelled = false;
     fetch("/api/dashboard/chat/models", {
       method: "POST",
@@ -67,7 +67,8 @@ export function usePlaygroundKeys(groups: ProviderGroup[]) {
     })
       .then((r) => (r.ok ? r.json() : { models: [] }))
       .then((d) => {
-        if (!cancelled) setAllowed(new Set(Array.isArray(d.models) ? d.models : []));
+        if (!cancelled)
+          setFetched({ keyId, models: new Set(Array.isArray(d.models) ? d.models : []) });
       })
       .catch(() => {});
     return () => {
