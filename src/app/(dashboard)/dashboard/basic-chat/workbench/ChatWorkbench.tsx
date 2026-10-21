@@ -271,14 +271,14 @@ function Conversation({
             </span>
           </div>
         </div>
-        <div className="flex min-w-0 max-w-[60%] items-center gap-1 lg:max-w-none">
+        <div className="flex min-w-0 max-w-[72%] items-center gap-1 lg:max-w-none">
           <Select
             aria-label="API key"
             title="API key the chat runs as (its access list, budget and usage apply)"
             value={keys.keyId}
             disabled={chat.isSending}
             onChange={(e) => keys.select(e.target.value)}
-            className="w-28 shrink-0 lg:w-40"
+            className="w-24 shrink-0 lg:w-40"
           >
             {keys.keys.map((k) => (
               <option key={k.id} value={k.id} disabled={!k.isActive}>
