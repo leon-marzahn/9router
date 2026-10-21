@@ -15,6 +15,8 @@ import {
   getProviderLabel,
   makeSessionTitle,
   newSession,
+  isChatModel,
+  isChatProvider,
   normalizeLiveModel,
   parseProviderModelsPayload,
   readAssistantText,
@@ -97,7 +99,9 @@ export function useChat() {
         const providersRes = await fetch("/api/providers", { cache: "no-store" });
         const providersData = await providersRes.json().catch(() => ({}));
         const connections: Connection[] = Array.isArray(providersData.connections)
-          ? providersData.connections.filter((c: Connection) => c?.isActive !== false)
+          ? providersData.connections.filter(
+              (c: Connection) => c?.isActive !== false && isChatProvider(c.provider || c.id),
+            )
           : [];
 
         if (connections.length === 0) {
@@ -136,6 +140,7 @@ export function useChat() {
               const data = await response.json().catch(() => ({}));
               if (!response.ok) return { connection, models: [] };
               const models = parseProviderModelsPayload(data)
+                .filter(isChatModel)
                 .map((model) => normalizeLiveModel(model, connection))
                 .filter((m): m is ChatModel => m !== null);
               return { connection, models };

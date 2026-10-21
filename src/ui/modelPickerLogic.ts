@@ -22,12 +22,22 @@ export interface PickerSection {
   /** Provider id of the section, for a logo (absent for "Recent"). */
   providerId?: string;
   models: (PickerModel & { providerId: string; providerName: string })[];
+  /** Matching models in the group before the render cap (`models` may hold fewer). */
+  total: number;
 }
 
 export const RECENT_LIMIT = 5;
+/** Options rendered per provider group; the rest are reached by typing. */
+export const GROUP_LIMIT = 50;
 
+const hay = new WeakMap<PickerModel, string>();
 function haystack(m: PickerModel): string {
-  return `${m.id} ${m.name} ${m.detail ?? ""}`.toLowerCase();
+  let h = hay.get(m);
+  if (h === undefined) {
+    h = `${m.id} ${m.name} ${m.detail ?? ""}`.toLowerCase();
+    hay.set(m, h);
+  }
+  return h;
 }
 
 /**
@@ -53,12 +63,14 @@ export function filterModelGroups(groups: PickerGroup[], query: string): PickerG
 
 /**
  * Sections to render: "Recent" (only while not searching, models that still
- * exist, most recent first) then one section per provider group that matches.
+ * exist, most recent first, uncapped) then one section per provider group that
+ * matches, capped at `limit` options (`total` keeps the full count).
  */
 export function buildPickerSections(
   groups: PickerGroup[],
   query: string,
   recentIds: string[] = [],
+  limit = GROUP_LIMIT,
 ): PickerSection[] {
   const withProvider = (g: PickerGroup) =>
     g.models.map((m) => ({ ...m, providerId: g.providerId, providerName: g.providerName }));
@@ -69,14 +81,16 @@ export function buildPickerSections(
       .map((id) => byId.get(id))
       .filter((m): m is NonNullable<typeof m> => !!m)
       .slice(0, RECENT_LIMIT);
-    if (recent.length) sections.push({ key: "__recent", title: "Recent", models: recent });
+    if (recent.length)
+      sections.push({ key: "__recent", title: "Recent", models: recent, total: recent.length });
   }
   for (const g of filterModelGroups(groups, query)) {
     sections.push({
       key: g.providerId,
       title: g.providerName,
       providerId: g.providerId,
-      models: withProvider(g),
+      models: withProvider({ ...g, models: g.models.slice(0, limit) }),
+      total: g.models.length,
     });
   }
   return sections;

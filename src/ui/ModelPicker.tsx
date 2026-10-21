@@ -1,6 +1,15 @@
 "use client";
 
-import { useEffect, useId, useMemo, useState, type KeyboardEvent } from "react";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from "react";
 import { Button } from "./Button";
 import { cn } from "./cn";
 import { Dialog } from "./Dialog";
@@ -110,7 +119,15 @@ function PickerDialog({
       : -1
     : keys.findIndex((k) => k.endsWith(`::${value}`));
   const active = picked >= 0 ? picked : fallback;
-  const setActive = (i: number) => setActiveKey(keys[i] ?? null);
+  // Stable callbacks (through refs) so memoized options skip re-rendering.
+  const keysRef = useRef(keys);
+  const pickRef = useRef(onPick);
+  useEffect(() => {
+    keysRef.current = keys;
+    pickRef.current = onPick;
+  });
+  const setActive = useCallback((i: number) => setActiveKey(keysRef.current[i] ?? null), []);
+  const pick = useCallback((id: string) => pickRef.current(id), []);
   const baseId = useId();
   const optId = (i: number) => `${baseId}-opt-${i}`;
   // Index of each section's first option (options are numbered across sections).
@@ -181,7 +198,7 @@ function PickerDialog({
                 )}
               </span>
               <span className="min-w-0 truncate">{s.title}</span>
-              <span className="tabular-nums">{s.models.length}</span>
+              <span className="tabular-nums">{s.total}</span>
             </div>
             {s.models.map((m, mi) => {
               const i = starts[si] + mi;
@@ -189,15 +206,21 @@ function PickerDialog({
                 <Option
                   key={m.id}
                   id={optId(i)}
+                  index={i}
                   model={m}
                   providerName={s.providerId ? undefined : m.providerName}
                   active={i === active}
                   selected={m.id === value}
-                  onHover={() => setActive(i)}
-                  onPick={() => onPick(m.id)}
+                  onHover={setActive}
+                  onPick={pick}
                 />
               );
             })}
+            {s.total > s.models.length && (
+              <div className="px-2.5 py-1.5 text-[12px] text-text-muted">
+                {s.total - s.models.length} more, type to narrow
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -205,8 +228,9 @@ function PickerDialog({
   );
 }
 
-function Option({
+const Option = memo(function Option({
   id,
+  index,
   model,
   providerName,
   active,
@@ -215,12 +239,13 @@ function Option({
   onPick,
 }: {
   id: string;
+  index: number;
   model: PickerModel;
   providerName?: string;
   active: boolean;
   selected: boolean;
-  onHover: () => void;
-  onPick: () => void;
+  onHover: (index: number) => void;
+  onPick: (id: string) => void;
 }) {
   const detail = [providerName, model.detail && model.detail !== model.name ? model.detail : null]
     .filter(Boolean)
@@ -231,8 +256,8 @@ function Option({
       role="option"
       tabIndex={-1}
       aria-selected={selected}
-      onMouseMove={onHover}
-      onClick={onPick}
+      onMouseMove={active ? undefined : () => onHover(index)}
+      onClick={() => onPick(model.id)}
       className={cn(
         "flex min-h-9 cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 max-md:min-h-11",
         active ? "bg-surface-2" : "",
@@ -245,4 +270,4 @@ function Option({
       {selected && <Icon name="check" size={16} className="shrink-0 text-accent-text" />}
     </div>
   );
-}
+});

@@ -10,7 +10,15 @@ vi.mock("@/shared/components/ProviderIcon", () => ({ default: () => null }));
 const { buildPickerSections, filterModelGroups, moveActive, optionKeys, pushRecent } =
   await import("@/ui/modelPickerLogic");
 const { ModelPicker } = await import("@/ui/ModelPicker");
-const { getProviderLabel, keyboardInset, parseRecentModels, toPickerGroups } = await import(
+const {
+  getProviderLabel,
+  isChatModel,
+  isChatProvider,
+  keyboardInset,
+  parseRecentModels,
+  staticModelsFor,
+  toPickerGroups,
+} = await import(
   "@/app/(dashboard)/dashboard/basic-chat/workbench/chat"
 );
 
@@ -90,6 +98,19 @@ describe("buildPickerSections", () => {
     ]);
   });
 
+  it("caps each provider group but not recents, keeping the full count", () => {
+    const many = Array.from({ length: 120 }, (_, i) => ({ id: `big/m${i}`, name: `Model ${i}` }));
+    const groups = [{ providerId: "big", providerName: "Big", models: many }];
+    const recent = many.slice(0, 5).map((m) => m.id);
+    const s = buildPickerSections(groups, "", recent, 50);
+    expect(s[0].models).toHaveLength(5);
+    expect(s[1].models).toHaveLength(50);
+    expect(s[1].total).toBe(120);
+    const narrowed = buildPickerSections(groups, "model 11", [], 50);
+    expect(narrowed[0].total).toBe(11);
+    expect(narrowed[0].models).toHaveLength(11);
+  });
+
   it("gives each option a unique key even when a model is listed twice", () => {
     const keys = optionKeys(buildPickerSections(GROUPS, "", ["claude/opus"]));
     expect(new Set(keys).size).toBe(keys.length);
@@ -143,7 +164,23 @@ describe("Playground helpers", () => {
         providerSpecificData: { nodeName: "My Node" },
       }),
     ).toBe("My Node");
-    expect(getProviderLabel({ id: "c3", provider: "unknown-thing", name: "Acct" })).toBe("Acct");
+    // Unknown provider: the humanized id, never the account name (often an OAuth email).
+    const label = getProviderLabel({ id: "c3", provider: "unknown-thing", name: "ada@example.com" });
+    expect(label).not.toContain("ada@example.com");
+    expect(label.toLowerCase()).toContain("unknown");
+  });
+
+  it("keeps only chat models and chat providers", () => {
+    expect(isChatModel({ id: "gpt", name: "GPT" })).toBe(true);
+    expect(isChatModel({ id: "nova-3", kind: "stt" })).toBe(false);
+    expect(isChatModel({ id: "aura", type: "tts" })).toBe(false);
+    expect(isChatModel({ id: "embed", kind: "embedding" })).toBe(false);
+    expect(isChatModel({ id: "img", kind: "image" })).toBe(false);
+    expect(isChatModel("plain-live-id")).toBe(true);
+    expect(isChatProvider("openai")).toBe(true);
+    expect(isChatProvider("deepgram")).toBe(false);
+    expect(isChatProvider("openai-compatible-anything")).toBe(true);
+    expect(staticModelsFor("deepgram", { id: "c", provider: "deepgram" })).toEqual([]);
   });
 
   it("reads stored recents defensively", () => {
@@ -236,12 +273,13 @@ describe("<ModelPicker>", () => {
     void act(() => root.render(h(ModelPicker, { groups: GROUPS, ...props })));
   }
   const input = () => document.querySelector("[role=dialog] input");
-  const type = (value) =>
-    void act(() => {
+  const type = (value) => {
+    act(() => {
       const el = input();
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(el, value);
       el.dispatchEvent(new Event("input", { bubbles: true }));
     });
+  };
   const key = (k) =>
     void act(() => input().dispatchEvent(new KeyboardEvent("keydown", { key: k, bubbles: true })));
 
@@ -273,6 +311,33 @@ describe("<ModelPicker>", () => {
     key("Enter");
     expect(onChange).toHaveBeenCalledWith("openai/gpt-5-mini");
     expect(document.querySelector("[role=dialog]")).toBeNull();
+  });
+
+  it("focuses the search with a fine pointer but not on touch", () => {
+    for (const [fine, focused] of [
+      [true, true],
+      [false, false],
+    ]) {
+      vi.stubGlobal("matchMedia", (q) => ({ matches: fine, media: q, addEventListener() {}, removeEventListener() {} }));
+      try {
+        render({ value: null, onChange: vi.fn() });
+        void act(() => host.querySelector("[data-model-picker]").click());
+        expect(document.activeElement === input()).toBe(focused);
+      } finally {
+        void act(() => root.unmount());
+        root = null;
+        host.remove();
+        vi.unstubAllGlobals();
+      }
+    }
+  });
+
+  it("renders a capped group with a 'type to narrow' line", () => {
+    const many = Array.from({ length: 80 }, (_, i) => ({ id: `big/m${i}`, name: `Model ${i}` }));
+    render({ groups: [{ providerId: "big", providerName: "Big", models: many }], value: null, onChange: vi.fn() });
+    void act(() => host.querySelector("[data-model-picker]").click());
+    expect(document.querySelectorAll("[role=option]")).toHaveLength(50);
+    expect(document.querySelector("[role=dialog]").textContent).toContain("30 more, type to narrow");
   });
 
   it("says when nothing matches and picks on click", () => {

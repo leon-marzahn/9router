@@ -173,15 +173,36 @@ export function cloneSession(session: ChatSession): ChatSession {
   };
 }
 
-/** The provider's display name (registry name, compatible node name), not the account's. */
+type ProviderMeta = { name?: string; serviceKinds?: string[] };
+const providerMeta = (id: string | undefined) =>
+  (AI_PROVIDERS as Record<string, ProviderMeta>)[id ?? ""];
+
+/**
+ * The provider's display name: registry name, compatible node name, else the
+ * humanized provider id. Never the account name (often an OAuth email).
+ */
 export function getProviderLabel(connection: Connection | undefined): string {
-  const known = (AI_PROVIDERS as Record<string, { name?: string }>)[connection?.provider ?? ""];
   return (
-    known?.name ||
+    providerMeta(connection?.provider)?.name ||
     connection?.providerSpecificData?.nodeName ||
-    connection?.name ||
     humanize(connection?.provider || connection?.id || "provider")
   );
+}
+
+/** Model kinds the Playground can't chat with. */
+const NON_CHAT_KINDS = new Set(["tts", "stt", "embedding", "image", "video"]);
+
+/** Whether a provider serves chat models (unknown / compatible providers do). */
+export function isChatProvider(providerId: string | undefined): boolean {
+  const kinds = providerMeta(providerId)?.serviceKinds;
+  return !kinds || kinds.includes("llm");
+}
+
+/** Whether a model entry is a chat model, judged by its `kind` / `type` metadata. */
+export function isChatModel(model: unknown): boolean {
+  if (!model || typeof model !== "object") return true;
+  const m = model as { kind?: unknown; type?: unknown };
+  return !NON_CHAT_KINDS.has(String(m.kind ?? "")) && !NON_CHAT_KINDS.has(String(m.type ?? ""));
 }
 
 export function normalizeStaticModel(
@@ -245,6 +266,7 @@ export function dedupeModels(models: ChatModel[]): ChatModel[] {
 
 export function staticModelsFor(providerId: string, connection: Connection): ChatModel[] {
   return (getModelsByProviderId(providerId) as { id?: string; name?: string }[])
+    .filter(isChatModel)
     .map((model) => normalizeStaticModel(model, connection))
     .filter((m): m is ChatModel => m !== null);
 }
