@@ -55,6 +55,8 @@ function isTrustedProxy(ip) {
   return version !== 0 && list.check(bare, version === 6 ? "ipv6" : "ipv4");
 }
 
+const PROXY_MARKER_HEADERS = ["forwarded", "x-forwarded-host", "x-forwarded-proto", "via", "cf-connecting-ip"];
+
 function clientIpFromForwardedChain(xff) {
   const hops = String(xff).split(",").map((s) => s.trim()).filter(Boolean);
   for (let i = hops.length - 1; i >= 0; i--) {
@@ -121,7 +123,10 @@ http.createServer = (...args) => {
     const socketIp = req.socket && req.socket.remoteAddress ? req.socket.remoteAddress : "";
     const xff = req.headers["x-forwarded-for"];
     const xRealIp = req.headers["x-real-ip"];
-    const viaProxy = !!(xff || xRealIp);
+    // Any forwarding header means a proxy (or tunnel) sits between us and the client, so
+    // a loopback socket is the proxy hop, not a local user. nginx's plain proxy_pass adds
+    // none of these; login-off is documented as unsafe behind such a proxy.
+    const viaProxy = !!(xff || xRealIp) || PROXY_MARKER_HEADERS.some((h) => req.headers[h] !== undefined);
     const ip = resolveClientIp(socketIp, xff, xRealIp);
     delete req.headers["x-9r-real-ip"];
     delete req.headers["x-forwarded-for"];

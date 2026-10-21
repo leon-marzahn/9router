@@ -589,3 +589,51 @@ describe("dashboard guard requireLogin off and Host allow-list", () => {
     expect(await isAuthenticated(request("/fe/x", { host: "regent.example.com" }))).toBe(false);
   });
 });
+
+// Review follow-ups: proxies on this machine, malformed Host, a 421 that says what to do.
+describe("dashboard guard loopback proxies and malformed Host", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.NINEROUTER_PEER_TOKEN = PEER_TOKEN;
+    process.env.ALLOWED_HOSTS = "regent.example.com";
+    process.env.NEXT_PUBLIC_BASE_URL = "https://router.lan";
+    mocks.getSettings.mockResolvedValue({ requireLogin: false });
+    mocks.verifyDashboardAuthToken.mockResolvedValue(false);
+  });
+
+  // The reviewer's three curl repros with requireLogin off, as the guard sees them after
+  // custom-server.js: socket 127.0.0.1, forwarding headers turned into x-9r-via-proxy.
+  it("needs login for a loopback proxy forwarding an allowed name, with or without XFF", async () => {
+    const withXff = localRequest("/api/keys", { host: "regent.example.com", "x-9r-via-proxy": "1" });
+    expect((await proxy(withXff)).status).toBe(401);
+    const noXff = localRequest("/api/keys", { host: "regent.example.com" });
+    expect((await proxy(noXff)).status).toBe(401);
+    expect((await proxy(localRequest("/api/keys", { host: "router.lan" }))).status).toBe(401);
+    expect((await proxy(localRequest("/dashboard", { host: "regent.example.com" }))).status).toBe(307);
+  });
+
+  it("cannot tell nginx's bare proxy_pass (Host 127.0.0.1, no forwarding headers) from a local browser", async () => {
+    // Documented: login off is unsafe behind a proxy that adds no forwarding headers.
+    expect(await proxy(localRequest("/api/keys", { host: "127.0.0.1:20128" }))).toBe(mocks.nextResponse);
+  });
+
+  it("does not waive login for an IP-literal Host even on a loopback socket", async () => {
+    expect((await proxy(localRequest("/api/keys", { host: "192.168.1.10:20128" }))).status).toBe(401);
+  });
+
+  it.each(["localhost@evil.com", "evil.com/localhost", "localhost\\evil.com", "localhost#x", "local host", "localhost\tx"])(
+    "rejects malformed Host %j",
+    async (host) => {
+      expect(__test__.isAllowedHost(request("/api/keys", { host: "x" }), {})).toBe(false);
+      const req = request("/api/keys");
+      req.headers = { get: (n) => (n.toLowerCase() === "host" ? host : null) };
+      expect(__test__.isAllowedHost(req, {})).toBe(false);
+    },
+  );
+
+  it("names ALLOWED_HOSTS and the host in the 421 body", async () => {
+    const res = await proxy(localRequest("/api/keys", { host: "other.example.com:8080" }));
+    expect(res.status).toBe(421);
+    expect(res.body.error).toContain("ALLOWED_HOSTS=other.example.com");
+  });
+});

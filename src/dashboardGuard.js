@@ -106,6 +106,10 @@ export function isLocalRequest(request) {
   // a reverse proxy, so the loopback socket is the proxy hop, not the end-user.
   if (request.headers.get("x-9r-via-proxy")) return false;
   if (!isLoopbackPeer(request)) return false;
+  // A loopback Host too: a reverse proxy on this machine forwarding an ALLOWED_HOSTS or
+  // base-URL name is remote traffic even if it adds no forwarding headers.
+  const host = request.headers.get("host");
+  if (host && !isLoopbackHostname(host)) return false;
   const origin = request.headers.get("origin");
   if (origin) {
     try {
@@ -162,17 +166,28 @@ function allowedHostnames(settings) {
   return names;
 }
 
+// Characters that make URL parsing reinterpret a Host (userinfo, path, fragment).
+const MALFORMED_HOST_RE = /[@/\\#\s]/;
+
 function isAllowedHost(request, settings) {
   const host = request.headers.get("host");
   // HTTP/1.0 clients may omit Host; a browser (the only rebinding vector) never does.
   if (!host) return true;
+  if (MALFORMED_HOST_RE.test(host)) return false;
   const name = hostnameOf(host);
   if (!name) return false;
   if (isLoopbackHostname(name) || isIpLiteralHost(name)) return true;
   return allowedHostnames(settings).has(name);
 }
 
-const MISDIRECTED = { error: "Host not allowed. Add it to ALLOWED_HOSTS to serve the dashboard under this name." };
+function misdirected(request) {
+  const raw = request.headers.get("host") || "";
+  const name = MALFORMED_HOST_RE.test(raw) ? "" : hostnameOf(raw);
+  const shown = name ? `"${name}"` : "This Host";
+  return NextResponse.json({
+    error: `${shown} is not in ALLOWED_HOSTS. To use the dashboard and /api under this name, set ALLOWED_HOSTS=${name || "<hostname>"} (comma-separated) on the server and restart.`,
+  }, { status: 421 });
+}
 
 function isPublicLlmApi(pathname) {
   return PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
@@ -265,7 +280,7 @@ export async function proxy(request) {
   // DNS-rebinding gate for everything but the LLM API (key-authenticated; its keyless
   // loopback bypass checks Host itself), so reverse-proxied /v1 traffic is unaffected.
   if (!isPublicLlmApi(pathname) && !isAllowedHost(request, await loadSettings())) {
-    return NextResponse.json(MISDIRECTED, { status: 421 });
+    return misdirected(request);
   }
 
   // Local-only gate for spawn-capable / host-secret routes.
