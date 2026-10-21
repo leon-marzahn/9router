@@ -247,7 +247,7 @@ function Conversation({ chat, onDelete }: { chat: Chat; onDelete: () => void }) 
     <div className="flex min-h-full flex-col">
       {/* Compact header on mobile: title + delete, then key and model pickers on one full-width
           row; everything on one row with the full title on lg+. */}
-      <header className="mx-auto flex w-full max-w-3xl flex-wrap items-center gap-x-2 gap-y-2 px-4 md:gap-x-3 lg:flex-nowrap lg:items-start md:px-6 md:pt-6">
+      <header className="mx-auto flex w-full max-w-3xl flex-wrap items-center gap-x-2 gap-y-2 px-4 md:gap-x-3 lg:items-start md:px-6 md:pt-6">
         <div className="min-w-0 flex-1">
           <h2 className="truncate text-[13px] font-medium md:text-sm lg:font-display lg:text-3xl lg:font-normal lg:tracking-tight">
             {session.title}
