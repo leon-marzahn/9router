@@ -150,6 +150,7 @@ Usage DB:
 ## 4) Auth + Security Surfaces
 
 - Dashboard cookie auth: `src/proxy.js`, `src/app/api/auth/login/route.js`
+- Route guard: `src/dashboardGuard.js`. `requireLogin=false` waives login only for `isLocalRequest` (loopback peer stamped by `custom-server.js`, never `X-Forwarded-For`; loopback Origin; no forwarding headers, so tunnels and reverse proxies count as remote). A Host allow-list (loopback names, IP literals, `BASE_URL`/`NEXT_PUBLIC_BASE_URL`, tunnel/Tailscale hosts, `ALLOWED_HOSTS`) answers 421 to any other Host on dashboard and `/api` routes, session or not, to stop DNS rebinding. `/v1` and the other LLM prefixes skip the Host check when keyed; their keyless loopback bypass requires an allowed Host.
 - API key generation/verification: `src/shared/utils/apiKey.js`
 - Provider secrets persisted in `providerConnections` entries
 - Optional proxy support for upstream calls via env proxy variables (`open-sse/utils/proxyFetch.js`)
