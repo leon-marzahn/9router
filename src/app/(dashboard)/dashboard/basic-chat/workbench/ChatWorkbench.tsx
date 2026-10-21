@@ -243,20 +243,20 @@ function Conversation({ chat, onDelete }: { chat: Chat; onDelete: () => void }) 
 
   return (
     <div className="flex min-h-full flex-col">
-      {/* Compact one-row header on mobile so the messages get the screen; full title on md+. */}
-      <header className="mx-auto flex w-full max-w-3xl items-center gap-2 px-4 md:items-start md:gap-3 md:px-6 md:pt-6">
+      {/* Compact one-row header on mobile so the messages get the screen; full title on lg+. */}
+      <header className="mx-auto flex w-full max-w-3xl items-center gap-2 px-4 md:gap-3 lg:items-start md:px-6 md:pt-6">
         <div className="min-w-0 flex-1">
-          <h2 className="truncate text-[13px] font-medium md:font-display md:text-3xl md:font-normal md:tracking-tight">
+          <h2 className="truncate text-[13px] font-medium md:text-sm lg:font-display lg:text-3xl lg:font-normal lg:tracking-tight">
             {session.title}
           </h2>
-          <div className="mt-1 hidden flex-wrap items-center gap-2 text-[12px] text-text-muted md:flex">
+          <div className="mt-1 hidden flex-wrap items-center gap-2 text-[12px] text-text-muted lg:flex">
             <Tag mono>{chat.activeModel?.requestModel ?? session.modelId}</Tag>
             <span>
               {session.messages.length} message{session.messages.length === 1 ? "" : "s"}
             </span>
           </div>
         </div>
-        <div className="flex min-w-0 max-w-[60%] items-center gap-1 md:max-w-none">
+        <div className="flex min-w-0 max-w-[60%] items-center gap-1 lg:max-w-none">
           <ModelPicker
             groups={pickerGroups}
             value={chat.activeModel?.id ?? null}
@@ -266,7 +266,7 @@ function Conversation({ chat, onDelete }: { chat: Chat; onDelete: () => void }) 
               chat.selectModel(id);
               remember(id);
             }}
-            className="flex-1 md:w-64 md:flex-none"
+            className="flex-1 lg:w-64 lg:flex-none"
           />
           <IconButton icon="delete" label="Delete chat" onClick={onDelete} />
         </div>
