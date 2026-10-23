@@ -452,7 +452,7 @@ function comboAffinityOptions(entry, strategy, body, request) {
  * the router is confident the task changed. Conversations are tracked per API key.
  * Without a router model the steps are tried in order.
  */
-function comboSmartOptions(entry, strategy, body, request, apiKey, comboName) {
+export function comboSmartOptions(entry, strategy, body, request, apiKey, comboName) {
   if (strategy !== "smart") return {};
   const cfg = normalizeSmartConfig(entry);
   if (!cfg.routerModel) log.warn("COMBO", `Smart combo "${comboName}" has no router model; trying steps in order`);
