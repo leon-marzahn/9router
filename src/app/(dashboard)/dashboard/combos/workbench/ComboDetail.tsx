@@ -173,7 +173,7 @@ export function ComboDetail({
               onChange={(v) => void api.setSettings(combo.name, { fallbackStrategy: v })}
               options={[
                 { value: "fallback", label: "In order" },
-                { value: "round-robin", label: "Take turns" },
+                { value: "round-robin", label: "Turns" },
                 { value: "per-chat", label: "Per chat" },
                 { value: "smart", label: "Smart" },
                 { value: "fusion", label: "Ask all" },

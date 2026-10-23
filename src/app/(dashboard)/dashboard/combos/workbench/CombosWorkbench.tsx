@@ -229,7 +229,8 @@ export function CombosWorkbench() {
             </div>
             <EmptyState icon="layers">
               A combo is a list of models under one name. Apps send that name as the model; regent
-              tries the steps in order, in turns, or all at once. Pick one to see its steps.
+              tries the steps in order, in turns, by a router model&rsquo;s pick, or all at once.
+              Pick one to see its steps.
             </EmptyState>
           </div>
         )}

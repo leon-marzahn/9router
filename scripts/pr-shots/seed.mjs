@@ -164,6 +164,9 @@ const mediaConnections = [
   ["voyage-ai", "Demo Voyage", "pa-demo-voyage-000000000000000"],
   ["tavily", "Demo Tavily", "tvly-demo-00000000000000000000"],
   ["firecrawl", "Demo Firecrawl", "fc-demo-000000000000000000000"],
+  // Ollama Cloud serves the System One router models (clef, clef-flash).
+  ["ollama", "Demo Ollama Cloud", "demo-ollama-000000000000000000"],
+  ["sensenova", "Demo SenseNova", "demo-sensenova-000000000000000"],
 ];
 for (const [provider, name, apiKey] of mediaConnections) {
   await seedConnection(`demo-conn-${provider}-1`, { provider, name, apiKey });
@@ -429,7 +432,15 @@ await updateSettings({
   comboStrategies: {
     coding: { fallbackStrategy: "per-chat" },
     "cheap-bulk": { fallbackStrategy: "round-robin" },
+    "demo-smart": {
+      fallbackStrategy: "smart",
+      routerModel: "ollama/clef-flash",
+      smartPolicy: "smart",
+      confidenceThreshold: 0.8,
+    },
   },
+  customPromptEnabled: true,
+  customPrompt: "Answer in British English. Prefer small, focused functions and say which files you changed.",
   requestPipelines: validatePipelines([
     {
       name: "no-secrets",
