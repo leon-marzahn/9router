@@ -121,5 +121,6 @@ describe("Cursor live model catalog", () => {
       accessToken: "cursor-token",
       providerSpecificData: { machineId: "machine-id" },
     })).resolves.toBeNull();
+    expect(h2.calls).toHaveLength(1);
   });
 });

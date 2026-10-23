@@ -23,6 +23,9 @@ const SPECIALIZED = new Set([
   "xiaomi-tokenplan", "mimo-free",
 ]);
 
+// Per-process / per-request values: kimi's random device name, minimax's session UUID.
+const VOLATILE_HEADERS = new Set(["x-msh-device-name", "x-mavis-session-id"]);
+
 // Sanitize header: khử token + field thời gian động (kimi X-Msh-Device-Id) để snapshot ổn định.
 // Machine/run-dependent header values (host, OS, Node/app version, timezone, random session ids)
 // are masked by name so the snapshot is stable across machines and runs; presence is still locked.
