@@ -30,6 +30,7 @@ const STRATEGY_LABEL: Record<Strategy, string> = {
   fallback: "In order",
   "round-robin": "Take turns",
   "per-chat": "Per chat",
+  smart: "Smart",
   fusion: "Ask all",
 };
 const VALID_NAME = /^[a-zA-Z0-9_.-]+$/;
@@ -65,8 +66,14 @@ export function CombosWorkbench() {
 
   const all = api.combos ?? [];
   const attention = all.filter((c) => c.models.length === 0 || c.models.some((m) => down(api, m)));
+  const needle = q.trim().toLowerCase();
+  // A combo matches by its name or by any of its steps (provider/model ids).
+  const stepMatch = (c: Combo) =>
+    needle && !c.name.toLowerCase().includes(needle)
+      ? c.models.find((m) => m.toLowerCase().includes(needle))
+      : undefined;
   const shown = (scope === "attention" ? attention : all).filter(
-    (c) => !q || c.name.toLowerCase().includes(q.toLowerCase()),
+    (c) => !needle || c.name.toLowerCase().includes(needle) || !!stepMatch(c),
   );
   const current = all.find((c) => c.name === sel);
   const vision = sel === VISION;
@@ -94,7 +101,7 @@ export function CombosWorkbench() {
               <div className="min-w-0 flex-1">
                 <SearchInput
                   ref={searchRef}
-                  placeholder="Search combos"
+                  placeholder="Search combos and models"
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
                   shortcut="/"
@@ -128,7 +135,10 @@ export function CombosWorkbench() {
         ) : (
           <>
             {shown.length > 0 && (
-              <ListGroup title="Combos" count={shown.length}>
+              <ListGroup
+                title={needle ? "Matches" : "Combos"}
+                count={needle ? `${shown.length} of ${all.length}` : shown.length}
+              >
                 {shown.map((c) => (
                   <ListRow
                     key={c.id}
@@ -137,9 +147,15 @@ export function CombosWorkbench() {
                     onClick={() => select(c.name === selId ? null : c.name)}
                     leading={<Icon name="layers" size={18} className="text-text-muted" />}
                     title={<span className="font-mono">{c.name}</span>}
-                    subtitle={`${STRATEGY_LABEL[api.strategyOf(c.name)]} · ${c.models.length} step${
-                      c.models.length === 1 ? "" : "s"
-                    }`}
+                    subtitle={
+                      stepMatch(c) ? (
+                        <span className="font-mono">{stepMatch(c)}</span>
+                      ) : (
+                        `${STRATEGY_LABEL[api.strategyOf(c.name)]} · ${c.models.length} step${
+                          c.models.length === 1 ? "" : "s"
+                        }`
+                      )
+                    }
                     trailing={<StatusDot status={statusOf(api, c)} />}
                     version={statusOf(api, c)}
                   />
@@ -147,17 +163,24 @@ export function CombosWorkbench() {
               </ListGroup>
             )}
             {!shown.length && (
-              <p className="px-3 py-6 text-[13px] text-text-muted">
+              <div className="px-3 py-6 text-[13px] text-text-muted">
                 {all.length
-                  ? q
-                    ? `Nothing matches “${q}”.`
+                  ? needle
+                    ? `No combo or step matches “${q.trim()}”.`
                     : "Nothing needs attention."
                   : "No combos yet. A combo is a list of models tried in order, or in turns, under one name."}
-              </p>
+                {needle && (
+                  <Button size="sm" variant="ghost" className="mt-2 -ml-2" onClick={() => setQ("")}>
+                    Clear search
+                  </Button>
+                )}
+              </div>
             )}
-            <ListAddRow className="mb-2" onClick={() => setNaming({ mode: "new" })}>
-              Add combo
-            </ListAddRow>
+            {!needle && (
+              <ListAddRow className="mb-2" onClick={() => setNaming({ mode: "new" })}>
+                Add combo
+              </ListAddRow>
+            )}
             <ListGroup title="For every model">
               <ListRow
                 id={VISION}

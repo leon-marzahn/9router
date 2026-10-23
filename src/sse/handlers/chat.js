@@ -12,6 +12,8 @@ import { deriveAffinityKey } from "../services/cacheAffinity.js";
 import { getSettings } from "@/lib/localDb";
 import { getModelInfo, getComboModels, stripComboPrefix } from "../services/model.js";
 import { isStepReady } from "../services/stepReadiness.js";
+import { resolveSmartChoice } from "../services/systemoneRouter.js";
+import { normalizeSmartConfig, scopeSessionToKey } from "open-sse/services/systemoneRouter.js";
 import { handleChatCore } from "open-sse/handlers/chatCore.js";
 import { DEFAULT_HEADROOM_URL } from "@/lib/headroom/detect";
 import { getTransform as getPxpipeTransform, getUnavailableReason as getPxpipeUnavailableReason } from "@/lib/pxpipe/loader.js";
@@ -80,7 +82,6 @@ async function handleChatTraced(request, clientRawRequest) {
   const modelStr = stripComboPrefix(rawModelStr);
   if (contextMarker || modelStr !== rawModelStr) body.model = modelStr;
   setRequestedModel(rawModelStr);
-
 
   // Request summary is emitted as the unified "▶" line in chatCore (has fmt/thinking/account)
 
@@ -202,6 +203,7 @@ async function handleChatTraced(request, clientRawRequest) {
       comboStrategy,
       comboStickyLimit,
       ...comboAffinityOptions(comboStrategies[modelStr], comboStrategy, body, request),
+      ...comboSmartOptions(comboStrategies[modelStr], comboStrategy, body, request, apiKey, modelStr),
     });
   }
 
@@ -285,6 +287,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
         comboStrategy,
         comboStickyLimit,
         ...comboAffinityOptions(comboStrategies[modelStr], comboStrategy, body, request),
+        ...comboSmartOptions(comboStrategies[modelStr], comboStrategy, body, request, apiKey, modelStr),
       });
     }
     log.warn("CHAT", "Invalid model format", { model: modelStr });
@@ -443,3 +446,23 @@ function comboAffinityOptions(entry, strategy, body, request) {
   };
 }
 
+/**
+ * "Smart" combo options for handleComboChat: a System One router model ranks the steps
+ * for each request, and a conversation keeps its chosen step (warm prompt cache) unless
+ * the router is confident the task changed. Conversations are tracked per API key.
+ * Without a router model the steps are tried in order.
+ */
+function comboSmartOptions(entry, strategy, body, request, apiKey, comboName) {
+  if (strategy !== "smart") return {};
+  const cfg = normalizeSmartConfig(entry);
+  if (!cfg.routerModel) log.warn("COMBO", `Smart combo "${comboName}" has no router model; trying steps in order`);
+  return {
+    sessionId: scopeSessionToKey(deriveAffinityKey(body, request?.headers), apiKey),
+    smartPolicy: cfg.policy,
+    sessionSticky: cfg.policy !== "per-turn",
+    confidenceThreshold: cfg.threshold,
+    resolveSmartChoice: cfg.routerModel
+      ? (b, m) => resolveSmartChoice({ body: b, models: m, routerModel: cfg.routerModel, log, apiKey, comboName })
+      : null,
+  };
+}

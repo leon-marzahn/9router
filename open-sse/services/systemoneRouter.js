@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 /**
  * Pure System One router utilities for intelligent combo model selection.
  * Used by the "smart" combo strategy to pick the best model for a request
@@ -256,4 +258,38 @@ export function pruneStickyComboSessions() {
  */
 export function resetStickyComboStore() {
   comboSessionModelStore.clear();
+}
+
+export const SMART_POLICIES = ["smart", "strict", "per-turn"];
+export const DEFAULT_SMART_THRESHOLD = 0.8;
+const ROUTER_MODEL_RE = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,199}$/;
+
+/**
+ * The smart-strategy settings of one combo (settings.comboStrategies[name]), clamped to
+ * what the router supports. Unknown policies fall back to "smart"; the threshold stays
+ * within 0.5–0.99; a router model that isn't a plain model id is dropped (no router).
+ *
+ * @param {object} [entry]
+ * @returns {{ policy: "smart"|"strict"|"per-turn", threshold: number, routerModel: string|null }}
+ */
+export function normalizeSmartConfig(entry) {
+  const policy = SMART_POLICIES.includes(entry?.smartPolicy) ? entry.smartPolicy : "smart";
+  const raw = Number(entry?.confidenceThreshold);
+  const threshold = Number.isFinite(raw) ? Math.min(0.99, Math.max(0.5, raw)) : DEFAULT_SMART_THRESHOLD;
+  const model = typeof entry?.routerModel === "string" ? entry.routerModel.trim() : "";
+  return { policy, threshold, routerModel: ROUTER_MODEL_RE.test(model) ? model : null };
+}
+
+/**
+ * Scope a conversation key to the API key that sent it, so two keys that happen to
+ * send the same session id (or the same opening prompt) never share a sticky choice.
+ * Both inputs are hashed; neither is kept.
+ *
+ * @param {string|null} conversationKey - Opaque conversation digest
+ * @param {string|null} apiKey - Raw API key of the caller (null in local mode)
+ * @returns {string|null}
+ */
+export function scopeSessionToKey(conversationKey, apiKey) {
+  if (!conversationKey) return null;
+  return createHash("sha256").update(`${apiKey || "local"}\u0000${conversationKey}`).digest("hex");
 }

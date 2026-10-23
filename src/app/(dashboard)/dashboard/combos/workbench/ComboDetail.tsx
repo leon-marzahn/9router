@@ -37,7 +37,7 @@ import {
 import { cn } from "@/ui/cn";
 import { ModelSelectModal } from "@/shared/components";
 import { STEP_LABEL, STEP_STATUS, splitStep, stepDetail } from "./steps";
-import type { Combo, CombosApi, Strategy } from "./useCombos";
+import type { Combo, CombosApi, SmartPolicy, Strategy } from "./useCombos";
 
 const HOW: Record<Strategy, string> = {
   fallback:
@@ -45,8 +45,20 @@ const HOW: Record<Strategy, string> = {
   "round-robin": "Takes turns between the steps, a few requests each (set in Settings → Routing).",
   "per-chat":
     "Each conversation sticks to one step, so its prompt cache stays warm. New conversations spread across the steps. If a conversation's step fails, it moves to another one.",
+  smart:
+    "A router model reads each new message and picks the step that suits it best. A conversation keeps its step so the prompt cache stays warm.",
   fusion: "Asks every step at once, then a judge model merges the answers. Slower and costs more.",
 };
+
+const POLICY_HOW: Record<SmartPolicy, string> = {
+  smart:
+    "Each message is checked; the conversation moves only when the router is sure the task changed.",
+  strict:
+    "The first message picks the step and the conversation stays there. No router call after that, so no extra latency or cost.",
+  "per-turn": "Every message is routed on its own. Best fit per message, but the prompt cache goes cold when it moves.",
+};
+
+const THRESHOLDS = ["0.7", "0.8", "0.9"] as const;
 
 export function ComboDetail({
   combo,
@@ -65,7 +77,11 @@ export function ComboDetail({
     typeof settings.stickAfterFallback === "boolean"
       ? settings.stickAfterFallback
       : strategy === "per-chat";
-  const [picker, setPicker] = useState<null | "steps" | "judge">(null);
+  const [picker, setPicker] = useState<null | "steps" | "judge" | "router">(null);
+  const policy: SmartPolicy = settings.smartPolicy ?? "smart";
+  const threshold = String(
+    THRESHOLDS.find((t) => Number(t) === settings.confidenceThreshold) ?? "0.8",
+  ) as (typeof THRESHOLDS)[number];
   const [menu, setMenu] = useState(false);
   const menuRef = useRef<HTMLButtonElement>(null);
   const [del, setDel] = useState(false);
@@ -158,6 +174,7 @@ export function ComboDetail({
                 { value: "fallback", label: "In order" },
                 { value: "round-robin", label: "Take turns" },
                 { value: "per-chat", label: "Per chat" },
+                { value: "smart", label: "Smart" },
                 { value: "fusion", label: "Ask all" },
               ]}
             />
@@ -187,6 +204,83 @@ export function ComboDetail({
               ]}
             />
           </div>
+        )}
+        {strategy === "smart" && (
+          <>
+            <div className="flex flex-col gap-3 py-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0 sm:max-w-sm">
+                <div className="text-[13px] font-medium">Router model</div>
+                {settings.routerModel ? (
+                  <div className="truncate font-mono text-[12px] text-text-muted">
+                    {settings.routerModel}
+                  </div>
+                ) : (
+                  <div className="mt-0.5 flex items-start gap-1.5 text-[12px] text-warning-text">
+                    <Icon name="info" size={14} className="mt-px shrink-0" />
+                    <span>Not chosen yet, so the steps are tried in order.</span>
+                  </div>
+                )}
+                <div className="mt-1 text-[12px] leading-relaxed text-text-muted">
+                  A System One model (Ollama Clef, OpenCode Jev, Cloudflare). It sees the latest
+                  message, up to 2,000 characters, and its tokens count toward the calling key.
+                </div>
+              </div>
+              <span className="flex shrink-0 gap-1">
+                {settings.routerModel && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => void api.setSettings(combo.name, { routerModel: undefined })}
+                  >
+                    Remove
+                  </Button>
+                )}
+                <Button size="sm" icon="route" onClick={() => setPicker("router")}>
+                  Choose
+                </Button>
+              </span>
+            </div>
+            <div className="flex flex-col gap-3 py-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0 sm:max-w-sm">
+                <div className="text-[13px] font-medium">Within a conversation</div>
+                <div className="mt-0.5 text-[12px] leading-relaxed text-text-muted">
+                  {POLICY_HOW[policy]} Conversations are kept apart per API key.
+                </div>
+              </div>
+              <Segmented<SmartPolicy>
+                className="shrink-0"
+                value={policy}
+                onChange={(v) => void api.setSettings(combo.name, { smartPolicy: v })}
+                options={[
+                  { value: "smart", label: "Re-check" },
+                  { value: "strict", label: "Lock" },
+                  { value: "per-turn", label: "Every message" },
+                ]}
+              />
+            </div>
+            {policy !== "strict" && (
+              <div className="flex flex-col gap-3 py-4 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0 sm:max-w-sm">
+                  <div className="text-[13px] font-medium">Follow the router when it is</div>
+                  <div className="mt-0.5 text-[12px] leading-relaxed text-text-muted">
+                    Below this confidence the router&rsquo;s pick is ignored: a new conversation
+                    starts at the first step, an ongoing one stays where it is.
+                  </div>
+                </div>
+                <Segmented<(typeof THRESHOLDS)[number]>
+                  className="shrink-0"
+                  value={threshold}
+                  onChange={(v) =>
+                    void api.setSettings(combo.name, { confidenceThreshold: Number(v) })
+                  }
+                  options={THRESHOLDS.map((t) => ({
+                    value: t,
+                    label: `${Math.round(Number(t) * 100)}% sure`,
+                  }))}
+                />
+              </div>
+            )}
+          </>
         )}
         {strategy === "fusion" && (
           <div className="flex items-center justify-between gap-3 py-4">
@@ -253,12 +347,21 @@ export function ComboDetail({
         <ModelSelectModal
           isOpen
           onClose={() => setPicker(null)}
-          title={picker === "judge" ? "Judge model" : `Add steps to ${combo.name}`}
-          closeOnSelect={picker === "judge"}
+          title={
+            picker === "judge"
+              ? "Judge model"
+              : picker === "router"
+                ? "Router model"
+                : `Add steps to ${combo.name}`
+          }
+          kindFilter={picker === "router" ? "systemone" : null}
+          closeOnSelect={picker !== "steps"}
           addedModelValues={picker === "steps" ? models : []}
           onSelect={(x: { value?: string }) => {
             if (!x?.value) return;
             if (picker === "judge") void api.setSettings(combo.name, { judgeModel: x.value });
+            else if (picker === "router")
+              void api.setSettings(combo.name, { routerModel: x.value });
             else if (x.value !== combo.name) setModels([...models, x.value]);
           }}
           onDeselect={(x: { value?: string }) =>

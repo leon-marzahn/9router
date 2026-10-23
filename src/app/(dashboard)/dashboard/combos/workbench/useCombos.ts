@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNotificationStore as useNotificationStoreJs } from "@/store/notificationStore";
 
-export type Strategy = "fallback" | "round-robin" | "per-chat" | "fusion";
+export type Strategy = "fallback" | "round-robin" | "per-chat" | "smart" | "fusion";
+export type SmartPolicy = "smart" | "strict" | "per-turn";
 export interface Combo {
   id: string;
   name: string;
@@ -15,6 +16,11 @@ export interface ComboSettings {
   stickAfterFallback?: boolean;
   judgeModel?: string;
   fusionTuning?: unknown;
+  /** Smart strategy: System One model that ranks the steps (none = steps in order). */
+  routerModel?: string;
+  smartPolicy?: SmartPolicy;
+  /** Smart strategy: how sure the router must be to move a conversation (0.5–0.99). */
+  confidenceThreshold?: number;
 }
 export interface StepReadiness {
   state: "ready" | "cooling" | "off" | "combo" | "unknown";
