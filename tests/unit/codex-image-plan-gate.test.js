@@ -121,13 +121,16 @@ describe("Codex image account selection", () => {
     expect(mocks.markAccountUnavailable).not.toHaveBeenCalled();
   });
 
-  it("returns 403 without calling upstream when only free accounts exist", async () => {
+  // Generic 503: the plan detail stays in the server log, never in what a (reseller) client sees.
+  it("returns a generic 503 without calling upstream when only free accounts exist", async () => {
     mocks.connections = [{ connectionId: "free-account-1", accessToken: jwtWithPlan("free") }];
 
     const res = await handleImageGeneration(imageRequest());
 
-    expect(res.status).toBe(403);
-    expect((await res.json()).error).toMatch(/ChatGPT Free/);
+    expect(res.status).toBe(503);
+    const text = JSON.stringify(await res.json());
+    expect(text).toMatch(/No account available for this model/);
+    expect(text).not.toMatch(/ChatGPT|Free|plan|codex/i);
     expect(mocks.handleImageGenerationCore).not.toHaveBeenCalled();
     expect(mocks.markAccountUnavailable).not.toHaveBeenCalled();
   });
