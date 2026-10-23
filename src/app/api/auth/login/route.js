@@ -11,6 +11,11 @@ import { isLocalRequest } from "@/dashboardGuard";
 const RESET_HINT = "Forgot password? Reset to default via the regent CLI → Settings → Reset Password to Default.";
 const NO_STORE_HEADERS = { "Cache-Control": "no-store" };
 
+// Also hit by installs that ran with "Require login" off from another machine (or Docker,
+// where nothing counts as local), so it says exactly how to get back in.
+const DEFAULT_PASSWORD_REMOTE_ERROR =
+  "The default password can't be used from another machine. To sign in: set INITIAL_PASSWORD to a new password on the server and restart it (Docker: -e INITIAL_PASSWORD=... or INITIAL_PASSWORD in .env), or sign in from a browser on the server itself and change the password in Settings.";
+
 function isTunnelRequest(request, settings) {
   const host = (request.headers.get("host") || "").split(":")[0].toLowerCase();
   const tunnelHost = settings.tunnelUrl ? new URL(settings.tunnelUrl).hostname.toLowerCase() : "";
@@ -82,7 +87,7 @@ export async function POST(request) {
         // oversight: issuing any credential before the default password is
         // rotated re-opens the exact attack chain this branch closes.
         return NextResponse.json(
-          { success: false, error: "Default password must be changed before remote access. Change it from the local machine (or set INITIAL_PASSWORD).", mustChangePassword },
+          { success: false, error: DEFAULT_PASSWORD_REMOTE_ERROR, mustChangePassword },
           { status: 403, headers: NO_STORE_HEADERS }
         );
       }

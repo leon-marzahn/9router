@@ -88,6 +88,10 @@ describe("POST /api/auth/login", () => {
     expect(res.status).toBe(403);
     expect(res.body.mustChangePassword).toBe(true);
     expect(mocks.setDashboardAuthCookie).not.toHaveBeenCalled();
+    // Actionable for remote/Docker users who can't reach the server as "local".
+    expect(res.body.error).toMatch(/INITIAL_PASSWORD/);
+    expect(res.body.error).toMatch(/restart/);
+    expect(res.body.error).toMatch(/Docker/);
   });
 
   it("honours INITIAL_PASSWORD (and then allows remote login)", async () => {

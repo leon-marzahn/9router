@@ -1,4 +1,12 @@
 
+# v100.7.3 (2026-10-23)
+
+## Upgrade notes
+- "Require login" off now only waives login for a browser on the server itself (security fix, #144). Using it from another machine or Docker with the default password: set `INITIAL_PASSWORD` to a new password (Docker: `-e INITIAL_PASSWORD=...` or `.env`) and restart. Reverse proxies and LAN hostnames: add the public name to `ALLOWED_HOSTS` (or set `NEXT_PUBLIC_BASE_URL`), or the dashboard and `/api` answer 421. `/v1` with an API key is unaffected. Don't turn login off behind a same-machine proxy that adds no forwarding headers.
+
+## Fixes
+- **security**: Require login for non-local callers when login is off; Host allow-list (#144)
+
 # v100.7.2 (2026-10-20)
 
 ## Fixes
