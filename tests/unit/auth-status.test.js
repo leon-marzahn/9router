@@ -66,4 +66,16 @@ describe("GET /api/auth/status", () => {
     expect(response.body.authenticated).toBe(false);
     expect(response.body.requireLogin).toBe(true);
   });
+
+  // With login off, only a local browser skips login; a remote one must see the login form
+  // (otherwise /login would send it back to /dashboard, which redirects to /login again).
+  it("reports requireLogin off only to a local browser", async () => {
+    process.env.NINEROUTER_PEER_TOKEN = "peer";
+    mocks.getSettings.mockResolvedValue({ requireLogin: false });
+    mocks.getDashboardAuthSession.mockResolvedValue(null);
+    const req = (ip) => ({ headers: new Headers({ "x-9r-peer-token": "peer", "x-9r-real-ip": ip, host: "localhost" }) });
+
+    expect((await GET(req("127.0.0.1"))).body.requireLogin).toBe(false);
+    expect((await GET(req("192.168.1.20"))).body.requireLogin).toBe(true);
+  });
 });

@@ -70,6 +70,23 @@ describe("custom-server peer header sanitizing", () => {
 
   // chat.js snapshots every client header into the request detail. Anything that grants
   // access must not survive into a record the dashboard renders and cloud sync uploads.
+  it.each(["forwarded", "x-forwarded-host", "x-forwarded-proto", "via", "cf-connecting-ip"])(
+    "marks via-proxy when a loopback hop sends only %s",
+    async (name) => {
+      const value = name === "forwarded" ? "for=8.8.8.8" : name === "via" ? "1.1 proxy" : "x";
+      const headers = await new Promise((resolve, reject) => {
+        http.get(baseUrl, { headers: { [name]: value } }, (res) => { res.resume(); res.on("end", () => resolve(seenHeaders)); })
+          .on("error", reject);
+      });
+      expect(headers["x-9r-via-proxy"]).toBe("1");
+      expect(headers["x-9r-real-ip"]).toBe("127.0.0.1");
+    },
+  );
+
+  it("does not mark a plain loopback request as via-proxy", async () => {
+    expect((await get())["x-9r-via-proxy"]).toBeUndefined();
+  });
+
   it("keeps the peer token out of persisted request details", () => {
     const sanitized = requestDetails.sanitizeHeaders({
       "x-9r-peer-token": "secret",

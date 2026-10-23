@@ -114,6 +114,8 @@ Anything else: use base URL `http://localhost:20128/v1` and a key from **Endpoin
 - **Require API keys** (the switch on the Endpoint page) whenever anything other than your own machine can reach the port.
 - Behind a reverse proxy, `X-Forwarded-For` is trusted only from a loopback proxy.
 - Secrets such as the redeploy webhook token are never shown again or returned by the API, and are left out of backups.
+- **Login off means this machine only.** With "Require login" off, only a browser on the same machine (loopback peer, loopback Origin, no proxy or tunnel in between) skips login; everyone else, including LAN, Docker-by-host-IP, reverse-proxy, tunnel and Tailscale users, still needs to sign in. Login is waived only when the Host is `localhost`, `127.0.0.1` or `[::1]` and no forwarding header (`X-Forwarded-*`, `X-Real-IP`, `Forwarded`, `Via`, `CF-Connecting-IP`) is present. **Don't turn login off behind a reverse proxy on the same machine that adds none of these** (nginx's bare `proxy_pass` sends `Host: 127.0.0.1` and no forwarding headers): its traffic looks local.
+- **Host allow-list.** The dashboard and `/api` answer only to `localhost`, `127.0.0.1`, `[::1]`, IP addresses, the `BASE_URL` / `NEXT_PUBLIC_BASE_URL` host, the active tunnel and Tailscale hosts, and names in `ALLOWED_HOSTS`; any other Host gets 421, which blocks DNS rebinding. Behind a reverse proxy or under a LAN name, add that name to `ALLOWED_HOSTS`. `/v1` with an API key works under any Host.
 
 ## Docs
 
