@@ -52,6 +52,9 @@ function collectRoutes(dir, base = "/api") {
   return out;
 }
 
+// A reverse-proxied deployment: its public name is on the Host allow-list.
+process.env.ALLOWED_HOSTS = "regent.example.com";
+
 const apiDir = path.join(import.meta.dirname, "../../src/app/api");
 const routes = collectRoutes(apiDir).filter((p) => !PUBLIC.some((re) => re.test(p)));
 

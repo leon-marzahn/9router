@@ -29,6 +29,20 @@ const tool = (id) => tools.TOOLS.find((t) => t.id === id);
 const readJson = (p) => JSON.parse(fs.readFileSync(p, "utf8"));
 
 describe("connect helpers", () => {
+  it("prints the server's error body on a 421 or 401", async () => {
+    const { login, getOrCreateApiKey, listModels } = connect.__test__;
+    const body = { error: '"regent.lan" is not in ALLOWED_HOSTS. Set ALLOWED_HOSTS=regent.lan' };
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(JSON.stringify(body), { status: 421 }));
+    try {
+      await expect(login("http://regent.lan:20128", "pw")).rejects.toThrow(/421.*ALLOWED_HOSTS=regent\.lan/);
+      await expect(listModels("http://regent.lan:20128", "sk")).rejects.toThrow(/421.*ALLOWED_HOSTS=regent\.lan/);
+      fetchSpy.mockImplementation(async () => new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 }));
+      await expect(getOrCreateApiKey("http://regent.lan:20128", "c", "k")).rejects.toThrow(/session rejected: Unauthorized/);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
   it("parseArgs reads url, tools, model and claude tier overrides", () => {
     const o = parseArgs(["http://h:1", "--tools", "claude,codex", "--model", "m1", "--opus", "o1", "--password", "p"]);
     expect(o.url).toBe("http://h:1");

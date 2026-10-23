@@ -4,13 +4,16 @@ import { getSettings } from "@/lib/localDb";
 import { isOidcConfigured } from "@/lib/auth/oidc";
 import { isSamlConfigured } from "@/lib/auth/saml.js";
 import { getDashboardAuthSession } from "@/lib/auth/dashboardSession";
+import { isLocalRequest } from "@/dashboardGuard";
 
-export async function GET() {
+export async function GET(request) {
   try {
     const settings = await getSettings();
     const cookieStore = await cookies();
     const session = await getDashboardAuthSession(cookieStore.get("auth_token")?.value);
-    const requireLogin = settings.requireLogin !== false;
+    // Login is waived only for a browser on this machine (see dashboardGuard), so report
+    // it as required to everyone else, or the login page would bounce them back in a loop.
+    const requireLogin = settings.requireLogin !== false || !isLocalRequest(request);
     const authMode = settings.authMode || "password";
     const ssoType = settings.ssoType || "oidc";
     const oidcName = String(session?.oidcName || "").trim();
