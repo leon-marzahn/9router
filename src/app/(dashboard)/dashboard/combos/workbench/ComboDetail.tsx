@@ -29,6 +29,7 @@ import {
   Popover,
   ProviderLogo,
   Segmented,
+  Select,
   Tag,
   ConfirmDialog,
   CopyButton,
@@ -38,7 +39,14 @@ import {
 import { cn } from "@/ui/cn";
 import { ModelSelectModal } from "@/shared/components";
 import { STEP_LABEL, STEP_STATUS, splitStep, stepDetail } from "./steps";
-import type { Combo, CombosApi, SmartPolicy, Strategy } from "./useCombos";
+import {
+  STRATEGIES,
+  STRATEGY_LABEL,
+  type Combo,
+  type CombosApi,
+  type SmartPolicy,
+  type Strategy,
+} from "./useCombos";
 import { FREE_ROUTER_NOTE, isFreeThirdPartyRouter, useRouterModels } from "./routerModels";
 
 const HOW: Record<Strategy, string> = {
@@ -170,18 +178,27 @@ export function ComboDetail({
                 {HOW[strategy]}
               </div>
             </div>
+            {/* Five strategies only fit a segmented control on wide screens; a select below. */}
             <Segmented<Strategy>
-              className="shrink-0"
+              className="hidden shrink-0 xl:grid"
               value={strategy}
               onChange={(v) => void api.setSettings(combo.name, { fallbackStrategy: v })}
-              options={[
-                { value: "fallback", label: "In order" },
-                { value: "round-robin", label: "Turns" },
-                { value: "per-chat", label: "Per chat" },
-                { value: "smart", label: "Smart" },
-                { value: "fusion", label: "Ask all" },
-              ]}
+              options={STRATEGIES.map((v) => ({ value: v, label: STRATEGY_LABEL[v] }))}
             />
+            <Select
+              aria-label="How it picks"
+              className="w-full max-md:text-base sm:w-44 xl:hidden"
+              value={strategy}
+              onChange={(e) =>
+                void api.setSettings(combo.name, { fallbackStrategy: e.target.value as Strategy })
+              }
+            >
+              {STRATEGIES.map((v) => (
+                <option key={v} value={v}>
+                  {STRATEGY_LABEL[v]}
+                </option>
+              ))}
+            </Select>
           </div>
         </div>
         {(strategy === "fallback" || strategy === "per-chat") && (

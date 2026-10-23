@@ -23,16 +23,9 @@ import {
   type Status,
 } from "@/ui";
 import { ComboDetail } from "./ComboDetail";
-import { useCombos, type Combo, type CombosApi, type Strategy } from "./useCombos";
+import { STRATEGY_LABEL, useCombos, type Combo, type CombosApi } from "./useCombos";
 import { VisionAdapter } from "./VisionAdapter";
 
-const STRATEGY_LABEL: Record<Strategy, string> = {
-  fallback: "In order",
-  "round-robin": "Take turns",
-  "per-chat": "Per chat",
-  smart: "Smart",
-  fusion: "Ask all",
-};
 const VALID_NAME = /^[a-zA-Z0-9_.-]+$/;
 const VISION = "__vision";
 const PATH = "/dashboard/combos";
@@ -101,7 +94,7 @@ export function CombosWorkbench() {
               <div className="min-w-0 flex-1">
                 <SearchInput
                   ref={searchRef}
-                  placeholder="Search combos and models"
+                  placeholder="Combos, models"
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
                   shortcut="/"
@@ -164,15 +157,19 @@ export function CombosWorkbench() {
             )}
             {!shown.length && (
               <div className="px-3 py-6 text-[13px] text-text-muted">
-                {all.length
-                  ? needle
-                    ? `No combo or step matches “${q.trim()}”.`
-                    : "Nothing needs attention."
-                  : "No combos yet. A combo is a list of models tried in order, or in turns, under one name."}
+                <p className="break-words [overflow-wrap:anywhere]">
+                  {all.length
+                    ? needle
+                      ? `No combo or step matches “${q.trim()}”.`
+                      : "Nothing needs attention."
+                    : "No combos yet. A combo is a list of models tried in order, or in turns, under one name."}
+                </p>
                 {needle && (
-                  <Button size="sm" variant="ghost" className="mt-2 -ml-2" onClick={() => setQ("")}>
-                    Clear search
-                  </Button>
+                  <div className="mt-2">
+                    <Button size="sm" variant="ghost" className="-ml-2" onClick={() => setQ("")}>
+                      Clear search
+                    </Button>
+                  </div>
                 )}
               </div>
             )}

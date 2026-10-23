@@ -5,6 +5,15 @@ import { useNotificationStore as useNotificationStoreJs } from "@/store/notifica
 
 export type Strategy = "fallback" | "round-robin" | "per-chat" | "smart" | "fusion";
 export type SmartPolicy = "smart" | "strict" | "per-turn";
+/** One label per strategy, used by the list and the detail alike. */
+export const STRATEGY_LABEL: Record<Strategy, string> = {
+  fallback: "In order",
+  "round-robin": "Take turns",
+  "per-chat": "Per chat",
+  smart: "Smart",
+  fusion: "Ask all",
+};
+export const STRATEGIES = Object.keys(STRATEGY_LABEL) as Strategy[];
 export interface Combo {
   id: string;
   name: string;
