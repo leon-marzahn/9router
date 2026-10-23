@@ -55,7 +55,8 @@ const POLICY_HOW: Record<SmartPolicy, string> = {
     "Each message is checked; the conversation moves only when the router is sure the task changed.",
   strict:
     "The first message picks the step and the conversation stays there. No router call after that, so no extra latency or cost.",
-  "per-turn": "Every message is routed on its own. Best fit per message, but the prompt cache goes cold when it moves.",
+  "per-turn":
+    "Every message is routed on its own. Best fit per message, but the prompt cache goes cold when it moves.",
 };
 
 const THRESHOLDS = ["0.7", "0.8", "0.9"] as const;
