@@ -5,6 +5,7 @@
 import { bringToFront, forgetStep, orderForConversation, readyFirst, rememberStep, rememberedStep, resetComboAffinity } from "./comboAffinity.js";
 import { checkFallbackError, formatRetryAfter } from "./accountFallback.js";
 import { unavailableResponse } from "../utils/error.js";
+import { HTTP_STATUS } from "../config/runtimeConfig.js";
 import { getCapabilitiesForModel } from "../providers/capabilities.js";
 import { parseModel } from "./model.js";
 import { extractTextContent } from "../translator/formats/gemini.js";
@@ -13,10 +14,11 @@ import { peekStreamForContent, reconstructStream, isNoRetryFinish } from "./empt
 // Peek a 2xx combo response for real content. Returns null for non-SSE responses (leave
 // them untouched). For SSE, returns { outcome: "content"|"empty", finishReason, response }
 // where `response` is a faithful replay of the original stream (head buffer + live reader).
-async function peekComboResponse(result, log) {
+async function peekComboResponse(result, log, signal = null) {
   const ct = (result.headers.get("content-type") || "").toLowerCase();
   if (!result.body || !ct.includes("text/event-stream")) return null;
-  const peeked = await peekStreamForContent(result.body);
+  const peeked = await peekStreamForContent(result.body, { signal });
+  if (peeked.outcome === "aborted") return { outcome: "aborted", finishReason: null, timedOut: false, response: null };
   const response = new Response(reconstructStream(peeked.head, peeked.reader, peeked.pendingRead), {
     status: result.status,
     statusText: result.statusText,
@@ -337,7 +339,14 @@ export function isZeroContentResponse(data) {
  * @param {number|string} [options.comboStickyLimit=1] - Requests per combo model before switching
  * @returns {Promise<Response>}
  */
-export async function handleComboChat({ body, models, handleSingleModel, log, comboName, comboStrategy, comboStickyLimit = 1, autoSwitch = true, affinityKey = null, stickAfterFallback = false, isStepReady = null }) {
+// The client went away (request.signal aborted): stop here instead of paying for the
+// next combo member. Nobody reads this response; it only ends the handler.
+function clientClosedResponse(log, modelStr) {
+  log.info("COMBO", `Client disconnected; not trying further models (at ${modelStr})`);
+  return new Response(null, { status: HTTP_STATUS.CLIENT_CLOSED_REQUEST });
+}
+
+export async function handleComboChat({ body, models, handleSingleModel, log, comboName, comboStrategy, comboStickyLimit = 1, autoSwitch = true, affinityKey = null, stickAfterFallback = false, isStepReady = null, signal = null }) {
   // "per-chat" orders steps per conversation; without a key it behaves like round-robin.
   const perChat = comboStrategy === "per-chat" && !!affinityKey;
   const baseOrder = perChat
@@ -367,10 +376,15 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
 
   for (let i = 0; i < rotatedModels.length; i++) {
     const modelStr = rotatedModels[i];
+    if (signal?.aborted) return clientClosedResponse(log, modelStr);
     log.info("COMBO", `Trying model ${i + 1}/${rotatedModels.length}: ${modelStr}`);
 
     try {
       const result = await handleSingleModel(body, modelStr);
+      if (signal?.aborted) {
+        result?.body?.cancel?.().catch(() => {});
+        return clientClosedResponse(log, modelStr);
+      }
       
       // Success (2xx). A 2xx is necessary but NOT sufficient: Gemini aborts (e.g.
       // MALFORMED_FUNCTION_CALL) still return 200 and stream empty content, which would
@@ -379,7 +393,7 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
       if (result.ok) {
         let peeked = null;
         try {
-          peeked = await peekComboResponse(result, log);
+          peeked = await peekComboResponse(result, log, signal);
         } catch (peekErr) {
           // peekStreamForContent is written not to throw; if reconstruction/Response
           // construction ever does, result.body is already locked by getReader() and can no
@@ -425,6 +439,8 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
           markStick();
           return result;
         }
+
+        if (peeked.outcome === "aborted") return clientClosedResponse(log, modelStr);
 
         if (peeked.outcome === "content") {
           log.info("COMBO", `Model ${modelStr} succeeded${peeked.timedOut ? " (peek deadline; committed)" : ""}`);

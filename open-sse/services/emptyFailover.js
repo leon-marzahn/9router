@@ -20,7 +20,7 @@ import { CLAUDE_BLOCK, RESPONSES_ITEM } from "../translator/schema/blocks.js";
 import { CLAUDE_EVENT, CLAUDE_DELTA, RESPONSES_EVENT, RESPONSES_EVENT_PREFIX } from "../translator/schema/streamEvents.js";
 import { toOpenAIFinish } from "../translator/concerns/finishReason.js";
 import { FORMATS } from "../translator/formats.js";
-import { EMPTY_PEEK_DEADLINE_MS } from "../config/runtimeConfig.js";
+import { EMPTY_PEEK_DEADLINE_MS, EMPTY_PEEK_MAX_BYTES } from "../config/runtimeConfig.js";
 import { parseSSELine } from "../utils/streamHelpers.js";
 
 // OpenAI chat content test. A chunk counts as content only if it carries
@@ -31,8 +31,10 @@ import { parseSSELine } from "../utils/streamHelpers.js";
 //   * delta.role — 9router emits {role:"assistant"} on the first frame regardless of
 //     content; treating it as content would defeat the whole check (and A0's own retry,
 //     which is gated on "no chunk received yet").
-//   * reasoning_content / delta.reasoning — a think-then-abort produces reasoning only,
-//     which A0 treats as an unusable-but-non-empty turn; it must still fall through.
+//   * reasoning_content / delta.reasoning — reasoning is not answer content. It does,
+//     however, prove the stream is alive (deltaHasReasoning): the peek commits on it so
+//     thinking models stream to the client immediately instead of after the whole
+//     thinking phase.
 export function deltaHasClientContent(delta) {
   if (!delta || typeof delta !== "object") return false;
   const c = delta.content;
@@ -44,30 +46,40 @@ export function deltaHasClientContent(delta) {
   return false;
 }
 
+// Reasoning / thinking text in an OpenAI chat delta (incl. the OpenRouter aliases).
+export function deltaHasReasoning(delta) {
+  if (!delta || typeof delta !== "object") return false;
+  if (typeof delta.reasoning_content === "string" && delta.reasoning_content.length > 0) return true;
+  if (typeof delta.reasoning === "string" && delta.reasoning.length > 0) return true;
+  return Array.isArray(delta.reasoning_details) && delta.reasoning_details.length > 0;
+}
+
 // The peek reads the CLIENT-format stream, which is OpenAI chat (/v1/chat/completions),
 // Anthropic Messages (/v1/messages) or OpenAI Responses (/v1/responses). A format the peek
 // cannot read never shows content: every combo member would be judged "empty" and called in
 // turn, and the LAST one returned. Every format gets the same rule: answer text and tool calls
-// are content; reasoning / thinking is not (as reasoning_content is not). Finish reasons are
+// are content; reasoning / thinking is not content but marks the stream `alive`. Finish reasons are
 // reported in the hub (OpenAI) vocabulary so isNoRetryFinish applies to every format.
 const nonEmptyString = (s) => typeof s === "string" && s.length > 0;
 
 // Anthropic Messages event.
 function inspectClaudeEvent(obj) {
-  let content = false, finishReason = null;
+  let content = false, alive = false, finishReason = null;
   if (obj.type === CLAUDE_EVENT.CONTENT_BLOCK_DELTA) {
     const d = obj.delta || {};
     if (d.type === CLAUDE_DELTA.TEXT && nonEmptyString(d.text)) content = true;
     if (d.type === CLAUDE_DELTA.INPUT_JSON && nonEmptyString(d.partial_json)) content = true;
+    if (d.type === CLAUDE_DELTA.THINKING && nonEmptyString(d.thinking)) alive = true;
   } else if (obj.type === CLAUDE_EVENT.CONTENT_BLOCK_START) {
     const b = obj.content_block || {};
     if (b.type === CLAUDE_BLOCK.TOOL_USE) content = true;
     if (b.type === CLAUDE_BLOCK.TEXT && nonEmptyString(b.text)) content = true;
+    if (b.type === CLAUDE_BLOCK.THINKING || b.type === CLAUDE_BLOCK.REDACTED_THINKING) alive = true;
   } else if (obj.type === CLAUDE_EVENT.MESSAGE_DELTA && obj.delta?.stop_reason) {
     // refusal → content_filter (the translator renders content_filter as refusal for Claude clients)
     finishReason = toOpenAIFinish(obj.delta.stop_reason, FORMATS.CLAUDE);
   }
-  return { content, finishReason };
+  return { content, alive, finishReason };
 }
 
 // OpenAI Responses event. Tool calls are function_call / custom_tool_call output items or
@@ -79,8 +91,12 @@ const RESPONSES_INCOMPLETE_FINISH = {
   [RESPONSES_INCOMPLETE_REASON.MAX_OUTPUT_TOKENS]: OPENAI_FINISH.LENGTH,
 };
 function inspectResponsesEvent(obj) {
-  let content = false, finishReason = null;
+  let content = false, alive = false, finishReason = null;
   switch (obj.type) {
+    case RESPONSES_EVENT.REASONING_TEXT_DELTA:
+    case RESPONSES_EVENT.REASONING_SUMMARY_TEXT_DELTA:
+      alive = nonEmptyString(obj.delta);
+      break;
     case RESPONSES_EVENT.OUTPUT_TEXT_DELTA:
     case RESPONSES_EVENT.FUNCTION_CALL_ARGUMENTS_DELTA:
     case RESPONSES_EVENT.CUSTOM_TOOL_CALL_INPUT_DELTA:
@@ -103,34 +119,37 @@ function inspectResponsesEvent(obj) {
       finishReason = RESPONSES_STATUS.FAILED;
       break;
   }
-  return { content, finishReason };
+  return { content, alive, finishReason };
 }
 
 // Inspect one complete client-format SSE line (parsed with the shared parseSSELine) and report
 // whether it carries content and/or a finish reason. Non-data lines and "[DONE]" carry nothing.
 export function inspectSSELine(line) {
   const parsed = parseSSELine(line.trimStart());
-  if (!parsed || parsed.done) return { content: false, finishReason: null };
+  if (!parsed || parsed.done) return { content: false, alive: false, finishReason: null };
   if (typeof parsed.type === "string" && !Array.isArray(parsed.choices)) {
     return parsed.type.startsWith(RESPONSES_EVENT_PREFIX) ? inspectResponsesEvent(parsed) : inspectClaudeEvent(parsed);
   }
-  let content = false, finishReason = null;
+  let content = false, alive = false, finishReason = null;
   for (const choice of parsed.choices || []) {
-    if (deltaHasClientContent(choice.delta || choice.message || {})) content = true;
+    const delta = choice.delta || choice.message || {};
+    if (deltaHasClientContent(delta)) content = true;
+    if (deltaHasReasoning(delta)) alive = true;
     if (choice.finish_reason) finishReason = choice.finish_reason;
   }
-  return { content, finishReason };
+  return { content, alive, finishReason };
 }
 
 // Scan the COMPLETE lines of a decoded SSE buffer and update the running decision.
 // The trailing fragment (a line still being received) is not parsed — it is returned in
-// `state.pending` for the caller to prepend to the next chunk. `sawContent` latches true.
-export function scanSSEBuffer(text, state = { sawContent: false, finishReason: null }) {
+// `state.pending` for the caller to prepend to the next chunk. `sawContent` / `sawAlive` latch true.
+export function scanSSEBuffer(text, state = { sawContent: false, sawAlive: false, finishReason: null }) {
   const lines = text.split("\n");
   state.pending = lines.pop();
   for (const line of lines) {
     const info = inspectSSELine(line);
     if (info.content) state.sawContent = true;
+    if (info.alive) state.sawAlive = true;
     if (info.finishReason) state.finishReason = info.finishReason;
   }
   return state;
@@ -144,55 +163,94 @@ export function isNoRetryFinish(finishReason) {
   return NO_RETRY_EMPTY_FINISH.has(String(finishReason).toLowerCase());
 }
 
-// Peek a streaming Response body: read frames until the first content frame (→ "content"),
-// the stream ends (→ "empty"), or the deadline elapses (→ "content", fail-open: never hold a
-// possibly-valid slow stream). Returns the decision, the buffered head bytes, the live reader,
-// and — if the deadline fired mid-read — the still-pending read() (`pendingRead`) so the caller
-// can resume from it WITHOUT abandoning the chunk it will deliver.
-export async function peekStreamForContent(body, { deadlineMs = EMPTY_PEEK_DEADLINE_MS } = {}) {
+const DEADLINE = Symbol("peek-deadline");
+const ABORTED = Symbol("peek-aborted");
+
+// Peek a streaming Response body: read frames until the stream proves itself (first content
+// or reasoning frame → "content"), the stream ends (→ "empty"), or a fail-open bound is hit
+// (→ "content": the deadline, or `maxBytes` buffered without a verdict). A client abort
+// (`signal`) ends the peek with outcome "aborted" and cancels the upstream body.
+// Returns the decision, the buffered head bytes, the live reader, and — if the deadline fired
+// mid-read — the still-pending read() (`pendingRead`) so the caller can resume from it WITHOUT
+// abandoning the chunk it will deliver.
+export async function peekStreamForContent(body, { deadlineMs = EMPTY_PEEK_DEADLINE_MS, maxBytes = EMPTY_PEEK_MAX_BYTES, signal = null } = {}) {
   const reader = body.getReader();
   const decoder = new TextDecoder();
   const headChunks = [];
-  const state = { sawContent: false, finishReason: null };
+  const state = { sawContent: false, sawAlive: false, finishReason: null };
   let textBuf = "";
+  let headBytes = 0;
 
-  // Clamp: 0 / NaN / negative would otherwise disable the timeout and let a stalled-but-open
-  // upstream hang the request forever in the hot path. There is no "disable" via this value.
+  // Clamp: 0 / NaN / negative would otherwise disable the bound and let a stalled-but-open (or
+  // endlessly chatty) upstream hold the request in the hot path. There is no "disable" value.
   const validDeadline = Number.isFinite(deadlineMs) && deadlineMs > 0 ? deadlineMs : EMPTY_PEEK_DEADLINE_MS;
+  const validMaxBytes = Number.isFinite(maxBytes) && maxBytes > 0 ? maxBytes : EMPTY_PEEK_MAX_BYTES;
+  const deadlineAt = Date.now() + validDeadline;
   let timer = null;
-  const deadline = new Promise((resolve) => { timer = setTimeout(() => resolve("__deadline__"), validDeadline); });
-  const settle = (ret) => { if (timer) { clearTimeout(timer); timer = null; } return ret; };
+  const deadline = new Promise((resolve) => { timer = setTimeout(() => resolve(DEADLINE), validDeadline); });
+  let onAbort = null;
+  const aborted = new Promise((resolve) => {
+    if (!signal) return;
+    onAbort = () => resolve(ABORTED);
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+  const settle = (ret) => {
+    if (timer) { clearTimeout(timer); timer = null; }
+    if (onAbort) { signal.removeEventListener("abort", onAbort); onAbort = null; }
+    return ret;
+  };
+  const result = (outcome, extra = {}) => settle({
+    outcome, timedOut: false, capped: false, head: headChunks, reader, pendingRead: null,
+    finishReason: state.finishReason, ...extra,
+  });
+  const abortPeek = (pendingRead) => {
+    // The client is gone: stop reading and release the upstream so it stops generating.
+    pendingRead?.catch?.(() => {});
+    reader.cancel(signal?.reason).catch(() => {});
+    return result("aborted");
+  };
 
   let pendingRead = null;
   while (true) {
+    if (signal?.aborted) return abortPeek(pendingRead);
+    // Checked every iteration, not only when a read is slow: a stream whose reads are always
+    // ready would otherwise win every race against the timer and never hit the deadline.
+    if (!pendingRead && Date.now() >= deadlineAt) return result("content", { timedOut: true });
     if (!pendingRead) pendingRead = reader.read();
     let res;
     try {
-      res = await Promise.race([pendingRead, deadline]);
+      res = await Promise.race([pendingRead, deadline, aborted]);
     } catch (err) {
       // Upstream errored mid-peek. Body is locked to this reader; hand it back so the caller
       // can reconstruct (the replay will surface the same error). The failed read is consumed.
-      pendingRead = null;
-      return settle({ outcome: state.sawContent ? "content" : "empty", timedOut: false, head: headChunks, reader, pendingRead: null, finishReason: state.finishReason, error: err });
+      return result(state.sawContent || state.sawAlive ? "content" : "empty", { error: err });
     }
-    if (res === "__deadline__") {
+    if (res === ABORTED) return abortPeek(pendingRead);
+    if (res === DEADLINE) {
       // Fail-open: commit whatever we have. Hand the STILL-PENDING read to the caller so its
       // chunk is replayed, not dropped (fixes the content-dropping deadline race).
-      return settle({ outcome: "content", timedOut: true, head: headChunks, reader, pendingRead, finishReason: state.finishReason });
+      return result("content", { timedOut: true, pendingRead });
     }
     const { done, value } = res;
     pendingRead = null;
     if (done) {
       if (textBuf) scanSSEBuffer(textBuf + "\n", state); // final line without a trailing newline
-      return settle({ outcome: state.sawContent ? "content" : "empty", timedOut: false, head: headChunks, reader, pendingRead: null, finishReason: state.finishReason });
+      return result(state.sawContent || state.sawAlive ? "content" : "empty");
     }
     headChunks.push(value);
-    textBuf += decoder.decode(value, { stream: true });
-    scanSSEBuffer(textBuf, state);
-    textBuf = state.pending; // only the not-yet-complete line carries over
-    if (state.sawContent) {
-      return settle({ outcome: "content", timedOut: false, head: headChunks, reader, pendingRead: null, finishReason: state.finishReason });
+    headBytes += value.byteLength;
+    const text = decoder.decode(value, { stream: true });
+    if (text.includes("\n")) {
+      scanSSEBuffer(textBuf + text, state);
+      textBuf = state.pending; // only the not-yet-complete line carries over
+    } else {
+      // No line ended in this chunk: just extend the fragment. Re-splitting the whole
+      // fragment on every chunk would be quadratic in a long unterminated line.
+      textBuf += text;
     }
+    if (state.sawContent || state.sawAlive) return result("content");
+    // Fail-open bound on memory: too much buffered without a verdict → commit and stream it.
+    if (headBytes >= validMaxBytes) return result("content", { capped: true });
   }
 }
 

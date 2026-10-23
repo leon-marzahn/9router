@@ -8,6 +8,8 @@ export const HTTP_STATUS = {
   NOT_ACCEPTABLE: 406,
   REQUEST_TIMEOUT: 408,
   RATE_LIMITED: 429,
+  // nginx convention: the client closed the connection before the response.
+  CLIENT_CLOSED_REQUEST: 499,
   SERVER_ERROR: 500,
   BAD_GATEWAY: 502,
   SERVICE_UNAVAILABLE: 503,
@@ -61,9 +63,13 @@ export const KEEPALIVE_PROVIDERS = new Set(["kiro"]);
 export const STREAM_FIRST_CHUNK_TIMEOUT_MS = envMs("STREAM_FIRST_CHUNK_TIMEOUT_MS", 200 * 1000);
 
 // Combo empty-content failover: how long a 2xx stream may be held while waiting for its first
-// content-bearing frame before committing to that model (fail-open on expiry).
-// Env: EMPTY_PEEK_DEADLINE_MS.
-export const EMPTY_PEEK_DEADLINE_MS = envMs("EMPTY_PEEK_DEADLINE_MS", 45 * 1000);
+// content-bearing (or reasoning) frame before committing to that model (fail-open on expiry).
+// Kept short: the client sees nothing until the peek commits. Env: EMPTY_PEEK_DEADLINE_MS.
+export const EMPTY_PEEK_DEADLINE_MS = envMs("EMPTY_PEEK_DEADLINE_MS", 15 * 1000);
+
+// ...and how many bytes it may buffer meanwhile; past this it commits (fail-open), so a
+// stream of non-content frames cannot grow the buffer without bound. Env: EMPTY_PEEK_MAX_BYTES.
+export const EMPTY_PEEK_MAX_BYTES = envMs("EMPTY_PEEK_MAX_BYTES", 1024 * 1024);
 
 // Fetch connect timeout: abort if upstream doesn't return response headers within this duration
 export const FETCH_CONNECT_TIMEOUT_MS = envMs("FETCH_CONNECT_TIMEOUT_MS", 60 * 1000);

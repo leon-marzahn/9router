@@ -191,6 +191,7 @@ async function handleChatTraced(request, clientRawRequest) {
     log.info("CHAT", `Combo "${modelStr}" with ${augmentedModels.length} models (strategy: ${comboStrategy}, sticky: ${comboStickyLimit})`);
     return handleComboChat({
       body,
+      signal: request?.signal,
       models: augmentedModels,
       handleSingleModel: withCapacityAdapterStripping(
         (b, m) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey),
@@ -213,6 +214,7 @@ async function handleChatTraced(request, clientRawRequest) {
     log.info("CHAT", `Capacity adapter for [${[...requiredCapabilities].join(",")}] on "${modelStr}" → trying ${soloAugmented.join(", ")}`);
     return handleComboChat({
       body,
+      signal: request?.signal,
       models: soloAugmented,
       handleSingleModel: withCapacityAdapterStripping(
         (b, m) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey),
@@ -274,6 +276,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       log.info("CHAT", `Combo "${modelStr}" with ${augmentedModels.length} models (strategy: ${comboStrategy}, sticky: ${comboStickyLimit})`);
       return handleComboChat({
         body,
+        signal: request?.signal,
         models: augmentedModels,
         handleSingleModel: withCapacityAdapterStripping(
           (b, m) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey),

@@ -11,6 +11,7 @@ export const CLAUDE_EVENT = {
 export const CLAUDE_DELTA = {
   TEXT: "text_delta",
   INPUT_JSON: "input_json_delta",
+  THINKING: "thinking_delta",
 };
 
 // OpenAI Responses API SSE events (client format of /v1/responses).
@@ -23,6 +24,8 @@ export const RESPONSES_EVENT = {
   OUTPUT_TEXT_DONE: "response.output_text.done",
   FUNCTION_CALL_ARGUMENTS_DELTA: "response.function_call_arguments.delta",
   CUSTOM_TOOL_CALL_INPUT_DELTA: "response.custom_tool_call_input.delta",
+  REASONING_TEXT_DELTA: "response.reasoning_text.delta",
+  REASONING_SUMMARY_TEXT_DELTA: "response.reasoning_summary_text.delta",
   COMPLETED: "response.completed",
   INCOMPLETE: "response.incomplete",
   FAILED: "response.failed",
