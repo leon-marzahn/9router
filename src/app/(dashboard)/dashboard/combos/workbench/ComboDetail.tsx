@@ -24,6 +24,7 @@ import {
   IconButton,
   MenuItem,
   MenuSeparator,
+  ModelPicker,
   Panel,
   Popover,
   ProviderLogo,
@@ -38,6 +39,7 @@ import { cn } from "@/ui/cn";
 import { ModelSelectModal } from "@/shared/components";
 import { STEP_LABEL, STEP_STATUS, splitStep, stepDetail } from "./steps";
 import type { Combo, CombosApi, SmartPolicy, Strategy } from "./useCombos";
+import { useRouterModels } from "./routerModels";
 
 const HOW: Record<Strategy, string> = {
   fallback:
@@ -78,7 +80,8 @@ export function ComboDetail({
     typeof settings.stickAfterFallback === "boolean"
       ? settings.stickAfterFallback
       : strategy === "per-chat";
-  const [picker, setPicker] = useState<null | "steps" | "judge" | "router">(null);
+  const [picker, setPicker] = useState<null | "steps" | "judge">(null);
+  const routerGroups = useRouterModels(strategy === "smart");
   const policy: SmartPolicy = settings.smartPolicy ?? "smart";
   const threshold = String(
     THRESHOLDS.find((t) => Number(t) === settings.confidenceThreshold) ?? "0.8",
@@ -236,9 +239,15 @@ export function ComboDetail({
                     Remove
                   </Button>
                 )}
-                <Button size="sm" icon="route" onClick={() => setPicker("router")}>
-                  Choose
-                </Button>
+                <ModelPicker
+                  className="max-w-56"
+                  groups={routerGroups ?? []}
+                  disabled={!routerGroups}
+                  value={settings.routerModel ?? null}
+                  placeholder={routerGroups?.length === 0 ? "No System One account" : "Choose"}
+                  title="Router model"
+                  onChange={(id) => void api.setSettings(combo.name, { routerModel: id })}
+                />
               </span>
             </div>
             <div className="flex flex-col gap-3 py-4 sm:flex-row sm:items-start sm:justify-between">
@@ -348,21 +357,12 @@ export function ComboDetail({
         <ModelSelectModal
           isOpen
           onClose={() => setPicker(null)}
-          title={
-            picker === "judge"
-              ? "Judge model"
-              : picker === "router"
-                ? "Router model"
-                : `Add steps to ${combo.name}`
-          }
-          kindFilter={picker === "router" ? "systemone" : null}
-          closeOnSelect={picker !== "steps"}
+          title={picker === "judge" ? "Judge model" : `Add steps to ${combo.name}`}
+          closeOnSelect={picker === "judge"}
           addedModelValues={picker === "steps" ? models : []}
           onSelect={(x: { value?: string }) => {
             if (!x?.value) return;
             if (picker === "judge") void api.setSettings(combo.name, { judgeModel: x.value });
-            else if (picker === "router")
-              void api.setSettings(combo.name, { routerModel: x.value });
             else if (x.value !== combo.name) setModels([...models, x.value]);
           }}
           onDeselect={(x: { value?: string }) =>

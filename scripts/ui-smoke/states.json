@@ -64,7 +64,7 @@
     "steps": [
       { "click": "text=demo-smart" },
       { "waitFor": "text=Router model" },
-      { "click": "button:has-text('Choose')" }
+      { "click": "[data-model-picker]" }
     ],
     "selector": "[role=dialog]"
   },
