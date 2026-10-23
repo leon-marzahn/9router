@@ -12,7 +12,9 @@ import {
   Tag,
   cn,
 } from "@/ui";
+import Link from "next/link";
 import { AddCustomEmbeddingModal } from "@/shared/components";
+import { OAUTH_PROVIDERS } from "@/shared/constants/providers";
 import ProviderManager from "../../providers/[id]/ProviderManager";
 import { useNotificationStore } from "@/store/notificationStore";
 import { kindById, providerInfo, type MediaEntry, type MediaKind } from "./model";
@@ -234,6 +236,24 @@ export function MediaDetail({
         <div className="mt-6 flex items-start gap-2.5 rounded-xl bg-warning/12 px-4 py-3 text-xs leading-relaxed text-warning-text">
           <Icon name="warning" size={18} className="mt-px shrink-0" />
           <p className="min-w-0">{info.kindNotice[kind.id]}</p>
+        </div>
+      )}
+
+      {/* Speech-to-text on an OAuth provider (Codex) reuses its chat sign-ins; an API key
+          won't do. Other OAuth providers' media lanes keep their own accounts (00dd3dfc). */}
+      {kind.id === "stt" && !p.custom && p.id in OAUTH_PROVIDERS && (
+        <div className="mt-6 flex items-start gap-2.5 rounded-xl bg-surface px-4 py-3 text-xs leading-relaxed ring-1 ring-border">
+          <Icon name="link" size={18} className="mt-px shrink-0 text-text-muted" />
+          <p className="min-w-0 text-text-muted">
+            Uses the {p.name} accounts you signed in to under Providers; an API key can&rsquo;t
+            stand in for them.{" "}
+            <Link
+              href={`/dashboard/providers?p=${encodeURIComponent(p.id)}`}
+              className="font-medium text-accent-text underline-offset-2 hover:underline"
+            >
+              Manage {p.name} sign-ins
+            </Link>
+          </p>
         </div>
       )}
 
