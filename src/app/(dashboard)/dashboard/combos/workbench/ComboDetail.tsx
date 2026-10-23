@@ -39,7 +39,7 @@ import { cn } from "@/ui/cn";
 import { ModelSelectModal } from "@/shared/components";
 import { STEP_LABEL, STEP_STATUS, splitStep, stepDetail } from "./steps";
 import type { Combo, CombosApi, SmartPolicy, Strategy } from "./useCombos";
-import { useRouterModels } from "./routerModels";
+import { FREE_ROUTER_NOTE, isFreeThirdPartyRouter, useRouterModels } from "./routerModels";
 
 const HOW: Record<Strategy, string> = {
   fallback:
@@ -215,9 +215,21 @@ export function ComboDetail({
               <div className="min-w-0 sm:max-w-sm">
                 <div className="text-[13px] font-medium">Router model</div>
                 {settings.routerModel ? (
-                  <div className="truncate font-mono text-[12px] text-text-muted">
-                    {settings.routerModel}
-                  </div>
+                  <>
+                    <div className="truncate font-mono text-[12px] text-text-muted">
+                      {settings.routerModel}
+                    </div>
+                    {isFreeThirdPartyRouter(settings.routerModel) && (
+                      <div className="mt-0.5 flex items-start gap-1.5 text-[12px] text-warning-text">
+                        <Icon name="warning" size={14} className="mt-px shrink-0" />
+                        <span>
+                          {FREE_ROUTER_NOTE}. Every customer&rsquo;s latest message goes to a
+                          service you have no account with; pick a router on your own account for
+                          customer traffic.
+                        </span>
+                      </div>
+                    )}
+                  </>
                 ) : (
                   <div className="mt-0.5 flex items-start gap-1.5 text-[12px] text-warning-text">
                     <Icon name="info" size={14} className="mt-px shrink-0" />
