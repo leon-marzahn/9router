@@ -26,7 +26,7 @@ export default {
       id: "sensenova-u1.5-lite",
       name: "SenseNova U1.5 Lite",
       kind: "image",
-      capabilities: ["text2img", "edit"],
+      capabilities: ["text2img"],
       params: ["n", "size", "output_format", "response_format", "watermark", "prompt_extend"],
     },
     {

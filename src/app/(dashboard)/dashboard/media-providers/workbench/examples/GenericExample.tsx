@@ -130,14 +130,13 @@ export function GenericExample({
     (f) =>
       models.length === 0 || (Array.isArray(modelObj?.params) && modelObj.params.includes(f.key)),
   );
-  // Switches only go out for models that declare them (SenseNova's watermark, ...).
-  const hiddenSwitch = (k: string) =>
-    !!ex.extraFields?.some((f) => f.key === k && f.type === "boolean") &&
-    !fields.some((f) => f.key === k);
+  // Only the fields shown for this model go out, so the request (and the curl below)
+  // never carries options the model doesn't declare (e.g. SenseNova has no quality).
+  const shown = new Set(fields.map((f) => f.key));
   const extraBody = Object.fromEntries(
     Object.entries(extra).filter(
       ([k, v]) =>
-        v !== "" && v != null && !(typeof v === "number" && Number.isNaN(v)) && !hiddenSwitch(k),
+        shown.has(k) && v !== "" && v != null && !(typeof v === "number" && Number.isNaN(v)),
     ),
   );
   const body: Record<string, unknown> = {
