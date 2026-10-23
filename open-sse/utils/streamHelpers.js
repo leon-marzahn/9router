@@ -85,6 +85,7 @@ export function hasValuableContent(chunk, format) {
 //
 // Returns true when a chunk was modified.
 const LAST_TOOL_CALL_ID = Symbol("last-tool-call-id");
+const MINTED_TOOL_CALL_COUNT = Symbol("minted-tool-call-count");
 
 export function ensureStreamToolCallIds(chunk, seenIds) {
   if (!chunk?.choices?.length) return false;
@@ -114,8 +115,18 @@ export function ensureStreamToolCallIds(chunk, seenIds) {
         continue;
       }
 
-      // No index: continue the most recent call, or open one if there is none yet.
-      const id = seenIds.get(LAST_TOOL_CALL_ID) || fallbackToolCallId();
+      // No index. A fragment naming a function opens a NEW call (parallel index-less
+      // calls must not share an id); a pure argument fragment continues the most recent
+      // call, or opens one if there is none yet. Minted ids carry a per-stream counter,
+      // since two calls can open within the same millisecond.
+      const opensCall = typeof tc.function?.name === "string" && tc.function.name.length > 0;
+      const last = seenIds.get(LAST_TOOL_CALL_ID);
+      let id = last;
+      if (opensCall || !last) {
+        const n = (seenIds.get(MINTED_TOOL_CALL_COUNT) || 0) + 1;
+        seenIds.set(MINTED_TOOL_CALL_COUNT, n);
+        id = `${fallbackToolCallId()}_${n}`;
+      }
       tc.id = id;
       seenIds.set(LAST_TOOL_CALL_ID, id);
       changed = true;

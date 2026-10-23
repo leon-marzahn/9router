@@ -80,6 +80,39 @@ describe("ensureStreamToolCallIds", () => {
     expect(c.choices[0].delta.tool_calls[0].id).toBe(id);
   });
 
+  it("an index-less fragment that names a function opens a new call with its own id", () => {
+    const seen = new Map();
+    const first = chunk({ tool_calls: [{ function: { name: "read", arguments: "{}" } }] });
+    const second = chunk({ tool_calls: [{ function: { name: "write", arguments: "{}" } }] });
+    ensureStreamToolCallIds(first, seen);
+    ensureStreamToolCallIds(second, seen);
+    const a = first.choices[0].delta.tool_calls[0].id;
+    const b = second.choices[0].delta.tool_calls[0].id;
+    expect(typeof a).toBe("string");
+    expect(typeof b).toBe("string");
+    expect(b).not.toBe(a);
+  });
+
+  it("parallel index-less calls in one chunk get distinct ids; argument fragments follow the latest", () => {
+    const seen = new Map();
+    const c = chunk({ tool_calls: [{ function: { name: "a" } }, { function: { name: "b" } }] });
+    ensureStreamToolCallIds(c, seen);
+    const [a, b] = c.choices[0].delta.tool_calls.map((t) => t.id);
+    expect(a).not.toBe(b);
+
+    const args = chunk({ tool_calls: [{ function: { arguments: "{}" } }] });
+    ensureStreamToolCallIds(args, seen);
+    expect(args.choices[0].delta.tool_calls[0].id).toBe(b);
+  });
+
+  it("a named index-less fragment after a provider id does not reuse that id", () => {
+    const seen = new Map();
+    ensureStreamToolCallIds(chunk({ tool_calls: [{ id: "call_up", function: { name: "read" } }] }), seen);
+    const next = chunk({ tool_calls: [{ function: { name: "write" } }] });
+    ensureStreamToolCallIds(next, seen);
+    expect(next.choices[0].delta.tool_calls[0].id).not.toBe("call_up");
+  });
+
   it("an index-less fragment after a provider id reuses that id", () => {
     const seen = new Map();
     ensureStreamToolCallIds(chunk({ tool_calls: [{ id: "call_up", function: { name: "read" } }] }), seen);
