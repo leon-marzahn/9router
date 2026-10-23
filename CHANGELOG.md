@@ -1,4 +1,20 @@
 
+# v102.1.0 (2026-10-23)
+
+## Upgrade notes
+- "Require login" off now only waives login for a browser on the server itself (security fix, #144). Using it from another machine or Docker with the default password: set `INITIAL_PASSWORD` to a new password (Docker: `-e INITIAL_PASSWORD=...` or `.env`) and restart. Reverse proxies and LAN hostnames: add the public name to `ALLOWED_HOSTS` (or set `NEXT_PUBLIC_BASE_URL`), or the dashboard and `/api` answer 421. `/v1` with an API key is unaffected. Don't turn login off behind a same-machine proxy that adds no forwarding headers.
+
+## Features
+- **playground**: Chat through a selected API key (#145)
+
+## Fixes
+- **ui**: Quota default view, compact PXPIPE on mobile, one dialog focus rule (#142)
+- **playground**: Mobile layout and a searchable, grouped model picker (#143)
+- **security**: Require login for non-local callers when login is off; Host allow-list (#144)
+
+## Docs
+- **readme**: Refresh for reseller, security and observability features (#141)
+
 # v102.0.1 (2026-10-20)
 
 ## Fixes
