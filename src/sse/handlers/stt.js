@@ -13,6 +13,31 @@ import * as log from "../utils/logger.js";
 import { enforceBudget } from "@/sse/services/budget.js";
 import { checkAndRefreshToken } from "../services/tokenRefresh.js";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy.js";
+import { saveRequestUsage } from "@/lib/usageDb.js";
+
+const STT_ENDPOINT = "/v1/audio/transcriptions";
+
+// Codex transcription runs at most two conversions per process (codexStt.js). One API
+// key may hold only one of them, so a single key can't take every slot from the rest.
+export const CODEX_STT_PER_KEY = 1;
+const codexInFlight = new Map(); // key (or "local") -> running requests
+
+/**
+ * One usage row per successful transcription, against the calling key, so request-limit
+ * budgets and customer charges count it. Transcription reports no tokens. Never throws.
+ */
+function recordSttUsage({ provider, model, requestedModel, connectionId, apiKey }) {
+  saveRequestUsage({
+    provider,
+    model,
+    requestedModel,
+    connectionId: connectionId || undefined,
+    apiKey: apiKey || undefined,
+    endpoint: STT_ENDPOINT,
+    tokens: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+    status: "success",
+  }).catch(() => {});
+}
 
 // Providers requiring credentials for STT
 const CREDENTIALED_PROVIDERS = new Set(
@@ -50,8 +75,8 @@ export async function handleStt(request) {
   log.request("POST", `/v1/audio/transcriptions | ${modelStr}`);
 
   const settings = await getSettings();
+  const apiKey = extractApiKey(request);
   if (settings.requireApiKey) {
-    const apiKey = extractApiKey(request);
     if (!apiKey) return errorResponse(HTTP_STATUS.UNAUTHORIZED, "Missing API key");
     const valid = await isValidApiKey(apiKey);
     if (!valid) return errorResponse(HTTP_STATUS.UNAUTHORIZED, "Invalid API key");
@@ -80,11 +105,32 @@ export async function handleStt(request) {
   // noAuth providers
   if (!CREDENTIALED_PROVIDERS.has(provider)) {
     const result = await handleSttCore({ provider, model, formData, sttConfig: AI_PROVIDERS[provider]?.sttConfig, transport: modelTransport });
-    if (result.success) return result.response;
+    if (result.success) {
+      recordSttUsage({ provider, model, requestedModel: modelStr, apiKey });
+      return result.response;
+    }
     return errorResponse(result.status || HTTP_STATUS.BAD_GATEWAY, result.error || "STT failed");
   }
 
-  // Credentialed — fallback loop
+  if (provider !== "codex") return transcribeWithAccounts({ request, provider, model, modelStr, formData, modelTransport, apiKey });
+
+  const slot = apiKey || "local";
+  const running = codexInFlight.get(slot) || 0;
+  if (running >= CODEX_STT_PER_KEY) {
+    return errorResponse(HTTP_STATUS.RATE_LIMITED, "Too many transcriptions in progress for this key; wait for one to finish");
+  }
+  codexInFlight.set(slot, running + 1);
+  try {
+    return await transcribeWithAccounts({ request, provider, model, modelStr, formData, modelTransport, apiKey });
+  } finally {
+    const left = (codexInFlight.get(slot) || 1) - 1;
+    if (left > 0) codexInFlight.set(slot, left);
+    else codexInFlight.delete(slot);
+  }
+}
+
+// Credentialed — account fallback loop
+async function transcribeWithAccounts({ request, provider, model, modelStr, formData, modelTransport, apiKey }) {
   const excludeConnectionIds = new Set();
   let lastError = null;
   let lastStatus = null;
@@ -120,6 +166,7 @@ export async function handleStt(request) {
       }
       if (result.success) {
         if (isCodex) await clearAccountError(credentials.connectionId, credentials, model);
+        recordSttUsage({ provider, model, requestedModel: modelStr, connectionId: credentials.connectionId, apiKey });
         return result.response;
       }
     } catch {
@@ -127,8 +174,16 @@ export async function handleStt(request) {
     }
 
     if (request.signal.aborted) return errorResponse(504, "Transcription cancelled");
-    // Bad audio / unsupported parameters are client errors, not broken accounts.
-    if (provider === "codex" && [400, 413, 504].includes(result.status)) {
+    // Refusals the gateway made itself (bad audio, capacity, a timeout) say nothing about
+    // the account: hand them back without marking it. A down account proxy skips the
+    // account, again without marking it.
+    if (result.local === "connection") {
+      excludeConnectionIds.add(credentials.connectionId);
+      lastError = result.error;
+      lastStatus = result.status;
+      continue;
+    }
+    if (result.local === "request" || (provider === "codex" && [400, 413, 504].includes(result.status))) {
       return result.response || errorResponse(result.status, result.error);
     }
 

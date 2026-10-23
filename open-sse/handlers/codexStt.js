@@ -7,7 +7,10 @@ import { convertAudio, readBounded, MAX_AUDIO_BYTES } from "./codexSttAudio.js";
 import { createErrorResult } from "../utils/error.js";
 
 let active = 0;
-const failure = (status, message) => Object.assign(new Error(message), { status });
+// `local` marks refusals this gateway makes itself, which say nothing about the Codex
+// account: "request" (bad input, capacity, audio conversion) goes straight back to the
+// client; "connection" (this account's proxy is down) skips the account without marking it.
+const failure = (status, message, local) => Object.assign(new Error(message), { status, local });
 const cors = { "Access-Control-Allow-Origin": "*", "Cache-Control": "no-store" };
 
 // Keep the signal connected until the response body finishes, not just headers.
@@ -49,21 +52,26 @@ export async function transcribeCodex({ formData, credentials, signal: clientSig
       throw failure(401, "A valid Codex OAuth account is required");
     }
     for (const [key] of formData) {
-      if (!["model", "file", "response_format", "language", "prompt", "temperature"].includes(key) || formData.getAll(key).length !== 1) throw failure(400, "Unsupported or duplicate form field");
+      if (!["model", "file", "response_format", "language", "prompt", "temperature"].includes(key) || formData.getAll(key).length !== 1) throw failure(400, "Unsupported or duplicate form field", "request");
     }
     const format = formData.get("response_format") || "json";
-    if (!["json", "text"].includes(format)) throw failure(400, "Only json and text response formats are supported");
+    if (!["json", "text"].includes(format)) throw failure(400, "Only json and text response formats are supported", "request");
     for (const key of ["language", "prompt", "temperature"]) {
-      if (formData.has(key) && formData.get(key) !== "") throw failure(400, `${key} is not supported by Codex transcription`);
+      if (formData.has(key) && formData.get(key) !== "") throw failure(400, `${key} is not supported by Codex transcription`, "request");
     }
     const file = formData.get("file");
-    if (!(file instanceof Blob) || !file.size) throw failure(400, "A non-empty audio file is required");
-    if (file.size > MAX_AUDIO_BYTES) throw failure(413, "Audio exceeds 25 MiB");
-    if (proxyOptions?.source === "error") throw failure(503, "Account proxy is unavailable");
-    if (active >= 2) throw failure(503, "Transcription capacity reached");
+    if (!(file instanceof Blob) || !file.size) throw failure(400, "A non-empty audio file is required", "request");
+    if (file.size > MAX_AUDIO_BYTES) throw failure(413, "Audio exceeds 25 MiB", "request");
+    if (proxyOptions?.source === "error") throw failure(503, "Account proxy is unavailable", "connection");
+    if (active >= 2) throw failure(503, "Transcription capacity reached", "request");
     active++; slot = true;
     signal.throwIfAborted();
-    const audio = await convertAudio(file, signal);
+    let audio;
+    try {
+      audio = await convertAudio(file, signal);
+    } catch (error) {
+      throw Object.assign(error, { local: "request" });
+    }
     const boundary = `----regent-codex-${randomUUID()}`;
     const body = Buffer.concat([
       Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="audio.wav"\r\nContent-Type: audio/wav\r\n\r\n`),
@@ -90,7 +98,9 @@ export async function transcribeCodex({ formData, credentials, signal: clientSig
       ? new Response(data.text, { headers: { ...cors, "Content-Type": "text/plain; charset=utf-8" } })
       : Response.json({ text: data.text }, { headers: cors }) };
   } catch (error) {
-    return createErrorResult(error.status || (signal.aborted ? 504 : 502), error.status ? error.message : "Codex transcription failed");
+    const result = createErrorResult(error.status || (signal.aborted ? 504 : 502), error.status ? error.message : "Codex transcription failed");
+    if (error.local) result.local = error.local;
+    return result;
   } finally {
     if (slot) active--;
   }
