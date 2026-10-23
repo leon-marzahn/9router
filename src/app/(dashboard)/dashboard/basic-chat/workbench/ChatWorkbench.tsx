@@ -23,6 +23,7 @@ import {
   ModelPicker,
   Note,
   SearchInput,
+  Select,
   Tag,
   WorkbenchDetail,
   WorkbenchList,
@@ -227,6 +228,7 @@ function Conversation({ chat, onDelete }: { chat: Chat; onDelete: () => void }) 
   const last = session.messages[session.messages.length - 1];
   const lastLen = textValue(last?.content).length;
   const pickerGroups = useMemo(() => toPickerGroups(chat.providerGroups), [chat.providerGroups]);
+  const keys = chat.keys;
   const [recent, remember] = useRecentModels();
   const inset = useKeyboardInset();
 
@@ -243,8 +245,9 @@ function Conversation({ chat, onDelete }: { chat: Chat; onDelete: () => void }) 
 
   return (
     <div className="flex min-h-full flex-col">
-      {/* Compact one-row header on mobile so the messages get the screen; full title on lg+. */}
-      <header className="mx-auto flex w-full max-w-3xl items-center gap-2 px-4 md:gap-3 lg:items-start md:px-6 md:pt-6">
+      {/* Compact header on mobile: title + delete, then key and model pickers on one full-width
+          row; everything on one row with the full title on lg+. */}
+      <header className="mx-auto flex w-full max-w-3xl flex-wrap items-center gap-x-2 gap-y-2 px-4 md:gap-x-3 lg:items-start md:px-6 md:pt-6">
         <div className="min-w-0 flex-1">
           <h2 className="truncate text-[13px] font-medium md:text-sm lg:font-display lg:text-3xl lg:font-normal lg:tracking-tight">
             {session.title}
@@ -256,7 +259,22 @@ function Conversation({ chat, onDelete }: { chat: Chat; onDelete: () => void }) 
             </span>
           </div>
         </div>
-        <div className="flex min-w-0 max-w-[60%] items-center gap-1 lg:max-w-none">
+        <div className="order-3 flex w-full min-w-0 items-center gap-2 lg:order-2 lg:w-auto">
+          <Select
+            aria-label="API key"
+            title="API key the chat runs as (its access list, budget and usage apply)"
+            value={keys.keyId ?? ""}
+            disabled={chat.isSending}
+            onChange={(e) => keys.select(e.target.value)}
+            className="w-[45%] min-w-0 lg:w-40"
+          >
+            {keys.keys.map((k) => (
+              <option key={k.id} value={k.id} disabled={!k.isActive}>
+                {k.name}
+                {k.isActive ? "" : " (disabled)"}
+              </option>
+            ))}
+          </Select>
           <ModelPicker
             groups={pickerGroups}
             value={chat.activeModel?.id ?? null}
@@ -266,10 +284,20 @@ function Conversation({ chat, onDelete }: { chat: Chat; onDelete: () => void }) 
               chat.selectModel(id);
               remember(id);
             }}
-            className="flex-1 lg:w-64 lg:flex-none"
+            className="min-w-0 flex-1 lg:w-64 lg:flex-none"
           />
-          <IconButton icon="delete" label="Delete chat" onClick={onDelete} />
         </div>
+        <IconButton
+          icon="delete"
+          label="Delete chat"
+          onClick={onDelete}
+          className="order-2 lg:order-3"
+        />
+        {keys.billsAnotherKey && (
+          <p className="order-4 w-full text-[12px] text-text-muted">
+            Requests are billed to and visible on this key.
+          </p>
+        )}
       </header>
 
       {chat.loadError && (
