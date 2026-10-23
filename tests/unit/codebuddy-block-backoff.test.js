@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { BACKOFF_CONFIG } from "../../open-sse/config/errorConfig.js";
 import { checkFallbackError } from "../../open-sse/services/accountFallback.js";
 import { handleComboChat } from "../../open-sse/services/combo.js";

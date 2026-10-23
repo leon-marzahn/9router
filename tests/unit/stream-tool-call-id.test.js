@@ -5,7 +5,7 @@
 // The gateway forwards openai→openai chunks as-is, so the missing id has to be
 // filled in on the response path — the request-side ensureToolCallIds() never
 // sees it.
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 
 import { ensureStreamToolCallIds } from "../../open-sse/utils/streamHelpers.js";
 import { createSSEStream } from "../../open-sse/utils/stream.js";

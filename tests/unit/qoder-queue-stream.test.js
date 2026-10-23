@@ -12,7 +12,7 @@
  *    forwarded with a single upstream call, not re-sent.
  */
 
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi } from "vite-plus/test";
 import { QoderExecutor } from "../../open-sse/executors/qoder.js";
 
 const frame = (body, statusCodeValue = 200) =>

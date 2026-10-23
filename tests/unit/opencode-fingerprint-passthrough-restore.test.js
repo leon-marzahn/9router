@@ -6,7 +6,7 @@
 //
 // The rename map has to be handed to the passthrough stream explicitly: it has
 // no format translation, so nothing else restores the caller's name.
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 
 import { applyFingerprintTools, restoreToolNames } from "../../open-sse/utils/opencodeFingerprint.js";
 import { createSSEStream, createPassthroughStreamWithLogger } from "../../open-sse/utils/stream.js";

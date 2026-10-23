@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { getThinkingLevels } from "../../open-sse/providers/thinkingLevels.js";
 import { getCapabilitiesForModel } from "../../open-sse/providers/capabilities.js";
 import { applyThinking } from "../../open-sse/translator/concerns/thinkingUnified.js";

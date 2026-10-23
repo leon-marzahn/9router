@@ -2,7 +2,7 @@
 // src/shared/constants/monaco.js). Keep the pinned CDN version, the package.json range
 // and the installed package in step so a dependency bump changes what users run.
 import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { MONACO_VERSION, MONACO_VS_PATH } from "@/shared/constants/monaco.js";
 
 const readJson = (path) => JSON.parse(readFileSync(new URL(path, import.meta.url), "utf8"));
