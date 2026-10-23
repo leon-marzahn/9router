@@ -1,4 +1,4 @@
-import { it, expect, vi, beforeEach } from "vitest";
+import { it, expect, vi, beforeEach } from "vite-plus/test";
 const mocks = vi.hoisted(() => ({
   get: vi.fn(), refresh: vi.fn(), core: vi.fn(), clear: vi.fn(), mark: vi.fn(), access: vi.fn(), proxy: vi.fn(),
 }));

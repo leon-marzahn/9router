@@ -1,4 +1,4 @@
-import { beforeEach, expect, it, vi } from "vitest";
+import { beforeEach, expect, it, vi } from "vite-plus/test";
 import { EventEmitter } from "node:events";
 import { Readable } from "node:stream";
 const mocks = vi.hoisted(() => ({ update: vi.fn(), latest: vi.fn(), fetch: vi.fn(), refresh: vi.fn(), httpsRequest: vi.fn() }));

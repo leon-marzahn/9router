@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 import { getCapabilitiesForModel } from "../../open-sse/providers/capabilities.js";
 import REGISTRY from "../../open-sse/providers/registry/index.js";

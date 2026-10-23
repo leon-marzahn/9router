@@ -7,7 +7,7 @@
  * on exact byte shape, because the nesting depth varies by endpoint.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import {
   QODER_QUEUE_CODE,
   computeQoderQueueDelayMs,

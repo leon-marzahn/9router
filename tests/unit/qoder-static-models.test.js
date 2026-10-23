@@ -8,7 +8,7 @@
  * queue/status echoes modelKey=smodel / modelKey=cmodel back.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import {
   QODER_MODEL_MAP,
   QODER_STATIC_MODEL_CONFIGS,

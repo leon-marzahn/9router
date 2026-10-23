@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import { injectCustomPrompt } from "../../open-sse/rtk/customPrompt.js";
 import { FORMATS } from "../../open-sse/translator/formats.js";
 import { ROLE } from "../../open-sse/translator/schema/roles.js";

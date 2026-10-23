@@ -1,4 +1,4 @@
-import { it, expect, vi, afterEach } from "vitest";
+import { it, expect, vi, afterEach } from "vite-plus/test";
 import { createServer } from "node:http";
 import { EventEmitter } from "node:events";
 import { PassThrough } from "node:stream";

@@ -8,7 +8,7 @@
 // object, max rejected) and the OpenAI passthrough (which only surfaces upstream
 // fields verbatim) both missed that, so the level list, the off switch and the
 // client-visible reasoning field are pinned here.
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { getCapabilitiesForModel } from "../../open-sse/providers/capabilities.js";
 import { getThinkingLevels } from "../../open-sse/providers/thinkingLevels.js";
 import { applyThinking } from "../../open-sse/translator/concerns/thinkingUnified.js";

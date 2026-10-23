@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import codex from "../../open-sse/providers/registry/codex.js";
 import { handleSttCore } from "../../open-sse/handlers/sttCore.js";
 

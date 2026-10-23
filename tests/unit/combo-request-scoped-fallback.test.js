@@ -9,7 +9,7 @@
 // Reported shapes include OpenCode Zen's generic `400 Request validation failed`
 // and a provider rejecting `response_format`, neither of which any
 // model-scoped phrase list matches.
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 import { handleComboChat } from "../../open-sse/services/combo.js";
 import { checkFallbackError } from "../../open-sse/services/accountFallback.js";
