@@ -5,6 +5,7 @@
 import { bringToFront, forgetStep, orderForConversation, readyFirst, rememberStep, rememberedStep, resetComboAffinity } from "./comboAffinity.js";
 import { checkFallbackError, formatRetryAfter } from "./accountFallback.js";
 import { unavailableResponse } from "../utils/error.js";
+import { HTTP_STATUS } from "../config/runtimeConfig.js";
 import { getCapabilitiesForModel } from "../providers/capabilities.js";
 import { parseModel } from "./model.js";
 import { extractTextContent } from "../translator/formats/gemini.js";
@@ -19,10 +20,11 @@ import {
 // Peek a 2xx combo response for real content. Returns null for non-SSE responses (leave
 // them untouched). For SSE, returns { outcome: "content"|"empty", finishReason, response }
 // where `response` is a faithful replay of the original stream (head buffer + live reader).
-async function peekComboResponse(result, log) {
+async function peekComboResponse(result, log, signal = null) {
   const ct = (result.headers.get("content-type") || "").toLowerCase();
   if (!result.body || !ct.includes("text/event-stream")) return null;
-  const peeked = await peekStreamForContent(result.body);
+  const peeked = await peekStreamForContent(result.body, { signal });
+  if (peeked.outcome === "aborted") return { outcome: "aborted", finishReason: null, timedOut: false, response: null };
   const response = new Response(reconstructStream(peeked.head, peeked.reader, peeked.pendingRead), {
     status: result.status,
     statusText: result.statusText,
@@ -30,6 +32,7 @@ async function peekComboResponse(result, log) {
   });
   return { outcome: peeked.outcome, finishReason: peeked.finishReason, timedOut: peeked.timedOut, response };
 }
+
 
 // Hard capabilities = input modalities; missing one drops request data (e.g. image
 // stripped). Must be prioritized. Soft (e.g. search) only degrades a feature.
@@ -353,6 +356,13 @@ export function isZeroContentResponse(data) {
  * @param {Function|null} [options.resolveSmartChoice=null] - Smart router resolver callback: (body, models) => Promise<{ choice, probabilities, confidence } | null>
  * @returns {Promise<Response>}
  */
+// The client went away (request.signal aborted): stop here instead of paying for the
+// next combo member. Nobody reads this response; it only ends the handler.
+function clientClosedResponse(log, modelStr) {
+  log.info("COMBO", `Client disconnected; not trying further models (at ${modelStr})`);
+  return new Response(null, { status: HTTP_STATUS.CLIENT_CLOSED_REQUEST });
+}
+
 export async function handleComboChat({
   body,
   models,
@@ -370,6 +380,7 @@ export async function handleComboChat({
   affinityKey = null,
   stickAfterFallback = false,
   isStepReady = null,
+  signal = null,
 }) {
   let rotatedModels = models;
   let activeStickyModel = null;
@@ -491,10 +502,15 @@ export async function handleComboChat({
 
   for (let i = 0; i < rotatedModels.length; i++) {
     const modelStr = rotatedModels[i];
+    if (signal?.aborted) return clientClosedResponse(log, modelStr);
     log.info("COMBO", `Trying model ${i + 1}/${rotatedModels.length}: ${modelStr}`);
 
     try {
       const result = await handleSingleModel(body, modelStr);
+      if (signal?.aborted) {
+        result?.body?.cancel?.().catch(() => {});
+        return clientClosedResponse(log, modelStr);
+      }
       
       // Success (2xx). A 2xx is necessary but NOT sufficient: Gemini aborts (e.g.
       // MALFORMED_FUNCTION_CALL) still return 200 and stream empty content, which would
@@ -503,7 +519,7 @@ export async function handleComboChat({
       if (result.ok) {
         let peeked = null;
         try {
-          peeked = await peekComboResponse(result, log);
+          peeked = await peekComboResponse(result, log, signal);
         } catch (peekErr) {
           // peekStreamForContent is written not to throw; if reconstruction/Response
           // construction ever does, result.body is already locked by getReader() and can no
@@ -544,6 +560,8 @@ export async function handleComboChat({
           rememberSuccess(modelStr);
           return result;
         }
+
+        if (peeked.outcome === "aborted") return clientClosedResponse(log, modelStr);
 
         if (peeked.outcome === "content") {
           log.info("COMBO", `Model ${modelStr} succeeded${peeked.timedOut ? " (peek deadline; committed)" : ""}`);
@@ -772,6 +790,11 @@ const FUSION_DEFAULTS = {
 };
 
 // Resolve a Response (or {__error}) within ms; the loser keeps running but is ignored.
+// Drop a panel answer nobody will read (cancel its body so the stream is released).
+function releasePanelResponse(res) {
+  res?.body?.cancel?.().catch?.(() => {});
+}
+
 function withTimeout(promise, ms) {
   return new Promise((resolve) => {
     const t = setTimeout(() => resolve({ __timeout: true }), ms);
@@ -788,21 +811,26 @@ function withTimeout(promise, ms) {
  * still preferring a full panel when everyone is fast. Bounded by a hard timeout.
  * Returns a sparse array aligned to `calls` (undefined = not yet / dropped).
  */
-function collectPanel(calls, { minPanel, stragglerGraceMs, panelHardTimeoutMs }) {
+function collectPanel(calls, { minPanel, stragglerGraceMs, panelHardTimeoutMs, signal = null }) {
   return new Promise((resolve) => {
     const out = new Array(calls.length);
     let settled = 0;
     let ok = 0;
     let finished = false;
     let graceTimer = null;
+    const onAbort = () => finish();
     const finish = () => {
       if (finished) return;
       finished = true;
       clearTimeout(hardTimer);
       if (graceTimer) clearTimeout(graceTimer);
+      signal?.removeEventListener?.("abort", onAbort);
       resolve(out);
     };
     const hardTimer = setTimeout(finish, panelHardTimeoutMs);
+    // A client disconnect ends the collection at once (the caller then stops).
+    if (signal?.aborted) { finish(); return; }
+    signal?.addEventListener?.("abort", onAbort, { once: true });
     calls.forEach((p, i) => {
       Promise.resolve(p)
         .then((v) => { out[i] = v; })
@@ -840,7 +868,8 @@ function collectPanel(calls, { minPanel, stragglerGraceMs, panelHardTimeoutMs })
  * @param {Object} [options.tuning] - Override FUSION_DEFAULTS (minPanel, grace, timeout)
  * @returns {Promise<Response>}
  */
-export async function handleFusionChat({ body, models, handleSingleModel, log, comboName, judgeModel, tuning }) {
+export async function handleFusionChat({ body, models, handleSingleModel, log, comboName, judgeModel, tuning, signal = null }) {
+  if (signal?.aborted) return clientClosedResponse(log, comboName);
   const panel = Array.isArray(models) ? models.filter(Boolean) : [];
   if (panel.length === 0) {
     return new Response(
@@ -874,9 +903,17 @@ export async function handleFusionChat({ body, models, handleSingleModel, log, c
   }
 
   const t0 = Date.now();
-  const calls = panel.map((m) => withTimeout(handleSingleModel(panelBody, m, true), cfg.panelHardTimeoutMs));
-  const settled = await collectPanel(calls, { ...cfg, minPanel });
+  // Each panel call gets the client's signal (it aborts the upstream call on disconnect).
+  const calls = panel.map((m) => withTimeout(handleSingleModel(panelBody, m, true, signal), cfg.panelHardTimeoutMs));
+  const settled = await collectPanel(calls, { ...cfg, minPanel, signal });
   log.info("FUSION", `fan-out collected in ${Date.now() - t0}ms`);
+
+  // Client gone: release every panel answer (arrived or still in flight) and skip the
+  // judge, which would otherwise be paid for with nobody to read it.
+  if (signal?.aborted) {
+    for (const p of calls) Promise.resolve(p).then(releasePanelResponse, () => {});
+    return clientClosedResponse(log, comboName);
+  }
 
   // 2. Collect successful answers.
   const answers = [];
@@ -909,6 +946,7 @@ export async function handleFusionChat({ body, models, handleSingleModel, log, c
       { status: 503, headers: { "Content-Type": "application/json" } }
     );
   }
+  if (signal?.aborted) return clientClosedResponse(log, comboName);
   if (answers.length === 1) {
     log.info("FUSION", `Only ${answers[0].model} succeeded — answering directly (no fusion)`);
     return handleSingleModel(body, answers[0].model);

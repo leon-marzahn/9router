@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vite-plus/test";
+import "../translator/registerAll.js";
 
 const { executeMock } = vi.hoisted(() => ({
   executeMock: vi.fn(),

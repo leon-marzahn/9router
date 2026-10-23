@@ -42,6 +42,75 @@ const DONE = `data: [DONE]\n\n`;
 const FILTER_STOP = `data: {"id":"x","choices":[{"index":0,"delta":{},"finish_reason":"content_filter"}]}\n\n`;
 const REASONING = `data: {"id":"x","choices":[{"index":0,"delta":{"reasoning_content":"thinking..."},"finish_reason":null}]}\n\n`;
 
+describe("peek bounds and client abort", () => {
+  // A stream whose reads are always ready (no awaits between frames) must still hit the
+  // deadline: it is checked every iteration, not only when a read is slow.
+  function endlessStream(frame, { onCancel } = {}) {
+    const bytes = enc.encode(frame);
+    return new ReadableStream({
+      pull(controller) { controller.enqueue(bytes); },
+      cancel() { onCancel?.(); },
+    });
+  }
+  const KEEPALIVE = `data: {"id":"x","choices":[{"index":0,"delta":{},"finish_reason":null}]}\n\n`;
+
+  it("an always-ready content-less stream is committed at the byte cap, not buffered without bound", async () => {
+    const p = await peekStreamForContent(endlessStream(KEEPALIVE), { deadlineMs: 60_000, maxBytes: 64 * 1024 });
+    expect(p.outcome).toBe("content");
+    expect(p.capped).toBe(true);
+    const buffered = p.head.reduce((n, c) => n + c.byteLength, 0);
+    expect(buffered).toBeGreaterThanOrEqual(64 * 1024);
+    expect(buffered).toBeLessThan(64 * 1024 + 1024);
+    p.reader.cancel().catch(() => {});
+  });
+
+  it("an always-ready stream cannot starve the deadline", async () => {
+    const t0 = Date.now();
+    const p = await peekStreamForContent(endlessStream(KEEPALIVE), { deadlineMs: 100, maxBytes: 1024 ** 3 });
+    expect(p.outcome).toBe("content");
+    expect(p.timedOut).toBe(true);
+    expect(Date.now() - t0).toBeLessThan(1000);
+    p.reader.cancel().catch(() => {});
+  });
+
+  it("a long unterminated line is bounded by the byte cap", async () => {
+    const p = await peekStreamForContent(endlessStream("x".repeat(4096)), { deadlineMs: 60_000, maxBytes: 256 * 1024 });
+    expect(p.outcome).toBe("content");
+    expect(p.capped).toBe(true);
+    p.reader.cancel().catch(() => {});
+  });
+
+  it("maxBytes 0 / NaN is clamped to the default (the cap cannot be disabled)", async () => {
+    const p = await peekStreamForContent(sseStream([ROLE, CONTENT, DONE]), { maxBytes: 0 });
+    expect(p.outcome).toBe("content");
+    expect(p.capped).toBe(false);
+  });
+
+  it("a client abort during the peek ends it as 'aborted' and cancels the upstream body", async () => {
+    const ctrl = new AbortController();
+    let cancelled = false;
+    // Upstream that only sends a role frame and then hangs.
+    const body = new ReadableStream({
+      start(controller) { controller.enqueue(enc.encode(ROLE)); },
+      cancel() { cancelled = true; },
+    });
+    setTimeout(() => ctrl.abort(), 20);
+    const t0 = Date.now();
+    const p = await peekStreamForContent(body, { deadlineMs: 10_000, signal: ctrl.signal });
+    expect(p.outcome).toBe("aborted");
+    expect(Date.now() - t0).toBeLessThan(1000);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(cancelled).toBe(true);
+  });
+
+  it("an already-aborted signal ends the peek before reading", async () => {
+    const ctrl = new AbortController();
+    ctrl.abort();
+    const p = await peekStreamForContent(sseStream([ROLE, CONTENT, DONE]), { signal: ctrl.signal });
+    expect(p.outcome).toBe("aborted");
+  });
+});
+
 describe("deltaHasClientContent", () => {
   it("role-only delta is NOT content", () => expect(deltaHasClientContent({ role: "assistant" })).toBe(false));
   it("empty string content is NOT content", () => expect(deltaHasClientContent({ content: "" })).toBe(false));
@@ -99,9 +168,13 @@ describe("peekStreamForContent", () => {
     expect(p.outcome).toBe("content");
   });
 
-  it("reasoning-only then abort → still empty (reasoning is not content)", async () => {
-    const p = await peekStreamForContent(sseStream([ROLE, REASONING, EMPTY_STOP, DONE]));
-    expect(p.outcome).toBe("empty");
+  // Reasoning is not content, but it proves the stream is alive: the peek commits on the
+  // first reasoning frame so thinking models stream to the client immediately.
+  it("a reasoning frame commits the stream (alive), without waiting for content", async () => {
+    const p = await peekStreamForContent(sseStream([ROLE, REASONING, CONTENT, DONE], [0, 0, 5000]), { deadlineMs: 10_000 });
+    expect(p.outcome).toBe("content");
+    expect(p.timedOut).toBe(false);
+    p.reader.cancel().catch(() => {});
   });
 
   it("content-filter empty → empty with content_filter reason (caller won't retry)", async () => {
@@ -192,8 +265,10 @@ describe("inspectSSELine — Anthropic Messages client format", () => {
     expect(inspectSSELine(ev({ type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "hi" } })).content).toBe(true);
     expect(inspectSSELine(ev({ type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "" } })).content).toBe(false);
   });
-  it("thinking_delta is NOT content (as reasoning_content is not)", () => {
+  it("thinking_delta is NOT content (as reasoning_content is not), but marks the stream alive", () => {
     expect(inspectSSELine(ev({ type: "content_block_delta", index: 0, delta: { type: "thinking_delta", thinking: "hmm" } })).content).toBe(false);
+    expect(inspectSSELine(ev({ type: "content_block_delta", index: 0, delta: { type: "thinking_delta", thinking: "hmm" } })).alive).toBe(true);
+    expect(inspectSSELine(ev({ type: "content_block_start", index: 0, content_block: { type: "thinking", thinking: "" } })).alive).toBe(true);
   });
   it("a tool_use block start IS content; input_json_delta with JSON IS content", () => {
     expect(inspectSSELine(ev({ type: "content_block_start", index: 1, content_block: { type: "tool_use", id: "t", name: "f", input: {} } })).content).toBe(true);
@@ -236,6 +311,11 @@ describe("inspectSSELine — OpenAI Responses client format", () => {
     expect(inspectSSELine(ev({ type: "response.function_call_arguments.delta", item_id: "fc_call_1", delta: "{\"a\":" })).content).toBe(true);
     expect(inspectSSELine(ev({ type: "response.function_call_arguments.delta", item_id: "fc_call_1", delta: "" })).content).toBe(false);
     expect(inspectSSELine(ev({ type: "response.custom_tool_call_input.delta", item_id: "ctc_call_2", delta: "*** Begin Patch" })).content).toBe(true);
+  });
+  it("reasoning text deltas mark the stream alive", () => {
+    expect(inspectSSELine(ev({ type: "response.reasoning_summary_text.delta", item_id: "rs_1", summary_index: 0, delta: "t" })).alive).toBe(true);
+    expect(inspectSSELine(ev({ type: "response.reasoning_text.delta", item_id: "rs_1", delta: "t" })).alive).toBe(true);
+    expect(inspectSSELine(ev({ type: "response.reasoning_text.delta", item_id: "rs_1", delta: "" })).alive).toBe(false);
   });
   it("reasoning items and reasoning / reasoning-summary deltas are NOT content", () => {
     for (const o of [
@@ -344,10 +424,11 @@ describe("combo fall-through per client format (real combo.js + streaming pipeli
         const { tried } = await combo([[ROLE, TOOL, DONE], [ROLE, C("from-m1"), STOP, DONE]], fmt);
         expect(tried).toEqual(["openai/m0"]);
       });
-      it("reasoning-only first member falls through", async () => {
-        const { out, tried } = await combo([[ROLE, REASONING, STOP, DONE], [ROLE, C("from-m1"), STOP, DONE]], fmt);
-        expect(tried).toEqual(["openai/m0", "openai/m1"]);
-        expect(out).toContain("from-m1");
+      // Trade-off: a thinking frame commits the member so reasoning models stream at once;
+      // a think-then-abort member is therefore delivered rather than failed over.
+      it("a member that starts reasoning is committed (streams immediately)", async () => {
+        const { tried } = await combo([[ROLE, REASONING, STOP, DONE], [ROLE, C("from-m1"), STOP, DONE]], fmt);
+        expect(tried).toEqual(["openai/m0"]);
       });
     });
   }
@@ -384,14 +465,77 @@ describe("combo fall-through per client format (real combo.js + streaming pipeli
       expect(out).toContain("from-m1");
       expect(out).not.toContain("response.failed");
     });
-    it("a function_call item counts as content; reasoning-only does not", async () => {
+    it("a function_call item counts as content; reasoning text commits the member too", async () => {
       expect((await combo([[CREATED, FC, COMPLETED], [CREATED, TEXT("from-m1"), COMPLETED]], RESP)).tried).toEqual(["openai/m0"]);
-      expect((await combo([[CREATED, REASON, COMPLETED], [CREATED, TEXT("from-m1"), COMPLETED]], RESP)).tried).toEqual(["openai/m0", "openai/m1"]);
+      expect((await combo([[CREATED, REASON, COMPLETED], [CREATED, TEXT("from-m1"), COMPLETED]], RESP)).tried).toEqual(["openai/m0"]);
     });
     it("response.incomplete (content_filter) is NOT retried", async () => {
       const { out, tried } = await combo([[CREATED, FILTERED], [CREATED, TEXT("from-m1"), COMPLETED]], RESP);
       expect(tried).toEqual(["openai/m0"]);
       expect(out).toContain('"reason":"content_filter"');
     });
+  });
+});
+
+describe("combo stops when the client disconnects", async () => {
+  const { handleComboChat } = await import("../../open-sse/services/combo.js");
+  const LOG = { info: vi.fn(), warn: vi.fn() };
+  const SSE = { "Content-Type": "text/event-stream" };
+
+  it("aborting during the peek does not call the next member and cancels the held stream", async () => {
+    const ctrl = new AbortController();
+    let cancelled = false;
+    const tried = [];
+    const hanging = () => new Response(new ReadableStream({
+      start(c) { c.enqueue(enc.encode(ROLE)); },
+      cancel() { cancelled = true; },
+    }), { status: 200, headers: SSE });
+    setTimeout(() => ctrl.abort(), 20);
+    const res = await handleComboChat({
+      body: { messages: [{ role: "user", content: "hi" }] },
+      models: ["openai/m0", "openai/m1"],
+      handleSingleModel: async (_b, m) => { tried.push(m); return hanging(); },
+      log: LOG, comboName: `abort-${Math.random()}`, comboStrategy: "fallback",
+      signal: ctrl.signal,
+    });
+    expect(tried).toEqual(["openai/m0"]);
+    expect(res.status).toBe(499);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(cancelled).toBe(true);
+  });
+
+  it("does not advance to the next member once the client is gone", async () => {
+    const ctrl = new AbortController();
+    const tried = [];
+    const res = await handleComboChat({
+      body: { messages: [{ role: "user", content: "hi" }] },
+      models: ["openai/m0", "openai/m1"],
+      handleSingleModel: async (_b, m) => {
+        tried.push(m);
+        ctrl.abort(); // client leaves while m0 is failing
+        return Response.json({ error: { message: "upstream down" } }, { status: 503 });
+      },
+      log: LOG, comboName: `abort2-${Math.random()}`, comboStrategy: "fallback",
+      signal: ctrl.signal,
+    });
+    expect(tried).toEqual(["openai/m0"]);
+    expect(res.status).toBe(499);
+  });
+
+  it("a reasoning model in a combo is committed on its first thinking frame", async () => {
+    const tried = [];
+    const t0 = Date.now();
+    const res = await handleComboChat({
+      body: { messages: [{ role: "user", content: "hi" }] },
+      models: ["openai/m0", "openai/m1"],
+      handleSingleModel: async (_b, m) => {
+        tried.push(m);
+        return new Response(sseStream([ROLE, REASONING, CONTENT, DONE], [0, 0, 2000]), { status: 200, headers: SSE });
+      },
+      log: LOG, comboName: `think-${Math.random()}`, comboStrategy: "fallback",
+    });
+    expect(Date.now() - t0).toBeLessThan(1000);
+    expect(tried).toEqual(["openai/m0"]);
+    res.body.cancel().catch(() => {});
   });
 });

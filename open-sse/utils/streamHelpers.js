@@ -77,11 +77,16 @@ export function hasValuableContent(chunk, format) {
 // "AI_InvalidResponseDataError: Expected 'id' to be a string." and abort the
 // whole turn.
 //
-// Fix: remember the id per tool-call index, and mint one when a fragment
-// opens an index the client has not seen yet. The id must be stable for the
-// rest of the call, so a later fragment with the same index reuses it.
+// Fix: remember the id per tool-call index, and mint one only when a fragment
+// opens an index the client has not seen yet. Continuation fragments of a known
+// index are left alone (clients match them by index; the id belongs on the first
+// fragment only). A fragment without an index continues the most recent call, so
+// it reuses that call's id instead of minting a fresh one.
 //
 // Returns true when a chunk was modified.
+const LAST_TOOL_CALL_ID = Symbol("last-tool-call-id");
+const MINTED_TOOL_CALL_COUNT = Symbol("minted-tool-call-count");
+
 export function ensureStreamToolCallIds(chunk, seenIds) {
   if (!chunk?.choices?.length) return false;
   let changed = false;
@@ -92,18 +97,38 @@ export function ensureStreamToolCallIds(chunk, seenIds) {
 
     for (const tc of calls) {
       if (!tc || typeof tc !== "object") continue;
+      const hasIndex = tc.index !== undefined && tc.index !== null;
 
       if (typeof tc.id === "string" && tc.id.length > 0) {
-        if (tc.index !== undefined) seenIds.set(tc.index, tc.id);
+        if (hasIndex) seenIds.set(tc.index, tc.id);
+        seenIds.set(LAST_TOOL_CALL_ID, tc.id);
         continue;
       }
 
-      // No id on this fragment. Reuse the one already seen for this index, or
-      // mint one when the index is new to the client.
-      const known = tc.index !== undefined ? seenIds.get(tc.index) : undefined;
-      const id = known || fallbackToolCallId(tc.index);
+      if (hasIndex) {
+        if (seenIds.has(tc.index)) continue; // continuation of a call the client already has
+        const id = fallbackToolCallId(tc.index);
+        tc.id = id;
+        seenIds.set(tc.index, id);
+        seenIds.set(LAST_TOOL_CALL_ID, id);
+        changed = true;
+        continue;
+      }
+
+      // No index. A fragment naming a function opens a NEW call (parallel index-less
+      // calls must not share an id); a pure argument fragment continues the most recent
+      // call, or opens one if there is none yet. Minted ids carry a per-stream counter,
+      // since two calls can open within the same millisecond.
+      const opensCall = typeof tc.function?.name === "string" && tc.function.name.length > 0;
+      const last = seenIds.get(LAST_TOOL_CALL_ID);
+      let id = last;
+      if (opensCall || !last) {
+        const n = (seenIds.get(MINTED_TOOL_CALL_COUNT) || 0) + 1;
+        seenIds.set(MINTED_TOOL_CALL_COUNT, n);
+        id = `${fallbackToolCallId()}_${n}`;
+      }
       tc.id = id;
-      if (tc.index !== undefined) seenIds.set(tc.index, id);
+      seenIds.set(LAST_TOOL_CALL_ID, id);
       changed = true;
     }
   }

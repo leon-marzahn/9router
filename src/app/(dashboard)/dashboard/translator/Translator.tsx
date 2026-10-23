@@ -20,9 +20,19 @@ import {
 import { cn } from "@/ui/cn";
 import { useTheme as useThemeJs } from "@/shared/hooks/useTheme";
 import { Note } from "@/ui";
+import { MONACO_VS_PATH } from "@/shared/constants/monaco";
 import { notify } from "../profile/settings/useSettings";
 
-const Editor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
+// Pin the CDN copy @monaco-editor/react loads to the installed monaco-editor version
+// (see src/shared/constants/monaco.js).
+const Editor = dynamic(
+  () =>
+    import("@monaco-editor/react").then((mod) => {
+      mod.loader.config({ paths: { vs: MONACO_VS_PATH } });
+      return mod.default;
+    }),
+  { ssr: false },
+);
 const useTheme = useThemeJs as unknown as () => { isDark: boolean };
 
 type StepId = 1 | 2 | 3 | 4 | 5 | 6 | 7;

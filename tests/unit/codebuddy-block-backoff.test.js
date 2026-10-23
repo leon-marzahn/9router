@@ -44,7 +44,6 @@ describe("CodeBuddy Intl block backoff (#5024)", () => {
   });
 
   it.each(["openai", "codebuddy-cn", null])("keeps the same text request-scoped for provider %s", (provider) => {
-    // Request-scoped since 5cdcddf5: the account stays healthy, the combo moves on.
     expect(checkFallbackError(400, "request illegal", 0, provider))
       .toEqual({ shouldFallback: false, cooldownMs: 0, requestScoped: true });
   });
@@ -83,9 +82,10 @@ describe("CodeBuddy Intl block backoff (#5024)", () => {
     ]);
   });
 
-  // A malformed request is request-scoped (5cdcddf5): the combo tries the next member,
-  // and when none serves it, returns the first member's own error. No account cooldown.
-  it("does not cool the account down on a malformed CodeBuddy request", async () => {
+  // A malformed request is request-scoped (5cdcddf5): the combo tries the next member
+  // without locking the CodeBuddy account, and when every member rejects it the client
+  // gets the first member's own error back.
+  it("advances past a malformed CodeBuddy request without locking the account", async () => {
     const error = Response.json({ error: { message: "first message is not system prompt" } }, { status: 400 });
     const dispatch = vi.fn().mockResolvedValue(error);
     const result = await handleComboChat({

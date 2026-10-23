@@ -108,6 +108,7 @@ export async function handleFetch(request) {
     log.info("FETCH", `Combo "${providerInput}" with ${comboModels.length} providers (strategy: ${comboStrategy}, sticky: ${comboStickyLimit})`);
     return handleComboChat({
       body,
+      signal: request?.signal,
       models: comboModels,
       handleSingleModel: (b, m) => handleSingleProviderFetch(b, m, request, apiKey, settings),
       log,

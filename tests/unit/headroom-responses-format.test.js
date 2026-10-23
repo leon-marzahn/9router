@@ -48,7 +48,7 @@ describe("compressWithHeadroom openai-responses format (#1998)", () => {
     expect(typeof body.input[0].content).not.toBe("string");
   });
 
-  it("skips Responses tool/reasoning history instead of collapsing it into a message (#2132)", async () => {
+  it("never collapses Responses tool/reasoning history into a message (#2132)", async () => {
     global.fetch = vi.fn(async () => ({
       ok: true,
       json: async () => ({
@@ -99,13 +99,15 @@ describe("compressWithHeadroom openai-responses format (#1998)", () => {
       diagnostics,
     });
 
-    // Since a440ef43 only the plain-text tool outputs are sent (as tool messages), never
-    // the history; a proxy answer that doesn't map back 1:1 leaves body.input untouched.
-    expect(data).toBeNull();
+    // Since a440ef43 only the plain-text function_call_output leaves are projected to
+    // the proxy (as OpenAI tool messages); the message, custom tool call and reasoning
+    // items never leave. A proxy reply that does not keep those tool messages intact
+    // is rejected and the body is left exactly as it was.
     expect(global.fetch).toHaveBeenCalledTimes(1);
     const sent = JSON.parse(global.fetch.mock.calls[0][1].body);
-    expect(sent.messages.every((m) => m.role === "tool")).toBe(true);
+    expect(sent.messages).toEqual([{ role: "tool", tool_call_id: "headroom-tool-0", content: "ok" }]);
+    expect(data).toBeNull();
     expect(body.input).toEqual(input);
-    expect(diagnostics.reason).toBe("proxy response did not preserve tool-output IDs, order, roles or text");
+    expect(diagnostics.reason).toMatch(/proxy response did not preserve tool-output/);
   });
 });

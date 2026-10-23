@@ -88,6 +88,7 @@ export async function handleSearch(request) {
     log.info("SEARCH", `Combo "${providerInput}" with ${comboModels.length} providers (strategy: ${comboStrategy}, sticky: ${comboStickyLimit})`);
     return handleComboChat({
       body,
+      signal: request?.signal,
       models: comboModels,
       handleSingleModel: (b, m) => handleSingleProviderSearch(b, m, request, apiKey, settings),
       log,

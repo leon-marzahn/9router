@@ -137,6 +137,7 @@ export function createSSEStream(options = {}) {
   const clientWantsUsageTrailer = endsWithOpenAIDone && clientRequestedStreamUsage(body);
   let openAIChunkBase = null;
   let openAIDoneSent = false;
+
   // Lane quirk: upstream streams thinking under the OpenRouter aliases
   // (`reasoning` / `reasoning_details[]`) instead of reasoning_content — OpenCode
   // Free's MiMo route does. Lift it on every passthrough delta so OpenAI-shaped

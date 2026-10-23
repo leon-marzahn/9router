@@ -87,6 +87,7 @@ export async function handleImageGeneration(request) {
     log.info("IMAGE", `Combo "${modelStr}" with ${comboModels.length} models (strategy: ${comboStrategy}, sticky: ${comboStickyLimit})`);
     return handleComboChat({
       body,
+      signal: request?.signal,
       models: comboModels,
       handleSingleModel: (b, m) => handleSingleModelImage(b, m, { wantsStream, binaryOutput, preferredConnectionId, apiKey, endpoint: url.pathname, requestedModel: modelStr }),
       log,
@@ -143,10 +144,12 @@ async function handleSingleModelImage(body, modelStr, { wantsStream, binaryOutpu
     // without locking them: they stay usable for chat.
     const adapter = getImageAdapter(provider);
     if (adapter?.canUseCredentials && !adapter.canUseCredentials(refreshedCredentials)) {
-      log.info("IMAGE", `[${provider}/${model}] skip connection ${credentials.connectionId.slice(0, 8)}: plan not entitled to image generation`);
+      // The plan detail stays in the server log; the client (possibly a reseller customer)
+      // only learns that no account can serve the model.
+      log.info("IMAGE", `[${provider}/${model}] skip connection ${credentials.connectionId.slice(0, 8)}: plan not entitled to image generation (e.g. ChatGPT Free)`);
       excludeConnectionIds.add(credentials.connectionId);
-      lastError = lastError || "No account entitled to image generation (ChatGPT Free plans are not supported)";
-      lastStatus = lastStatus || HTTP_STATUS.FORBIDDEN;
+      lastError = lastError || "No account available for this model";
+      lastStatus = lastStatus || HTTP_STATUS.SERVICE_UNAVAILABLE;
       continue;
     }
 

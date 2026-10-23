@@ -176,7 +176,8 @@ function buildSseResponse(providerResponse, log, onSuccess, onUsage) {
           onPartialImage: (info) => send("partial_image", info),
         });
         if (!b64) {
-          send("error", { message: "Codex did not return an image. Account may not be entitled (paid ChatGPT plan required)." });
+          log?.warn?.("IMAGE", "codex returned no image (account may not be on a paid ChatGPT plan)");
+          send("error", { message: "No image was generated" });
         } else {
           if (usage && onUsage) await onUsage(usage);
           if (onSuccess) await onSuccess();
@@ -256,7 +257,8 @@ export default {
     }
     const { imageB64: b64, usage } = await parseStream(response, log);
     if (!b64) {
-      throw new Error("Codex did not return an image. Account may not be entitled (paid ChatGPT plan required).");
+      log?.warn?.("IMAGE", "codex returned no image (account may not be on a paid ChatGPT plan)");
+      throw new Error("No image was generated");
     }
     if (usage && onUsage) await onUsage(usage);
     return { created: nowSec(), data: [{ b64_json: b64 }] };
