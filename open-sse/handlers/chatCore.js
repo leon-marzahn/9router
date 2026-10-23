@@ -65,7 +65,7 @@ export function stripContinuityFields(body) {
   return body;
 }
 
-export async function handleChatCore({ traceAttempt = null, body, modelInfo, credentials, log, onCredentialsRefreshed, onRequestSuccess, onDisconnect, clientRawRequest, connectionId, userAgent, apiKey, ccFilterNaming, rtkEnabled, headroomEnabled, headroomUrl, headroomCompressUserMessages, headroomTimeoutMs, cavemanEnabled, cavemanLevel, ponytailEnabled, ponytailLevel, pxpipeEnabled, pxpipeMinChars, pxpipeTimeoutMs, pxpipeTransform, pxpipeUnavailableReason, onPxpipeEvent, sourceFormatOverride, providerThinking, providerOverrides }) {
+export async function handleChatCore({ traceAttempt = null, body, modelInfo, credentials, log, onCredentialsRefreshed, onRequestSuccess, onDisconnect, clientRawRequest, connectionId, userAgent, apiKey, ccFilterNaming, rtkEnabled, headroomEnabled, headroomUrl, headroomCompressUserMessages, headroomTimeoutMs, cavemanEnabled, cavemanLevel, ponytailEnabled, ponytailLevel, pxpipeEnabled, pxpipeMinChars, pxpipeTimeoutMs, pxpipeTransform, pxpipeUnavailableReason, onPxpipeEvent, sourceFormatOverride, providerThinking, providerOverrides, clientSignal = null }) {
   const { provider, model } = modelInfo;
   const requestStartTime = Date.now();
   // Stable per-session color so all lines of one CLI conversation share a tag
@@ -371,6 +371,13 @@ export async function handleChatCore({ traceAttempt = null, body, modelInfo, cre
     onError: () => trackPendingRequest(model, provider, connectionId, false),
     log, provider, model, reqTag
   });
+
+  // Callers that fan out non-streaming calls (fusion panels) pass the client's signal so
+  // a disconnect aborts the upstream call instead of letting it run to completion.
+  if (clientSignal) {
+    if (clientSignal.aborted) streamController.handleDisconnect("client_aborted");
+    else clientSignal.addEventListener("abort", () => streamController.handleDisconnect("client_aborted"), { once: true });
+  }
 
   const proxyOptions = {
     connectionProxyEnabled: credentials?.providerSpecificData?.connectionProxyEnabled === true,

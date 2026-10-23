@@ -658,6 +658,11 @@ const FUSION_DEFAULTS = {
 };
 
 // Resolve a Response (or {__error}) within ms; the loser keeps running but is ignored.
+// Drop a panel answer nobody will read (cancel its body so the stream is released).
+function releasePanelResponse(res) {
+  res?.body?.cancel?.().catch?.(() => {});
+}
+
 function withTimeout(promise, ms) {
   return new Promise((resolve) => {
     const t = setTimeout(() => resolve({ __timeout: true }), ms);
@@ -674,21 +679,26 @@ function withTimeout(promise, ms) {
  * still preferring a full panel when everyone is fast. Bounded by a hard timeout.
  * Returns a sparse array aligned to `calls` (undefined = not yet / dropped).
  */
-function collectPanel(calls, { minPanel, stragglerGraceMs, panelHardTimeoutMs }) {
+function collectPanel(calls, { minPanel, stragglerGraceMs, panelHardTimeoutMs, signal = null }) {
   return new Promise((resolve) => {
     const out = new Array(calls.length);
     let settled = 0;
     let ok = 0;
     let finished = false;
     let graceTimer = null;
+    const onAbort = () => finish();
     const finish = () => {
       if (finished) return;
       finished = true;
       clearTimeout(hardTimer);
       if (graceTimer) clearTimeout(graceTimer);
+      signal?.removeEventListener?.("abort", onAbort);
       resolve(out);
     };
     const hardTimer = setTimeout(finish, panelHardTimeoutMs);
+    // A client disconnect ends the collection at once (the caller then stops).
+    if (signal?.aborted) { finish(); return; }
+    signal?.addEventListener?.("abort", onAbort, { once: true });
     calls.forEach((p, i) => {
       Promise.resolve(p)
         .then((v) => { out[i] = v; })
@@ -726,7 +736,8 @@ function collectPanel(calls, { minPanel, stragglerGraceMs, panelHardTimeoutMs })
  * @param {Object} [options.tuning] - Override FUSION_DEFAULTS (minPanel, grace, timeout)
  * @returns {Promise<Response>}
  */
-export async function handleFusionChat({ body, models, handleSingleModel, log, comboName, judgeModel, tuning }) {
+export async function handleFusionChat({ body, models, handleSingleModel, log, comboName, judgeModel, tuning, signal = null }) {
+  if (signal?.aborted) return clientClosedResponse(log, comboName);
   const panel = Array.isArray(models) ? models.filter(Boolean) : [];
   if (panel.length === 0) {
     return new Response(
@@ -760,9 +771,17 @@ export async function handleFusionChat({ body, models, handleSingleModel, log, c
   }
 
   const t0 = Date.now();
-  const calls = panel.map((m) => withTimeout(handleSingleModel(panelBody, m, true), cfg.panelHardTimeoutMs));
-  const settled = await collectPanel(calls, { ...cfg, minPanel });
+  // Each panel call gets the client's signal (it aborts the upstream call on disconnect).
+  const calls = panel.map((m) => withTimeout(handleSingleModel(panelBody, m, true, signal), cfg.panelHardTimeoutMs));
+  const settled = await collectPanel(calls, { ...cfg, minPanel, signal });
   log.info("FUSION", `fan-out collected in ${Date.now() - t0}ms`);
+
+  // Client gone: release every panel answer (arrived or still in flight) and skip the
+  // judge, which would otherwise be paid for with nobody to read it.
+  if (signal?.aborted) {
+    for (const p of calls) Promise.resolve(p).then(releasePanelResponse, () => {});
+    return clientClosedResponse(log, comboName);
+  }
 
   // 2. Collect successful answers.
   const answers = [];
@@ -795,6 +814,7 @@ export async function handleFusionChat({ body, models, handleSingleModel, log, c
       { status: 503, headers: { "Content-Type": "application/json" } }
     );
   }
+  if (signal?.aborted) return clientClosedResponse(log, comboName);
   if (answers.length === 1) {
     log.info("FUSION", `Only ${answers[0].model} succeeded — answering directly (no fusion)`);
     return handleSingleModel(body, answers[0].model);
