@@ -214,3 +214,54 @@ describe("fusion combo", () => {
     expect(panelBody.messages[2].content).toBe("[Tool result: done]");
   });
 });
+
+describe("fusion combo: client disconnect", () => {
+  const body = { messages: [{ role: "user", content: "Q" }] };
+
+  it("does not launch anything when the client is already gone", async () => {
+    const ctrl = new AbortController();
+    ctrl.abort();
+    const handleSingleModel = vi.fn(async () => okResponse("x"));
+    const res = await handleFusionChat({ body, models: ["p/a", "p/b"], handleSingleModel, log, signal: ctrl.signal });
+    expect(res.status).toBe(499);
+    expect(handleSingleModel).not.toHaveBeenCalled();
+  });
+
+  it("passes the signal to every panel call", async () => {
+    const ctrl = new AbortController();
+    const handleSingleModel = vi.fn(async (_b, m) => okResponse(`ans-${m}`));
+    await handleFusionChat({ body, models: ["p/a", "p/b"], handleSingleModel, log, judgeModel: "p/j", signal: ctrl.signal });
+    const panel = handleSingleModel.mock.calls.filter(([, m]) => m !== "p/j");
+    expect(panel.length).toBe(2);
+    for (const call of panel) expect(call[3]).toBe(ctrl.signal);
+  });
+
+  it("an abort during the fan-out stops at once, skips the judge and releases the answers", async () => {
+    const ctrl = new AbortController();
+    const cancelled = [];
+    const slow = (m) => new Promise((resolve) => setTimeout(() => resolve({
+      ok: true, status: 200, clone() { return this; }, json: async () => ({ choices: [{ message: { content: m } }] }),
+      body: { cancel: async () => { cancelled.push(m); } },
+    }), 150));
+    const handleSingleModel = vi.fn((_b, m) => slow(m));
+    setTimeout(() => ctrl.abort(), 20);
+    const t0 = Date.now();
+    const res = await handleFusionChat({ body, models: ["p/a", "p/b"], handleSingleModel, log, judgeModel: "p/j", signal: ctrl.signal });
+    expect(res.status).toBe(499);
+    expect(Date.now() - t0).toBeLessThan(140);
+    expect(handleSingleModel.mock.calls.map(([, m]) => m)).toEqual(["p/a", "p/b"]); // no judge
+    await new Promise((r) => setTimeout(r, 200));
+    expect(cancelled.sort()).toEqual(["p/a", "p/b"]);
+  });
+
+  it("an abort after the panel answered skips the judge", async () => {
+    const ctrl = new AbortController();
+    const handleSingleModel = vi.fn(async (_b, m) => {
+      if (m === "p/b") ctrl.abort(); // client leaves while the panel is answering
+      return okResponse(`ans-${m}`);
+    });
+    const res = await handleFusionChat({ body, models: ["p/a", "p/b"], handleSingleModel, log, judgeModel: "p/j", signal: ctrl.signal });
+    expect(res.status).toBe(499);
+    expect(handleSingleModel.mock.calls.map(([, m]) => m)).not.toContain("p/j");
+  });
+});

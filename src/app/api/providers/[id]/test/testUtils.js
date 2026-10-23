@@ -240,7 +240,7 @@ function parseProviderErrorMessage(bodyText, fallback) {
 
 async function probeCloudCodeAssistAccess(connection, accessToken, effectiveProxy = null) {
   const userAgent = connection.provider === "antigravity"
-    ? "google-api-nodejs-client/9.15.1 vscode-antigravity/1.107.0"
+    ? (ANTIGRAVITY_CONFIG.loadCodeAssistUserAgent || "antigravity/hub/2.24.0 darwin/arm64")
     : "google-api-nodejs-client/9.15.1 gemini-cli/0.34.0";
 
   const res = await fetchWithConnectionProxy(CLOUD_CODE_ASSIST_TEST_URL, {
@@ -579,6 +579,27 @@ async function testApiKeyConnection(connection, effectiveProxy = null) {
 
   try {
     switch (connection.provider) {
+      case "commandcode": {
+        const res = await fetchWithConnectionProxy(
+          "https://api.commandcode.ai/alpha/whoami?limits=1",
+          {
+            headers: {
+              Authorization: `Bearer ${connection.apiKey}`,
+              Accept: "application/json",
+            },
+          },
+          effectiveProxy,
+        );
+        const valid = res.ok;
+        return {
+          valid,
+          error: valid
+            ? null
+            : res.status === 401 || res.status === 403
+              ? "Invalid API key"
+              : `Command Code API error (${res.status})`,
+        };
+      }
       case "cloudflare-ai": {
         const psd = connection.providerSpecificData || {};
         const accountId = psd.accountId;

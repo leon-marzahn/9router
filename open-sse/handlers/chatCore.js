@@ -65,7 +65,7 @@ export function stripContinuityFields(body) {
   return body;
 }
 
-export async function handleChatCore({ traceAttempt = null, body, modelInfo, credentials, log, onCredentialsRefreshed, onRequestSuccess, onDisconnect, clientRawRequest, connectionId, userAgent, apiKey, ccFilterNaming, rtkEnabled, headroomEnabled, headroomUrl, headroomCompressUserMessages, headroomTimeoutMs, cavemanEnabled, cavemanLevel, ponytailEnabled, ponytailLevel, pxpipeEnabled, pxpipeMinChars, pxpipeTimeoutMs, pxpipeTransform, pxpipeUnavailableReason, onPxpipeEvent, sourceFormatOverride, providerThinking, providerOverrides }) {
+export async function handleChatCore({ traceAttempt = null, body, modelInfo, credentials, log, onCredentialsRefreshed, onRequestSuccess, onDisconnect, clientRawRequest, connectionId, userAgent, apiKey, ccFilterNaming, rtkEnabled, headroomEnabled, headroomUrl, headroomCompressUserMessages, headroomTimeoutMs, cavemanEnabled, cavemanLevel, ponytailEnabled, ponytailLevel, pxpipeEnabled, pxpipeMinChars, pxpipeTimeoutMs, pxpipeTransform, pxpipeUnavailableReason, onPxpipeEvent, sourceFormatOverride, providerThinking, providerOverrides, clientSignal = null }) {
   const { provider, model } = modelInfo;
   const requestStartTime = Date.now();
   // Stable per-session color so all lines of one CLI conversation share a tag
@@ -115,7 +115,6 @@ export async function handleChatCore({ traceAttempt = null, body, modelInfo, cre
   const targetFormat = useTransport?.format || modelTargetFormat || getTargetFormat(provider, credentials);
   if (useTransport && credentials) credentials.runtimeTransport = useTransport;
   const stripList = getModelStrip(alias, model);
-  const upstreamModel = getModelUpstreamId(alias, model);
 
   // Inject provider-level thinking config override (only if client hasn't set)
   // on/off → extended type (body.thinking), none/low/medium/high → effort type (body.reasoning_effort)
@@ -130,6 +129,8 @@ export async function handleChatCore({ traceAttempt = null, body, modelInfo, cre
       body = { ...body, reasoning_effort: mode };
     }
   }
+
+  const upstreamModel = getModelUpstreamId(alias, model, body);
 
   // Per-request opt-out: client can bypass all token savers via header
   const tokenSaverHeader =
@@ -370,6 +371,13 @@ export async function handleChatCore({ traceAttempt = null, body, modelInfo, cre
     onError: () => trackPendingRequest(model, provider, connectionId, false),
     log, provider, model, reqTag
   });
+
+  // Callers that fan out non-streaming calls (fusion panels) pass the client's signal so
+  // a disconnect aborts the upstream call instead of letting it run to completion.
+  if (clientSignal) {
+    if (clientSignal.aborted) streamController.handleDisconnect("client_aborted");
+    else clientSignal.addEventListener("abort", () => streamController.handleDisconnect("client_aborted"), { once: true });
+  }
 
   const proxyOptions = {
     connectionProxyEnabled: credentials?.providerSpecificData?.connectionProxyEnabled === true,

@@ -289,6 +289,21 @@ describe("combo expansion", () => {
     expect(handleChatCore).toHaveBeenCalled();
   });
 
+  it("hands the client's signal to every fusion panel call", async () => {
+    getComboModels.mockImplementation(async (m) => (m === "fz" ? ["openai/a", "openai/b"] : null));
+    getSettings.mockResolvedValue({ comboStrategies: { fz: { fallbackStrategy: "fusion" } } });
+    const ctrl = new AbortController();
+    const r = new Request("http://localhost/v1/chat/completions", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify(chatBody("fz")), signal: ctrl.signal,
+    });
+    await handleChat(r);
+    const panelCalls = handleChatCore.mock.calls.filter(([o]) => o.clientSignal);
+    expect(panelCalls.length).toBe(2);
+    ctrl.abort();
+    for (const [o] of panelCalls) expect(o.clientSignal.aborted).toBe(true);
+  });
+
   it("switches a single model to a capacity-adapter combo when needed", async () => {
     augmentModelsWithCapacityAdapter.mockImplementationOnce((models) => [...models, "openai/vision"]);
     handleChatCore.mockImplementation(async ({ modelInfo }) => (modelInfo.model === "vision" ? ok("v") : createErrorResult(503, "x")));

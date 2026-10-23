@@ -9,6 +9,7 @@ import { getSettings } from "@/lib/localDb";
 import { getModelInfo, getComboModels } from "../services/model.js";
 import { getKeyAccessContext, enforceKeyAccess } from "../services/keyAccess.js";
 import { handleImageGenerationCore } from "open-sse/handlers/imageGenerationCore.js";
+import { getImageAdapter } from "open-sse/handlers/imageProviders/index.js";
 import { errorResponse, unavailableResponse } from "open-sse/utils/error.js";
 import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
 import { updateProviderCredentials, checkAndRefreshToken } from "../services/tokenRefresh.js";
@@ -86,6 +87,7 @@ export async function handleImageGeneration(request) {
     log.info("IMAGE", `Combo "${modelStr}" with ${comboModels.length} models (strategy: ${comboStrategy}, sticky: ${comboStickyLimit})`);
     return handleComboChat({
       body,
+      signal: request?.signal,
       models: comboModels,
       handleSingleModel: (b, m) => handleSingleModelImage(b, m, { wantsStream, binaryOutput, preferredConnectionId, apiKey, endpoint: url.pathname, requestedModel: modelStr }),
       log,
@@ -137,6 +139,19 @@ async function handleSingleModelImage(body, modelStr, { wantsStream, binaryOutpu
     }
 
     const refreshedCredentials = await checkAndRefreshToken(provider, credentials);
+
+    // Skip accounts the adapter knows cannot generate images (e.g. ChatGPT Free on codex)
+    // without locking them: they stay usable for chat.
+    const adapter = getImageAdapter(provider);
+    if (adapter?.canUseCredentials && !adapter.canUseCredentials(refreshedCredentials)) {
+      // The plan detail stays in the server log; the client (possibly a reseller customer)
+      // only learns that no account can serve the model.
+      log.info("IMAGE", `[${provider}/${model}] skip connection ${credentials.connectionId.slice(0, 8)}: plan not entitled to image generation (e.g. ChatGPT Free)`);
+      excludeConnectionIds.add(credentials.connectionId);
+      lastError = lastError || "No account available for this model";
+      lastStatus = lastStatus || HTTP_STATUS.SERVICE_UNAVAILABLE;
+      continue;
+    }
 
     const result = await handleImageGenerationCore({
       body,
