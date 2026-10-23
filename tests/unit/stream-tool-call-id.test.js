@@ -43,14 +43,49 @@ describe("ensureStreamToolCallIds", () => {
     expect(c.choices[0].delta.tool_calls[0].id.length).toBeGreaterThan(0);
   });
 
-  it("reuses the id already seen for the same index instead of minting a new one", () => {
+  it("leaves continuation fragments of a known index alone", () => {
     const seen = new Map();
     const first = chunk({ tool_calls: [{ index: 0, id: "call_abc", function: { name: "read" } }] });
     ensureStreamToolCallIds(first, seen);
 
     const later = chunk({ tool_calls: [{ index: 0, function: { arguments: "\"file\"" } }] });
-    expect(ensureStreamToolCallIds(later, seen)).toBe(true);
-    expect(later.choices[0].delta.tool_calls[0].id).toBe("call_abc");
+    expect(ensureStreamToolCallIds(later, seen)).toBe(false);
+    expect(later.choices[0].delta.tool_calls[0].id).toBeUndefined();
+  });
+
+  it("mints an id only once for an index, not on its continuations", () => {
+    const seen = new Map();
+    const open = chunk({ tool_calls: [{ index: 0, function: { name: "read" } }] });
+    ensureStreamToolCallIds(open, seen);
+    const minted = open.choices[0].delta.tool_calls[0].id;
+    expect(typeof minted).toBe("string");
+
+    const cont = chunk({ tool_calls: [{ index: 0, function: { arguments: "{}" } }] });
+    expect(ensureStreamToolCallIds(cont, seen)).toBe(false);
+    expect(cont.choices[0].delta.tool_calls[0].id).toBeUndefined();
+    expect(seen.get(0)).toBe(minted);
+  });
+
+  it("reuses the last id for index-less fragments instead of minting one per fragment", () => {
+    const seen = new Map();
+    const a = chunk({ tool_calls: [{ function: { name: "read" } }] });
+    const b = chunk({ tool_calls: [{ function: { arguments: "{\"p\":" } }] });
+    const c = chunk({ tool_calls: [{ function: { arguments: "1}" } }] });
+    ensureStreamToolCallIds(a, seen);
+    ensureStreamToolCallIds(b, seen);
+    ensureStreamToolCallIds(c, seen);
+    const id = a.choices[0].delta.tool_calls[0].id;
+    expect(typeof id).toBe("string");
+    expect(b.choices[0].delta.tool_calls[0].id).toBe(id);
+    expect(c.choices[0].delta.tool_calls[0].id).toBe(id);
+  });
+
+  it("an index-less fragment after a provider id reuses that id", () => {
+    const seen = new Map();
+    ensureStreamToolCallIds(chunk({ tool_calls: [{ id: "call_up", function: { name: "read" } }] }), seen);
+    const cont = chunk({ tool_calls: [{ function: { arguments: "{}" } }] });
+    ensureStreamToolCallIds(cont, seen);
+    expect(cont.choices[0].delta.tool_calls[0].id).toBe("call_up");
   });
 
   it("keeps an id the provider supplied and records it for later fragments", () => {
@@ -98,7 +133,7 @@ describe("openai→openai response translation", () => {
     expect(typeof out[0].choices[0].delta.tool_calls[0].id).toBe("string");
   });
 
-  it("keeps the id stable across the fragments of one tool call", () => {
+  it("puts the id on the first fragment of a call only", () => {
     const state = initState(FORMATS.OPENAI);
 
     const first = translateResponse(FORMATS.OPENAI, FORMATS.OPENAI,
@@ -106,8 +141,8 @@ describe("openai→openai response translation", () => {
     const second = translateResponse(FORMATS.OPENAI, FORMATS.OPENAI,
       chunk({ tool_calls: [{ index: 0, function: { arguments: "\"a.txt\"" } }] }), state);
 
-    expect(first[0].choices[0].delta.tool_calls[0].id)
-      .toBe(second[0].choices[0].delta.tool_calls[0].id);
+    expect(typeof first[0].choices[0].delta.tool_calls[0].id).toBe("string");
+    expect(second[0].choices[0].delta.tool_calls[0].id).toBeUndefined();
   });
 });
 
