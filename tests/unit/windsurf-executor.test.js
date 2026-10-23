@@ -167,7 +167,7 @@ describe("decodeCompletionChunk", () => {
 });
 
 describe("WindsurfExecutor class", () => {
-  it("constructor falls back to the built-in chat endpoint while windsurf is hidden", () => {
+  it("constructor wires config from PROVIDERS.windsurf", () => {
     const ex = new WindsurfExecutor();
     expect(ex.provider).toBe("windsurf");
     expect(ex.config).toBeDefined();

@@ -99,9 +99,13 @@ describe("compressWithHeadroom openai-responses format (#1998)", () => {
       diagnostics,
     });
 
+    // Since a440ef43 only the plain-text tool outputs are sent (as tool messages), never
+    // the history; a proxy answer that doesn't map back 1:1 leaves body.input untouched.
     expect(data).toBeNull();
-    expect(global.fetch).not.toHaveBeenCalled();
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    const sent = JSON.parse(global.fetch.mock.calls[0][1].body);
+    expect(sent.messages.every((m) => m.role === "tool")).toBe(true);
     expect(body.input).toEqual(input);
-    expect(diagnostics.reason).toBe("skipped: openai-responses tool/reasoning input is not safe to compress");
+    expect(diagnostics.reason).toBe("proxy response did not preserve tool-output IDs, order, roles or text");
   });
 });

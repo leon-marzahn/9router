@@ -128,10 +128,7 @@ function makeOptions(bodyStream) {
   };
 }
 
-// The first test pays for importing chatCore's module graph (3s+ under full-suite
-// load); a test that times out keeps running and its late fetch call leaks into the
-// next test's mock counts, so give the file room instead of cascading failures.
-describe("forceStream provider config", { timeout: 20_000 }, () => {
+describe("forceStream provider config", () => {
   beforeEach(() => {
     executeMock.mockReset();
     executeMock.mockRejectedValue(new Error("boom"));
