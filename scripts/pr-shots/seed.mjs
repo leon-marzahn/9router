@@ -440,7 +440,8 @@ await updateSettings({
     },
   },
   customPromptEnabled: true,
-  customPrompt: "Answer in British English. Prefer small, focused functions and say which files you changed.",
+  customPrompt:
+    "Answer in British English. Prefer small, focused functions and say which files you changed.",
   requestPipelines: validatePipelines([
     {
       name: "no-secrets",
