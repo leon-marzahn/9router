@@ -178,7 +178,7 @@ async function login(server, password) {
 
 async function getOrCreateApiKey(server, cookie, keyName) {
   const list = await request(`${server}/api/keys`, { cookie });
-  if (list.status === 401) throw new Error("Unauthorized listing API keys — wrong password or session rejected");
+  if (list.status === 401) throw new Error(`Unauthorized listing API keys — wrong password or session rejected${list.data?.error ? `: ${list.data.error}` : ""}`);
   if (list.status !== 200) throw new Error(`Failed to list API keys (${list.status}): ${list.data?.error || ""}`);
   const keys = (list.data?.keys || []).filter((k) => k.isActive !== false);
   const existing = keys.find((k) => k.name === keyName);
@@ -242,6 +242,7 @@ async function fetchServerModels(server, cookie, tools) {
 async function listModels(server, apiKey) {
   const res = await request(`${server}/v1/models`, { apiKey });
   if (res.status === 401) throw new Error("API key rejected by server (/v1/models returned 401)");
+  if (res.status === 421) throw new Error(`Server refused this hostname (421): ${res.data?.error || "add it to ALLOWED_HOSTS"}`);
   if (res.status !== 200) return null;
   return new Set((res.data?.data || []).map((m) => m.id));
 }
@@ -410,4 +411,4 @@ async function runConnect(argv) {
   return failed || skipped ? 1 : 0;
 }
 
-module.exports = { run, __test__: { parseArgs, normalizeServerUrl, extractAuthCookie, maskKey, Cancelled, loadSavedPassword, savedEnvPath } };
+module.exports = { run, __test__: { parseArgs, normalizeServerUrl, extractAuthCookie, maskKey, login, getOrCreateApiKey, listModels, Cancelled, loadSavedPassword, savedEnvPath } };

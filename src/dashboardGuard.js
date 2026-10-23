@@ -1,3 +1,4 @@
+import net from "node:net";
 import { NextResponse } from "next/server";
 import { getSettings, validateApiKey } from "@/lib/localDb";
 import { verifyDashboardAuthToken } from "@/lib/auth/dashboardSession";
@@ -105,6 +106,10 @@ export function isLocalRequest(request) {
   // a reverse proxy, so the loopback socket is the proxy hop, not the end-user.
   if (request.headers.get("x-9r-via-proxy")) return false;
   if (!isLoopbackPeer(request)) return false;
+  // A loopback Host too: a reverse proxy on this machine forwarding an ALLOWED_HOSTS or
+  // base-URL name is remote traffic even if it adds no forwarding headers.
+  const host = request.headers.get("host");
+  if (host && !isLoopbackHostname(host)) return false;
   const origin = request.headers.get("origin");
   if (origin) {
     try {
@@ -112,6 +117,76 @@ export function isLocalRequest(request) {
     } catch { return false; }
   }
   return true;
+}
+
+// Host allow-list (DNS rebinding). A page on evil.com that re-resolves to 127.0.0.1 is
+// same-origin with us in the browser, so a same-origin GET carries no Origin header and
+// the peer socket is loopback. The Host header is the one thing it cannot fake: the
+// browser always sends the name from the page URL. Allowed: loopback names, any IP
+// literal (no DNS lookup, so it cannot be rebound; keeps Docker-by-host-IP working),
+// the BASE_URL / NEXT_PUBLIC_BASE_URL host, the active tunnel / Tailscale hosts, and
+// ALLOWED_HOSTS (comma-separated, for reverse proxies and LAN hostnames).
+function hostnameOf(value) {
+  if (!value) return "";
+  try {
+    const raw = String(value).trim();
+    return new URL(raw.includes("://") ? raw : `http://${raw}`).hostname.toLowerCase();
+  } catch {
+    return "";
+  }
+}
+
+function urlHostname(url) {
+  try {
+    return url ? new URL(url).hostname.toLowerCase() : "";
+  } catch {
+    return "";
+  }
+}
+
+function isIpLiteralHost(name) {
+  const bare = name.startsWith("[") && name.endsWith("]") ? name.slice(1, -1) : name;
+  return net.isIP(bare) !== 0;
+}
+
+function allowedHostnames(settings) {
+  const names = new Set();
+  for (const u of [process.env.NEXT_PUBLIC_BASE_URL, process.env.BASE_URL]) {
+    const h = urlHostname(u);
+    if (h) names.add(h);
+  }
+  for (const entry of String(process.env.ALLOWED_HOSTS || "").split(",")) {
+    const h = hostnameOf(entry);
+    if (h) names.add(h);
+  }
+  for (const u of [settings?.tunnelUrl, settings?.tailscaleUrl]) {
+    const h = urlHostname(u);
+    if (h) names.add(h);
+  }
+  return names;
+}
+
+// Characters that make URL parsing reinterpret a Host (userinfo, path, fragment).
+const MALFORMED_HOST_RE = /[@/\\#\s]/;
+
+function isAllowedHost(request, settings) {
+  const host = request.headers.get("host");
+  // HTTP/1.0 clients may omit Host; a browser (the only rebinding vector) never does.
+  if (!host) return true;
+  if (MALFORMED_HOST_RE.test(host)) return false;
+  const name = hostnameOf(host);
+  if (!name) return false;
+  if (isLoopbackHostname(name) || isIpLiteralHost(name)) return true;
+  return allowedHostnames(settings).has(name);
+}
+
+function misdirected(request) {
+  const raw = request.headers.get("host") || "";
+  const name = MALFORMED_HOST_RE.test(raw) ? "" : hostnameOf(raw);
+  const shown = name ? `"${name}"` : "This Host";
+  return NextResponse.json({
+    error: `${shown} is not in ALLOWED_HOSTS. To use the dashboard and /api under this name, set ALLOWED_HOSTS=${name || "<hostname>"} (comma-separated) on the server and restart.`,
+  }, { status: 421 });
 }
 
 function isPublicLlmApi(pathname) {
@@ -135,7 +210,9 @@ async function hasValidApiKey(request) {
 }
 
 async function canAccessPublicLlmApi(request) {
-  if (isLocalRequest(request)) return true;
+  // The keyless loopback bypass also needs an allowed Host, so a rebound page cannot
+  // read /v1/models. Requests with an API key or CLI token are unaffected by Host.
+  if (isLocalRequest(request) && isAllowedHost(request, await loadSettings())) return true;
   if (await hasValidCliToken(request)) return true;
   return await hasValidApiKey(request);
 }
@@ -161,10 +238,15 @@ async function loadSettings() {
   }
 }
 
+// requireLogin=false only waives login for a browser on this machine: loopback peer
+// (stamped by custom-server.js, never X-Forwarded-For), loopback Origin if any, not via a
+// reverse proxy or tunnel (both arrive with forwarding headers), and an allowed Host.
+// Everyone else needs a session exactly as if requireLogin were on.
 async function isAuthenticated(request) {
-  if (await hasValidToken(request)) return true;
   const settings = await loadSettings();
-  if (settings && settings.requireLogin === false) return true;
+  if (!isAllowedHost(request, settings)) return false;
+  if (await hasValidToken(request)) return true;
+  if (settings && settings.requireLogin === false && isLocalRequest(request)) return true;
   return false;
 }
 
@@ -186,6 +268,7 @@ export const __test__ = {
   isPublicApi,
   isLocalRequest,
   isPublicLlmApi,
+  isAllowedHost,
   extractApiKey,
   canAccessPublicLlmApi,
   canAccessLocalOnlyRoute,
@@ -193,6 +276,12 @@ export const __test__ = {
 
 export async function proxy(request) {
   const { pathname } = request.nextUrl;
+
+  // DNS-rebinding gate for everything but the LLM API (key-authenticated; its keyless
+  // loopback bypass checks Host itself), so reverse-proxied /v1 traffic is unaffected.
+  if (!isPublicLlmApi(pathname) && !isAllowedHost(request, await loadSettings())) {
+    return misdirected(request);
+  }
 
   // Local-only gate for spawn-capable / host-secret routes.
   if (isLocalOnlyPath(pathname)) {
@@ -246,8 +335,8 @@ export async function proxy(request) {
       // On error, keep defaults (require login, block tunnel)
     }
 
-    // If login not required, allow through
-    if (!requireLogin) return NextResponse.next();
+    // Login not required: only for a browser on this machine (see isAuthenticated).
+    if (!requireLogin && isLocalRequest(request)) return NextResponse.next();
 
     // Verify JWT token
     const token = request.cookies.get("auth_token")?.value;

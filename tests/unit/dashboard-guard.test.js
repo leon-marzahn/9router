@@ -33,6 +33,9 @@ vi.mock("@/lib/auth/dashboardSession", () => ({
   verifyDashboardAuthToken: mocks.verifyDashboardAuthToken,
 }));
 
+// The "remote" fixtures model a reverse-proxied deployment whose names are allow-listed.
+process.env.ALLOWED_HOSTS = "regent.example.com, router.example.com";
+
 const { proxy, __test__ } = await import("../../src/dashboardGuard.js");
 
 const PEER_TOKEN = "peer-token-fixture";
@@ -478,4 +481,159 @@ describe("dashboard guard formerly-listed protected API paths", () => {
       }
     });
   }
+});
+
+// requireLogin=false waives login only for a browser on this machine, and the Host
+// allow-list blocks DNS rebinding for every dashboard and /api route.
+describe("dashboard guard requireLogin off and Host allow-list", () => {
+  const withJwt = (req) => {
+    req.cookies.get = vi.fn(() => ({ value: "jwt" }));
+    return req;
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.NINEROUTER_PEER_TOKEN = PEER_TOKEN;
+    process.env.ALLOWED_HOSTS = "regent.example.com, router.example.com";
+    delete process.env.NEXT_PUBLIC_BASE_URL;
+    delete process.env.BASE_URL;
+    mocks.getSettings.mockResolvedValue({ requireLogin: false });
+    mocks.validateApiKey.mockResolvedValue(false);
+    mocks.getConsistentMachineId.mockResolvedValue("cli-token");
+    mocks.verifyDashboardAuthToken.mockResolvedValue(false);
+  });
+
+  it("lets a loopback peer read /api/keys without a session", async () => {
+    expect(await proxy(localRequest("/api/keys", { host: "localhost:20128" }))).toBe(mocks.nextResponse);
+    expect(await proxy(localRequest("/api/keys", { host: "[::1]:20128", "x-9r-real-ip": "::1" }))).toBe(mocks.nextResponse);
+    expect(await proxy(localRequest("/dashboard", { host: "127.0.0.1:20128" }))).toBe(mocks.nextResponse);
+  });
+
+  it("makes a remote peer log in", async () => {
+    const res = await proxy(localRequest("/api/keys", { host: "192.168.1.10:20128", "x-9r-real-ip": "192.168.1.20" }));
+    expect(res.status).toBe(401);
+    const page = await proxy(localRequest("/dashboard", { host: "192.168.1.10:20128", "x-9r-real-ip": "192.168.1.20" }));
+    expect(page.status).toBe(307);
+  });
+
+  it("ignores a spoofed X-Forwarded-For and an unproven x-9r-real-ip from a remote caller", async () => {
+    // custom-server.js strips X-Forwarded-For from untrusted peers and stamps the socket IP.
+    const spoof = localRequest("/api/keys", {
+      host: "localhost:20128", "x-9r-real-ip": "10.0.0.5", "x-forwarded-for": "127.0.0.1",
+    });
+    expect((await proxy(spoof)).status).toBe(401);
+    const noProof = request("/api/keys", { host: "localhost:20128", "x-9r-real-ip": "127.0.0.1" });
+    expect((await proxy(noProof)).status).toBe(401);
+  });
+
+  it("treats tunnel traffic (forwarding headers on a loopback socket) as remote", async () => {
+    mocks.getSettings.mockResolvedValue({ requireLogin: false, tunnelUrl: "https://abc.trycloudflare.com" });
+    const tunnel = () => localRequest("/api/keys", { host: "abc.trycloudflare.com", "x-9r-via-proxy": "1" });
+    expect((await proxy(tunnel())).status).toBe(401);
+    mocks.verifyDashboardAuthToken.mockResolvedValue(true);
+    expect(await proxy(withJwt(tunnel()))).toBe(mocks.nextResponse);
+  });
+
+  it("refuses a loopback request with a foreign Origin", async () => {
+    const res = await proxy(localRequest("/api/keys", { host: "localhost:20128", origin: "http://evil.com:20128" }));
+    expect(res.status).toBe(401);
+  });
+
+  it("rejects a DNS-rebinding Host with 421, with or without a session", async () => {
+    const rebind = { host: "evil.com:20128", origin: "http://evil.com:20128" };
+    expect((await proxy(localRequest("/api/keys", rebind))).status).toBe(421);
+    expect((await proxy(localRequest("/api/keys", { host: "evil.com:20128" }))).status).toBe(421);
+    expect((await proxy(localRequest("/dashboard", { host: "evil.com" }))).status).toBe(421);
+    mocks.verifyDashboardAuthToken.mockResolvedValue(true);
+    mocks.getSettings.mockResolvedValue({ requireLogin: true });
+    expect((await proxy(withJwt(localRequest("/api/keys", { host: "evil.com" })))).status).toBe(421);
+    expect((await proxy(withJwt(request("/api/settings", { host: "evil.com" })))).status).toBe(421);
+  });
+
+  it("allows loopback names, IP literals, base URL, tunnel, Tailscale and ALLOWED_HOSTS", async () => {
+    process.env.NEXT_PUBLIC_BASE_URL = "https://router.lan:8443";
+    process.env.ALLOWED_HOSTS = "Proxy.Example.org:443, https://other.example.net/";
+    const settings = { tunnelUrl: "https://abc.trycloudflare.com", tailscaleUrl: "https://box.tail1234.ts.net" };
+    const ok = (host) => __test__.isAllowedHost(request("/api/keys", { host }), settings);
+    for (const h of ["localhost", "localhost:20128", "127.0.0.1:1", "[::1]:20128", "192.168.1.10:20128",
+      "[fd00::1]:20128", "router.lan", "proxy.example.org", "other.example.net:80",
+      "abc.trycloudflare.com", "box.tail1234.ts.net"]) {
+      expect(ok(h), h).toBe(true);
+    }
+    for (const h of ["evil.com", "localhost.evil.com", "127.0.0.1.nip.io", "regent.example.com", "a b"]) {
+      expect(ok(h), h).toBe(false);
+    }
+    expect(__test__.isAllowedHost(request("/api/keys"), settings)).toBe(true);
+  });
+
+  it("serves an ALLOWED_HOSTS name to a session but not without one", async () => {
+    mocks.getSettings.mockResolvedValue({ requireLogin: true });
+    expect((await proxy(request("/api/keys", { host: "regent.example.com" }))).status).toBe(401);
+    mocks.verifyDashboardAuthToken.mockResolvedValue(true);
+    expect(await proxy(withJwt(request("/api/keys", { host: "regent.example.com" })))).toBe(mocks.nextResponse);
+  });
+
+  it("leaves keyed /v1 traffic alone on any Host and keeps the keyless bypass to allowed hosts", async () => {
+    mocks.validateApiKey.mockResolvedValue(true);
+    const keyed = request("/v1/chat/completions", { host: "llm.unlisted.example", authorization: "Bearer sk-ok" });
+    expect(await proxy(keyed)).toBe(mocks.nextResponse);
+    mocks.validateApiKey.mockResolvedValue(false);
+    expect(await proxy(localRequest("/v1/models", { host: "localhost:20128" }))).toBe(mocks.nextResponse);
+    expect((await proxy(localRequest("/v1/models", { host: "evil.com:20128" }))).status).toBe(401);
+  });
+
+  it("exports an isAuthenticated that applies the same rules (mimo login branch)", async () => {
+    const { isAuthenticated } = await import("../../src/dashboardGuard.js");
+    expect(await isAuthenticated(localRequest("/fe/x", { host: "localhost:20128" }))).toBe(true);
+    expect(await isAuthenticated(localRequest("/fe/x", { host: "evil.com" }))).toBe(false);
+    expect(await isAuthenticated(request("/fe/x", { host: "regent.example.com" }))).toBe(false);
+  });
+});
+
+// Review follow-ups: proxies on this machine, malformed Host, a 421 that says what to do.
+describe("dashboard guard loopback proxies and malformed Host", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.NINEROUTER_PEER_TOKEN = PEER_TOKEN;
+    process.env.ALLOWED_HOSTS = "regent.example.com";
+    process.env.NEXT_PUBLIC_BASE_URL = "https://router.lan";
+    mocks.getSettings.mockResolvedValue({ requireLogin: false });
+    mocks.verifyDashboardAuthToken.mockResolvedValue(false);
+  });
+
+  // The reviewer's three curl repros with requireLogin off, as the guard sees them after
+  // custom-server.js: socket 127.0.0.1, forwarding headers turned into x-9r-via-proxy.
+  it("needs login for a loopback proxy forwarding an allowed name, with or without XFF", async () => {
+    const withXff = localRequest("/api/keys", { host: "regent.example.com", "x-9r-via-proxy": "1" });
+    expect((await proxy(withXff)).status).toBe(401);
+    const noXff = localRequest("/api/keys", { host: "regent.example.com" });
+    expect((await proxy(noXff)).status).toBe(401);
+    expect((await proxy(localRequest("/api/keys", { host: "router.lan" }))).status).toBe(401);
+    expect((await proxy(localRequest("/dashboard", { host: "regent.example.com" }))).status).toBe(307);
+  });
+
+  it("cannot tell nginx's bare proxy_pass (Host 127.0.0.1, no forwarding headers) from a local browser", async () => {
+    // Documented: login off is unsafe behind a proxy that adds no forwarding headers.
+    expect(await proxy(localRequest("/api/keys", { host: "127.0.0.1:20128" }))).toBe(mocks.nextResponse);
+  });
+
+  it("does not waive login for an IP-literal Host even on a loopback socket", async () => {
+    expect((await proxy(localRequest("/api/keys", { host: "192.168.1.10:20128" }))).status).toBe(401);
+  });
+
+  it.each(["localhost@evil.com", "evil.com/localhost", "localhost\\evil.com", "localhost#x", "local host", "localhost\tx"])(
+    "rejects malformed Host %j",
+    async (host) => {
+      expect(__test__.isAllowedHost(request("/api/keys", { host: "x" }), {})).toBe(false);
+      const req = request("/api/keys");
+      req.headers = { get: (n) => (n.toLowerCase() === "host" ? host : null) };
+      expect(__test__.isAllowedHost(req, {})).toBe(false);
+    },
+  );
+
+  it("names ALLOWED_HOSTS and the host in the 421 body", async () => {
+    const res = await proxy(localRequest("/api/keys", { host: "other.example.com:8080" }));
+    expect(res.status).toBe(421);
+    expect(res.body.error).toContain("ALLOWED_HOSTS=other.example.com");
+  });
 });
