@@ -64,19 +64,23 @@ export function getProviderSetting(params, key) {
 }
 
 /**
- * Resolve base URL with optional override from providerOptions.baseUrl.
+ * Resolve the base URL: the connection's own baseUrl (set in the dashboard),
+ * else the provider default. Clients may not choose it: provider_options.baseUrl
+ * let any API key send the operator's search API key to a host of its choosing,
+ * so it is rejected (400) rather than honoured or silently ignored.
  *
- * The override is client-controlled and therefore SSRF-hardened: only public
- * http(s) URLs are accepted (internal/private/loopback/metadata addresses are
- * rejected via assertPublicUrl). The provider's own configured baseUrl is
- * trusted as-is (admin-controlled).
+ * The connection's baseUrl keeps its SSRF check: only public http(s) URLs.
  *
  * @param {SearchProviderConfig} config
  * @param {SearchRequestParams} params
  * @returns {string}
  */
 export function resolveBaseUrl(config, params) {
-  const override = getProviderSetting(params, "baseUrl");
+  if (params.providerOptions?.baseUrl !== undefined) {
+    throw new Error("provider_options.baseUrl is not allowed; the base URL is set on the connection");
+  }
+  const configured = params.providerSpecificData?.baseUrl;
+  const override = typeof configured === "string" && configured.trim() ? configured.trim() : undefined;
   if (override) {
     // SSRF guard: client-supplied base URLs must be public http(s) only.
     let parsed;

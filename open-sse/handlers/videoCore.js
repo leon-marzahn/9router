@@ -3,6 +3,7 @@ import { HTTP_STATUS } from "../config/runtimeConfig.js";
 import { refreshTokenByProvider } from "../services/tokenRefresh.js";
 import { PROVIDER_MEDIA } from "../providers/index.js";
 import { getVideoAdapter } from "./videoProviders/index.js";
+import { runCoreInProxyScope } from "../utils/proxyScope.js";
 
 // Upstream fetch deadline for video job submission/polling (the job itself is
 // async upstream — this only bounds the HTTP round-trip, not video rendering).
@@ -74,7 +75,13 @@ function combineSignals(signal, timeoutMs) {
  * @param {function} [options.onCredentialsRefreshed]
  * @returns {Promise<{ success: boolean, response: Response, status?: number, error?: string }>}
  */
-export async function handleVideoProxyCore({
+// Every fetch this handler makes (upstream call, token refresh on 401) goes
+// through the connection's proxy, like chat requests do. Callbacks run outside it.
+export async function handleVideoProxyCore(args) {
+  return runCoreInProxyScope(args, handleVideoProxyCoreInScope);
+}
+
+async function handleVideoProxyCoreInScope({
   provider,
   action = null,
   requestId = null,
