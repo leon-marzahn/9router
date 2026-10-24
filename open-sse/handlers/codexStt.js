@@ -5,6 +5,7 @@ import { proxyAwareFetch } from "../utils/proxyFetch.js";
 import codex from "../providers/registry/codex.js";
 import { convertAudio, readBounded, MAX_AUDIO_BYTES } from "./codexSttAudio.js";
 import { createErrorResult } from "../utils/error.js";
+import { PROXY_UNAVAILABLE } from "../utils/proxyScope.js";
 
 let active = 0;
 // `local` marks refusals this gateway makes itself, which say nothing about the Codex
@@ -98,6 +99,11 @@ export async function transcribeCodex({ formData, credentials, signal: clientSig
       ? new Response(data.text, { headers: { ...cors, "Content-Type": "text/plain; charset=utf-8" } })
       : Response.json({ text: data.text }, { headers: cors }) };
   } catch (error) {
+    // The account's proxy failed (strict pool down, or a request that must not
+    // be replayed directly): skip the account without marking it unavailable.
+    if (error?.code === PROXY_UNAVAILABLE) {
+      return Object.assign(createErrorResult(503, "Account proxy is unavailable"), { local: "connection" });
+    }
     const result = createErrorResult(error.status || (signal.aborted ? 504 : 502), error.status ? error.message : "Codex transcription failed");
     if (error.local) result.local = error.local;
     return result;

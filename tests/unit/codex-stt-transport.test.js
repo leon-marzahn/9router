@@ -83,3 +83,9 @@ it("bounds streaming reads and cancels aborts while waiting for body chunks", as
   const hanging = new ReadableStream(); const pending = readBounded(hanging, 10, controller.signal); controller.abort();
   await expect(pending).rejects.toBeDefined();
 });
+it("reports a dead account proxy as a connection-local failure, not an account failure", async () => {
+  // Strict proxy on a port nothing listens on: refused before anything is sent.
+  const result = await transcribeCodex({ formData: form(), credentials, proxyOptions: { connectionProxyEnabled: true, connectionProxyUrl: "http://127.0.0.1:1", strictProxy: true } });
+  expect(result.status).toBe(503);
+  expect(result.local).toBe("connection");
+});
