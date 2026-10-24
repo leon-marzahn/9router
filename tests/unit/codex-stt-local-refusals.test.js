@@ -29,6 +29,15 @@ vi.mock("@/sse/services/budget.js", () => ({ enforceBudget: async () => null }))
 vi.mock("@/sse/services/tokenRefresh.js", () => ({ checkAndRefreshToken: async (_p, c) => c }));
 vi.mock("@/lib/network/connectionProxy.js", () => ({ resolveConnectionProxyConfig: mocks.proxy }));
 vi.mock("@/lib/usageDb.js", () => ({ saveRequestUsage: mocks.usage }));
+// Real keys: sk-key-a/b/c and sk-customer. Anything else is a made-up bearer.
+vi.mock("@/lib/db/repos/apiKeysRepo.js", () => ({
+  getApiKeyByKey: async (key) =>
+    ["sk-key-a", "sk-key-b", "sk-key-c", "sk-customer"].includes(key)
+      ? { id: `id-${key}`, key, isActive: true }
+      : key === "sk-paused"
+        ? { id: "id-paused", key, isActive: false }
+        : null,
+}));
 vi.mock("open-sse/utils/proxyFetch.js", () => ({ proxyAwareFetch: mocks.fetch }));
 vi.mock("open-sse/handlers/codexSttAudio.js", async (importOriginal) => ({
   ...(await importOriginal()),
@@ -50,7 +59,7 @@ function request(key) {
   form.set("file", new File(["audio"], "a.wav"));
   return new Request("http://localhost/v1/audio/transcriptions", {
     method: "POST",
-    headers: { Authorization: `Bearer ${key}` },
+    headers: key ? { Authorization: `Bearer ${key}` } : {},
     body: form,
   });
 }
@@ -110,6 +119,23 @@ it("limits one key to one Codex transcription at a time", async () => {
   // The slot is free again afterwards.
   mocks.convert.mockResolvedValueOnce(new Blob(["wav"]));
   expect((await handleStt(request("sk-key-a"))).status).toBe(200);
+});
+
+it("puts made-up, paused and missing keys into one shared slot", async () => {
+  const first = handleStt(request("sk-made-up-1"));
+  await vi.waitFor(() => expect(held).toHaveLength(1));
+
+  // A different invented bearer is not a new slot, nor is a paused key or no key at all.
+  expect((await handleStt(request("sk-made-up-2"))).status).toBe(429);
+  expect((await handleStt(request("sk-paused"))).status).toBe(429);
+  expect((await handleStt(request(null))).status).toBe(429);
+  // A real key still has its own slot.
+  const real = handleStt(request("sk-key-a"));
+  await vi.waitFor(() => expect(held).toHaveLength(2));
+
+  for (const h of held) h.reject(Object.assign(new Error("released"), { status: 400 }));
+  held = [];
+  await Promise.all([first, real]);
 });
 
 it("skips an account whose proxy is down without marking it", async () => {

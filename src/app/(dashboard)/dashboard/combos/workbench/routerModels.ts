@@ -49,10 +49,10 @@ export function systemOneGroups(connections: Conn[]): PickerGroup[] {
         .map((m) => ({
           id: `${alias}/${m.id}`,
           name: m.name || m.id,
-          detail: free ? `${alias}/${m.id} · ${FREE_ROUTER_NOTE}` : `${alias}/${m.id}`,
+          detail: `${alias}/${m.id}`,
+          ...(free ? { note: FREE_ROUTER_NOTE } : {}),
         }));
-      const providerName = free ? `${p.name || id} · ${FREE_ROUTER_NOTE}` : p.name || id;
-      return { providerId: id, providerName, models, free };
+      return { providerId: id, providerName: p.name || id, models, free };
     })
     .filter((g) => g.models.length > 0);
   // Authenticated lanes first; the stable sort keeps registry order within each.

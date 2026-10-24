@@ -7,6 +7,8 @@ export interface PickerModel {
   name: string;
   /** Shown under the name when it differs from it (e.g. the id sent upstream). */
   detail?: string;
+  /** A caution shown on its own line, wrapped rather than truncated. */
+  note?: string;
 }
 
 export interface PickerGroup {

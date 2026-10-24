@@ -33,8 +33,9 @@ describe("free third-party router lanes", () => {
     expect(firstFree).toBeGreaterThan(-1);
     expect(free.slice(firstFree).every(Boolean)).toBe(true);
     for (const g of groups.filter((x) => isFreeThirdPartyRouter(x.models[0].id))) {
-      expect(g.providerName).toContain(FREE_ROUTER_NOTE);
-      expect(g.models.every((m) => m.detail.includes(FREE_ROUTER_NOTE))).toBe(true);
+      // The caution is its own line on each option (wraps on mobile), not part of a title.
+      expect(g.models.every((m) => m.note === FREE_ROUTER_NOTE)).toBe(true);
+      expect(g.providerName).not.toContain(FREE_ROUTER_NOTE);
     }
   });
 

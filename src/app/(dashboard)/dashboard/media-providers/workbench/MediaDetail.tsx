@@ -244,16 +244,20 @@ export function MediaDetail({
       {kind.id === "stt" && !p.custom && p.id in OAUTH_PROVIDERS && (
         <div className="mt-6 flex items-start gap-2.5 rounded-xl bg-surface px-4 py-3 text-xs leading-relaxed ring-1 ring-border">
           <Icon name="link" size={18} className="mt-px shrink-0 text-text-muted" />
-          <p className="min-w-0 text-text-muted">
-            Uses the {p.name} accounts you signed in to under Providers; an API key can&rsquo;t
-            stand in for them.{" "}
+          <div className="min-w-0">
+            <p className="text-text-muted">
+              Uses the {p.name} accounts you signed in to under Providers; an API key can&rsquo;t
+              stand in for them.
+            </p>
+            {/* Own line, 40px tall on touch screens so it is an easy tap target. */}
             <Link
               href={`/dashboard/providers?p=${encodeURIComponent(p.id)}`}
-              className="font-medium text-accent-text underline-offset-2 hover:underline"
+              className="-my-1 inline-flex min-h-10 items-center gap-1 font-medium text-accent-text underline-offset-2 hover:underline md:min-h-8"
             >
               Manage {p.name} sign-ins
+              <Icon name="arrow_forward" size={14} />
             </Link>
-          </p>
+          </div>
         </div>
       )}
 

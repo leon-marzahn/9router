@@ -14,13 +14,28 @@ import { enforceBudget } from "@/sse/services/budget.js";
 import { checkAndRefreshToken } from "../services/tokenRefresh.js";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy.js";
 import { saveRequestUsage } from "@/lib/usageDb.js";
+import { getApiKeyByKey } from "@/lib/db/repos/apiKeysRepo.js";
 
 const STT_ENDPOINT = "/v1/audio/transcriptions";
 
 // Codex transcription runs at most two conversions per process (codexStt.js). One API
 // key may hold only one of them, so a single key can't take every slot from the rest.
 export const CODEX_STT_PER_KEY = 1;
-const codexInFlight = new Map(); // key (or "local") -> running requests
+const codexInFlight = new Map(); // slot -> running requests
+// Callers without a valid, active key (no key, or a made-up one while "require API key"
+// is off) all share this slot, so inventing bearers can't get around the limit.
+export const SHARED_STT_SLOT = "unvalidated";
+
+/** Slot for a caller: the stored key's id when the bearer is a real, active key. */
+async function codexSlotFor(apiKey) {
+  if (!apiKey) return SHARED_STT_SLOT;
+  try {
+    const record = await getApiKeyByKey(apiKey);
+    return record?.id && record.isActive ? `key:${record.id}` : SHARED_STT_SLOT;
+  } catch {
+    return SHARED_STT_SLOT;
+  }
+}
 
 /**
  * One usage row per successful transcription, against the calling key, so request-limit
@@ -114,7 +129,7 @@ export async function handleStt(request) {
 
   if (provider !== "codex") return transcribeWithAccounts({ request, provider, model, modelStr, formData, modelTransport, apiKey });
 
-  const slot = apiKey || "local";
+  const slot = await codexSlotFor(apiKey);
   const running = codexInFlight.get(slot) || 0;
   if (running >= CODEX_STT_PER_KEY) {
     return errorResponse(HTTP_STATUS.RATE_LIMITED, "Too many transcriptions in progress for this key; wait for one to finish");
