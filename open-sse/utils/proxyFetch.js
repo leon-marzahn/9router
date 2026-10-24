@@ -387,10 +387,13 @@ function refuseDirectFallback(proxyError, options, proxyOptions) {
 }
 
 export async function proxyAwareFetch(url, options = {}, proxyOptions = null) {
+  // A caller that brings its own dispatcher (the SSRF guard's IP-pinned agent
+  // for client image URLs) chose the transport: never swap it for a scope,
+  // connection or global (HTTPS_PROXY) proxy, which would resolve the name
+  // itself and skip the IP check the pin enforces.
+  if (options?.dispatcher) return originalFetch(url, options);
   // No explicit options: use the connection scope, if any (proxyScope.js).
-  // A caller that brings its own dispatcher (e.g. the SSRF guard's IP-pinned
-  // agent for image URLs) keeps it; the scope never replaces it.
-  if (!proxyOptions && !options?.dispatcher) proxyOptions = getScopedProxyOptions();
+  if (!proxyOptions) proxyOptions = getScopedProxyOptions();
   const targetUrl = typeof url === "string" ? url : url.toString();
 
   // Vercel relay: forward request via relay headers

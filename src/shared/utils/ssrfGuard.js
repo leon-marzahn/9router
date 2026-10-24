@@ -139,6 +139,19 @@ function isBlockedIpv6Groups(g) {
   return false;
 }
 
+// True if a resolved IP address (what dns.lookup returns, IPv4 or IPv6, with
+// or without brackets/zone id) is not a public target. Anything that doesn't
+// parse as an IP counts as blocked. Shared with the image fetch guard so both
+// use one IPv6 parser (::, ::ffff:7f00:1, 64:ff9b::/96, ::a.b.c.d …).
+export function isBlockedIpAddress(address) {
+  if (typeof address !== "string" || !address) return true;
+  const ip = address.toLowerCase().replace(/^\[|\]$/g, "").split("%")[0];
+  if (ipv4ToInt(ip) !== null) return isBlockedIpv4(ip);
+  if (!ip.includes(":")) return true;
+  const groups = parseIPv6ToGroups(ip);
+  return !groups || isBlockedIpv6Groups(groups);
+}
+
 function normalizeHost(hostname) {
   // A trailing dot marks an FQDN and is semantically insignificant
   // ("localhost." and "localhost" are the same host) but was being compared
