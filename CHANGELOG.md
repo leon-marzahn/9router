@@ -1,4 +1,16 @@
 
+# v101.0.4 (2026-10-24)
+
+## Upgrade notes
+- Search: clients can no longer pass `provider_options.baseUrl` (security fix: it let any API key receive the operator's search API key). Such requests now get 400. Set a custom base URL (e.g. your own SearXNG) on the search connection in the dashboard instead. Search hosts that don't resolve on the server itself are now refused, so setups without local DNS behind a strict proxy can't search.
+- Proxies: token refresh and all non-chat calls (embeddings, images, video, STT/TTS, search, usage, connection tests, model lists) now use the connection's own proxy or pool. With a strict pool whose proxy is down, these now fail instead of going direct.
+- Client-supplied image URLs are always fetched directly from the server (never through a proxy), so private-address checks stay reliable.
+
+## Fixes
+- **proxy**: Send token refresh and connection side-calls through the connection's proxy
+- **proxy**: Make every token refresh connect-only and guard client image URLs
+- **ssrf**: One IPv6 check for image fetches, and never swap a pinned dispatcher
+
 # v101.0.3 (2026-10-23)
 
 ## Upgrade notes
