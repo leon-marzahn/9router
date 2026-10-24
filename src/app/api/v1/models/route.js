@@ -20,7 +20,15 @@ import { resolveCursorModels } from "open-sse/services/cursorModels.js";
 import { resolveZedModels } from "open-sse/shared/zedAuth.js";
 import { updateProviderCredentials } from "@/sse/services/tokenRefresh";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
+import { runWithProxyOptions, proxyOptionsFromConfig } from "open-sse/utils/proxyScope.js";
 import { capabilitiesFromServiceKind, getCapabilitiesForModel, aggregateComboCapabilities } from "open-sse/providers/capabilities.js";
+
+// Live catalog lookups (and the token refresh they may trigger) go through
+// the connection's proxy, like its upstream calls.
+async function withConnectionProxy(conn, fn) {
+  const proxyOptions = proxyOptionsFromConfig(await resolveConnectionProxyConfig(conn?.providerSpecificData || {}));
+  return runWithProxyOptions(proxyOptions, fn);
+}
 
 // Qoder shares one live resolver across intl (qoder) and CN (qoder-cn); the
 // credentials carry the provider id so qoderModels picks the right region's
@@ -483,7 +491,7 @@ export async function buildModelsList(kindFilter, options = {}) {
         : providerModels.map((model) => model.id);
 
       if (isCompatibleProvider && rawModelIds.length === 0 && !skipDynamicFetch) {
-        rawModelIds = await fetchCompatibleModelIds(conn);
+        rawModelIds = await withConnectionProxy(conn, () => fetchCompatibleModelIds(conn));
       }
 
       // Config-driven live catalog override (e.g. Kiro returns dynamic
@@ -492,7 +500,7 @@ export async function buildModelsList(kindFilter, options = {}) {
       const liveResolver = LIVE_MODEL_RESOLVERS[providerId];
       if (liveResolver && !hasExplicitEnabledModels) {
         try {
-          const live = await liveResolver(conn);
+          const live = await withConnectionProxy(conn, () => liveResolver(conn));
           if (live?.models?.length) {
             rawModelIds = live.models.map((m) => m.id);
             liveModelKindById = new Map(

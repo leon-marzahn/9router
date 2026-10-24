@@ -30,6 +30,7 @@ import {
   getVercelAiGatewayUsage,
   getQoderUsage,
 } from "./usage/misc.js";
+import { runWithProxyOptions } from "../utils/proxyScope.js";
 
 /**
  * Get usage data for a provider connection
@@ -88,7 +89,8 @@ export async function getUsageForProvider(connection, proxyOptions = null, optio
 
   const handler = USAGE_HANDLERS[provider];
   if (!handler) return { message: `Usage API not implemented for ${provider}` };
-  return await handler({
+  // Handlers that call the global fetch (iflow, minimax-code) also go through the proxy.
+  return await runWithProxyOptions(proxyOptions, () => handler({
     provider,
     accessToken,
     apiKey,
@@ -96,5 +98,5 @@ export async function getUsageForProvider(connection, proxyOptions = null, optio
     providerDataWithProjectId,
     proxyOptions,
     force: options.force === true,
-  });
+  }));
 }

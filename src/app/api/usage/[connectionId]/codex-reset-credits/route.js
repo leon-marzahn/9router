@@ -4,6 +4,7 @@ import "open-sse/index.js";
 import { getProviderConnectionById } from "@/lib/localDb";
 import { consumeCodexRateLimitResetCredit, getCodexRateLimitResetCredits } from "open-sse/services/usage.js";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
+import { proxyOptionsFromConfig, PROXY_UNAVAILABLE } from "open-sse/utils/proxyScope.js";
 import { refreshAndUpdateCredentials } from "../route.js";
 
 const AUTH_EXPIRED_PATTERNS = ["expired", "authentication", "unauthorized", "401", "re-authorize"];
@@ -63,14 +64,8 @@ async function getCodexConnection(connectionId) {
     return { response: Response.json({ error: "Codex reset credits require an OAuth or access-token connection." }, { status: 400 }) };
   }
 
-  const proxyConfig = await resolveConnectionProxyConfig(connection.providerSpecificData);
-  const proxyOptions = {
-    connectionProxyEnabled: proxyConfig.connectionProxyEnabled === true,
-    connectionProxyUrl: proxyConfig.connectionProxyUrl || "",
-    connectionNoProxy: proxyConfig.connectionNoProxy || "",
-    vercelRelayUrl: proxyConfig.vercelRelayUrl || "",
-    strictProxy: false,
-  };
+  // Same strict semantics as the connection's upstream calls.
+  const proxyOptions = proxyOptionsFromConfig(await resolveConnectionProxyConfig(connection.providerSpecificData));
 
   return { connection, isOAuth, proxyOptions };
 }
@@ -81,6 +76,9 @@ async function refreshCodexConnection(connection, proxyOptions) {
     return { connection: result.connection };
   } catch (refreshError) {
     console.error("[Codex Reset Credits API] Credential refresh failed:", refreshError);
+    if (refreshError?.code === PROXY_UNAVAILABLE) {
+      return { response: Response.json({ error: "The connection's proxy is unavailable. The sign-in itself may still be valid.", proxyUnavailable: true }, { status: 503 }) };
+    }
     return { response: Response.json({ error: `Credential refresh failed: ${refreshError.message}` }, { status: 401 }) };
   }
 }

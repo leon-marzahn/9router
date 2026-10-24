@@ -3,6 +3,7 @@ import { HTTP_STATUS, FETCH_CONNECT_TIMEOUT_MS } from "../config/runtimeConfig.j
 import { getExecutor } from "../executors/index.js";
 import { refreshWithRetry } from "../services/tokenRefresh.js";
 import { getEmbeddingAdapter } from "./embeddingProviders/index.js";
+import { runCoreInProxyScope, refreshCredentialsWithProxy, proxyOptionsFromCredentials } from "../utils/proxyScope.js";
 
 /**
  * Core embeddings handler — orchestrator only. Provider-specific URL/headers/body/normalize
@@ -10,7 +11,13 @@ import { getEmbeddingAdapter } from "./embeddingProviders/index.js";
  *
  * @returns {Promise<{ success: boolean, response: Response, status?: number, error?: string }>}
  */
-export async function handleEmbeddingsCore({
+// Every fetch this handler makes (upstream call, token refresh on 401) goes
+// through the connection's proxy, like chat requests do. Callbacks run outside it.
+export async function handleEmbeddingsCore(args) {
+  return runCoreInProxyScope(args, handleEmbeddingsCoreInScope);
+}
+
+async function handleEmbeddingsCoreInScope({
   body,
   modelInfo,
   credentials,
@@ -83,7 +90,7 @@ export async function handleEmbeddingsCore({
       providerResponse.status === HTTP_STATUS.FORBIDDEN)
   ) {
     const newCredentials = await refreshWithRetry(
-      () => executor.refreshCredentials(credentials, log),
+      () => refreshCredentialsWithProxy(executor, credentials, log, proxyOptionsFromCredentials(credentials)),
       3,
       log
     );

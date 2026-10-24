@@ -10,6 +10,7 @@ import { resolveKimchiModels } from "open-sse/services/kimchiModels.js";
 import { resolveQoderModels } from "open-sse/services/qoderModels.js";
 import { resolveGrokCliModels } from "open-sse/services/grokCliModels.js";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
+import { runWithProxyOptions, proxyOptionsFromConfig } from "open-sse/utils/proxyScope.js";
 import { resolveCursorModels } from "open-sse/services/cursorModels.js";
 import { resolveZedModels } from "open-sse/shared/zedAuth.js";
 import { resolveClineModels, resolveClinepassModels } from "open-sse/services/clinepassModels.js";
@@ -544,7 +545,18 @@ const PROVIDER_MODELS_CONFIG = {
 /**
  * GET /api/providers/[id]/models - Get models list from provider
  */
-export async function GET(request, { params }) {
+// Every request made while listing (model endpoints, token refresh on 401)
+// goes through the connection's proxy, like its upstream calls.
+export async function GET(request, context) {
+  const { id } = await context.params;
+  const connection = await getProviderConnectionById(id).catch(() => null);
+  const proxyOptions = connection
+    ? proxyOptionsFromConfig(await resolveConnectionProxyConfig(connection.providerSpecificData || {}))
+    : null;
+  return runWithProxyOptions(proxyOptions, () => listConnectionModels(request, context));
+}
+
+async function listConnectionModels(request, { params }) {
   try {
     const { id } = await params;
     const connection = await getProviderConnectionById(id);
