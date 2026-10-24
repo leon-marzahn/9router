@@ -3,6 +3,7 @@ import { HTTP_STATUS, FETCH_CONNECT_TIMEOUT_MS } from "../config/runtimeConfig.j
 import { PROVIDER_MEDIA } from "../providers/index.js";
 import { getModelUpstreamId } from "../config/providerModels.js";
 import { generateSessionId } from "../executors/opencode-zen.js";
+import { runCoreInProxyScope } from "../utils/proxyScope.js";
 
 /**
  * Core System One (Jev) handler — native decision payload pass-through.
@@ -11,7 +12,13 @@ import { generateSessionId } from "../executors/opencode-zen.js";
  *
  * @returns {Promise<{ success: boolean, response: Response, usage?: object, status?: number, error?: string }>}
  */
-export async function handleSystemoneCore({
+// Every fetch this handler makes (upstream call, token refresh on 401) goes
+// through the connection's proxy, like chat requests do. Callbacks run outside it.
+export async function handleSystemoneCore(args) {
+  return runCoreInProxyScope(args, handleSystemoneCoreInScope);
+}
+
+async function handleSystemoneCoreInScope({
   body,
   modelInfo,
   credentials,

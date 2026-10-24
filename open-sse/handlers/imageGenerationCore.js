@@ -4,6 +4,7 @@ import { refreshWithRetry } from "../services/tokenRefresh.js";
 import { getExecutor } from "../executors/index.js";
 import { getImageAdapter } from "./imageProviders/index.js";
 import { urlToBase64 } from "./imageProviders/_base.js";
+import { runCoreInProxyScope } from "../utils/proxyScope.js";
 
 function serializeRequestBody(requestBody) {
   if (typeof FormData !== "undefined" && requestBody instanceof FormData) return requestBody;
@@ -27,7 +28,13 @@ function serializeRequestBody(requestBody) {
  * @param {function} [options.onUsage] - Receives exact provider-reported usage when available
  * @returns {Promise<{ success: boolean, response: Response, status?: number, error?: string }>}
  */
-export async function handleImageGenerationCore({
+// Every fetch this handler makes (upstream call, token refresh on 401) goes
+// through the connection's proxy, like chat requests do. Callbacks run outside it.
+export async function handleImageGenerationCore(args) {
+  return runCoreInProxyScope(args, handleImageGenerationCoreInScope);
+}
+
+async function handleImageGenerationCoreInScope({
   body,
   modelInfo,
   credentials,
