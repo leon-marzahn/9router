@@ -1,4 +1,18 @@
 
+# v102.2.0 (2026-10-24)
+
+## Upgrade notes
+- Search: clients can no longer pass `provider_options.baseUrl` (security fix: it let any API key receive the operator's search API key). Such requests now get 400. Set a custom base URL (e.g. your own SearXNG) on the search connection in the dashboard instead. Search hosts that don't resolve on the server itself are now refused, so setups without local DNS behind a strict proxy can't search.
+- Proxies: token refresh and all non-chat calls (embeddings, images, video, STT/TTS, search, usage, connection tests, model lists) now use the connection's own proxy or pool. With a strict pool whose proxy is down, these now fail instead of going direct.
+- Client-supplied image URLs are always fetched directly from the server (never through a proxy), so private-address checks stay reliable.
+
+## Fixes
+- **sync**: Upstream 9router 0.5.109 fixes (#149)
+- **security**: Connection proxy for refresh and all upstream calls; close search key leak and image SSRF (#151)
+
+## 9router sync
+- **sync**: 9router 0.5.109 (#150)
+
 # v102.1.0 (2026-10-23)
 
 ## Upgrade notes
