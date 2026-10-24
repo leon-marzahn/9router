@@ -105,7 +105,10 @@ function buildProxyOptions(cfg) {
     connectionProxyUrl: cfg.connectionProxyUrl || "",
     connectionNoProxy: cfg.connectionNoProxy || "",
     vercelRelayUrl: cfg.vercelRelayUrl || "",
-    strictProxy: false,
+    // Same strict semantics as the connection's upstream calls: a strict pool
+    // never lets the refresh or ping go out directly.
+    proxyPoolId: cfg.proxyPoolId || null,
+    strictProxy: cfg.strictProxy === true,
   };
 }
 

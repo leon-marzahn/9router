@@ -11,6 +11,7 @@ import { buildSearchRequest } from "./callers.js";
 import { normalizeSearchResponse } from "./normalizers.js";
 import { handleChatSearch } from "./chatSearch.js";
 import { fetchPublic } from "../../../src/shared/utils/ssrfGuard.js";
+import { runCoreInProxyScope } from "../../utils/proxyScope.js";
 
 const GLOBAL_TIMEOUT_MS = 15000;
 const NON_RETRIABLE = new Set([400, 401, 403, 404]);
@@ -156,7 +157,13 @@ async function tryDedicatedProvider({ provider, providerConfig, body, credential
  * @param {object|null} options.credentials  Provider credentials
  * @param {object}   [options.log]           Logger
  */
-export async function handleSearchCore({ body, provider, providerConfig, credentials, log }) {
+// Every fetch this handler makes (upstream call, token refresh on 401) goes
+// through the connection's proxy, like chat requests do. Callbacks run outside it.
+export async function handleSearchCore(args) {
+  return runCoreInProxyScope(args, handleSearchCoreInScope);
+}
+
+async function handleSearchCoreInScope({ body, provider, providerConfig, credentials, log }) {
   const globalStartTime = Date.now();
 
   // 1. Sanitize query

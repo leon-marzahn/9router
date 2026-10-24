@@ -6,6 +6,19 @@ import { getUsageForProvider } from "open-sse/services/usage.js";
 import { isUnrecoverableRefreshError } from "open-sse/services/tokenRefresh.js";
 import { getExecutor } from "open-sse/executors/index.js";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
+import { proxyOptionsFromConfig, refreshCredentialsWithProxy, PROXY_UNAVAILABLE } from "open-sse/utils/proxyScope.js";
+
+// Usage handlers wrap errors in their own message, so match the text as well.
+function isProxyUnavailable(error) {
+  return error?.code === PROXY_UNAVAILABLE || /Upstream proxy unavailable/.test(String(error?.message || ""));
+}
+
+function proxyUnavailableResponse() {
+  return Response.json({
+    error: "The connection's proxy is unavailable, so quota couldn't be read. The sign-in itself may still be valid.",
+    proxyUnavailable: true,
+  }, { status: 503 });
+}
 import { USAGE_APIKEY_PROVIDERS } from "@/shared/constants/providers";
 
 // Detect auth-expired messages returned by usage providers instead of throwing
@@ -50,8 +63,9 @@ export async function refreshAndUpdateCredentials(connection, force = false, pro
     return { connection, refreshed: false };
   }
 
-  // Use executor's refreshCredentials method (with optional proxy)
-  const refreshResult = await executor.refreshCredentials(credentials, console, proxyOptions);
+  // Refresh through the connection's proxy (also covers executors whose
+  // refreshCredentials ignores proxyOptions and calls the global fetch).
+  const refreshResult = await refreshCredentialsWithProxy(executor, credentials, console, proxyOptions);
 
   // Refresh token reused/invalidated — token family is revoked; do not continue with the dead token.
   if (refreshResult && isUnrecoverableRefreshError(refreshResult)) {
@@ -156,15 +170,9 @@ export async function GET(request, { params }) {
       return Response.json({ message: "Usage not available for this connection" });
     }
 
-    // Resolve connection proxy config; force strictProxy=false so quota/refresh fall back to direct on failure
-    const proxyConfig = await resolveConnectionProxyConfig(connection.providerSpecificData);
-    const proxyOptions = {
-      connectionProxyEnabled: proxyConfig.connectionProxyEnabled === true,
-      connectionProxyUrl: proxyConfig.connectionProxyUrl || "",
-      connectionNoProxy: proxyConfig.connectionNoProxy || "",
-      vercelRelayUrl: proxyConfig.vercelRelayUrl || "",
-      strictProxy: false,
-    };
+    // Same proxy and strict semantics as the connection's upstream calls: a
+    // strict pool fails here too rather than reaching the provider directly.
+    const proxyOptions = proxyOptionsFromConfig(await resolveConnectionProxyConfig(connection.providerSpecificData));
 
     // Refresh credentials only for OAuth connections (apikey has no token refresh)
     if (isOAuth) {
@@ -173,6 +181,8 @@ export async function GET(request, { params }) {
         connection = result.connection;
       } catch (refreshError) {
         console.error("[Usage API] Credential refresh failed:", refreshError);
+        // The sign-in may be fine: the connection's proxy could not be used.
+        if (isProxyUnavailable(refreshError)) return proxyUnavailableResponse();
         return Response.json({
           error: `Credential refresh failed: ${refreshError.message}`
         }, { status: 401 });
@@ -198,6 +208,7 @@ export async function GET(request, { params }) {
   } catch (error) {
     const provider = connection?.provider ?? "unknown";
     console.warn(`[Usage] ${provider}: ${error.message}`);
+    if (isProxyUnavailable(error)) return proxyUnavailableResponse();
     return Response.json({ error: error.message }, { status: 500 });
   }
 }
