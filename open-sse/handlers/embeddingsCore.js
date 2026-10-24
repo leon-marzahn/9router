@@ -3,7 +3,7 @@ import { HTTP_STATUS, FETCH_CONNECT_TIMEOUT_MS } from "../config/runtimeConfig.j
 import { getExecutor } from "../executors/index.js";
 import { refreshWithRetry } from "../services/tokenRefresh.js";
 import { getEmbeddingAdapter } from "./embeddingProviders/index.js";
-import { runCoreInProxyScope } from "../utils/proxyScope.js";
+import { runCoreInProxyScope, refreshCredentialsWithProxy, proxyOptionsFromCredentials } from "../utils/proxyScope.js";
 
 /**
  * Core embeddings handler — orchestrator only. Provider-specific URL/headers/body/normalize
@@ -90,7 +90,7 @@ async function handleEmbeddingsCoreInScope({
       providerResponse.status === HTTP_STATUS.FORBIDDEN)
   ) {
     const newCredentials = await refreshWithRetry(
-      () => executor.refreshCredentials(credentials, log),
+      () => refreshCredentialsWithProxy(executor, credentials, log, proxyOptionsFromCredentials(credentials)),
       3,
       log
     );

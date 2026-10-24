@@ -1,4 +1,5 @@
 // Shared helpers for image provider adapters
+import { fetchImageAsBase64 } from "../../translator/concerns/image.js";
 
 export const POLL_INTERVAL_MS = 1500;
 export const POLL_TIMEOUT_MS = 120000;
@@ -18,7 +19,16 @@ export function sizeToAspectRatio(size) {
   return map[size] || "1:1";
 }
 
-// Fetch URL → base64 (for providers returning image URLs)
+// Client-supplied image URL → base64, through the SSRF guard: public hosts only
+// (connect pinned to the validated IP), no redirects, size cap, real image
+// bytes only. Never use urlToBase64 for a URL that came from the request body.
+export async function clientImageUrlToBase64(url) {
+  const fetched = await fetchImageAsBase64(url);
+  if (!fetched) throw new Error("Image URL rejected or unreachable (public http(s) images only)");
+  return fetched.url.slice(fetched.url.indexOf(",") + 1);
+}
+
+// Fetch URL → base64 (for providers returning image URLs; not for client input)
 export async function urlToBase64(url) {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Failed to fetch image: ${res.status}`);

@@ -10,7 +10,16 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vite-plus/test";
+
+// Client-supplied image URLs go through the SSRF-guarded fetch (DNS-pinned,
+// real image bytes only); stub it so these tests stay offline.
+vi.mock("../../open-sse/translator/concerns/image.js", async (importOriginal) => ({
+  ...(await importOriginal()),
+  fetchImageAsBase64: vi.fn(),
+}));
+
 import { handleImageGenerationCore } from "../../open-sse/handlers/imageGenerationCore.js";
+import { fetchImageAsBase64 } from "../../open-sse/translator/concerns/image.js";
 import { CODEX_CLI_VERSION } from "../../open-sse/config/appConstants.js";
 
 const originalFetch = global.fetch;
@@ -498,9 +507,11 @@ describe("handleImageGenerationCore", () => {
   });
 
   it("resolves Cloudflare img2img and inpainting URL inputs before sending", async () => {
+    const dataUrl = (bytes) => ({ url: `data:image/png;base64,${Buffer.from(bytes).toString("base64")}`, mimeType: "image/png" });
+    fetchImageAsBase64
+      .mockResolvedValueOnce(dataUrl([1, 2, 3]))
+      .mockResolvedValueOnce(dataUrl([4, 5, 6]));
     global.fetch
-      .mockResolvedValueOnce(new Response(new Uint8Array([1, 2, 3]), { status: 200, headers: { "Content-Type": "image/png" } }))
-      .mockResolvedValueOnce(new Response(new Uint8Array([4, 5, 6]), { status: 200, headers: { "Content-Type": "image/png" } }))
       .mockResolvedValueOnce(
         new Response(
           JSON.stringify({ result: { image: "base64inpaint" }, success: true }),
@@ -524,10 +535,10 @@ describe("handleImageGenerationCore", () => {
     });
 
     expect(result.success).toBe(true);
-    expect(global.fetch).toHaveBeenNthCalledWith(1, "https://example.com/source.png");
-    expect(global.fetch).toHaveBeenNthCalledWith(2, "https://example.com/mask.png");
+    expect(fetchImageAsBase64).toHaveBeenNthCalledWith(1, "https://example.com/source.png");
+    expect(fetchImageAsBase64).toHaveBeenNthCalledWith(2, "https://example.com/mask.png");
 
-    const providerCall = global.fetch.mock.calls[2];
+    const providerCall = global.fetch.mock.calls[0];
     expect(providerCall[0]).toBe("https://api.cloudflare.com/client/v4/accounts/cf-account/ai/run/@cf/runwayml/stable-diffusion-v1-5-inpainting");
     const requestBody = JSON.parse(providerCall[1].body);
     expect(requestBody.image).toEqual([1, 2, 3]);

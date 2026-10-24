@@ -644,3 +644,134 @@ describe("other connection calls", () => {
     expect(direct).toEqual([]);
   });
 });
+
+// ── Review round 3 ─────────────────────────────────────────────────────────
+
+const { refreshProxyOptions } = await import("../../open-sse/utils/proxyScope.js");
+const { refreshWithRetry } = await import("../../open-sse/services/tokenRefresh.js");
+const { default: cloudflareAi } =
+  await import("../../open-sse/handlers/imageProviders/cloudflareAi.js");
+const { default: huggingface } =
+  await import("../../open-sse/handlers/imageProviders/huggingface.js");
+
+// A token endpoint that accepts the request and then drops the connection
+// (response lost after the provider may have spent the refresh token), and a
+// proxy that tunnels to it. Loopback only.
+async function startDroppingTokenEndpoint() {
+  let hits = 0;
+  const endpoint = http.createServer((req) => {
+    hits++;
+    setTimeout(() => req.socket.destroy(), 50);
+  });
+  await new Promise((r) => endpoint.listen(0, "127.0.0.1", r));
+  const net = await import("node:net");
+  const tunnel = http.createServer();
+  tunnel.on("connect", (req, sock) => {
+    const [h, p] = req.url.split(":");
+    const up = net.connect(Number(p), h, () => {
+      sock.write("HTTP/1.1 200 Connection Established\r\n\r\n");
+      up.pipe(sock);
+      sock.pipe(up);
+    });
+    up.on("error", () => sock.destroy());
+  });
+  await new Promise((r) => tunnel.listen(0, "127.0.0.1", r));
+  return {
+    hits: () => hits,
+    tokenUrl: `http://127.0.0.1:${endpoint.address().port}/oauth/token`,
+    proxyUrl: `http://127.0.0.1:${tunnel.address().port}`,
+    close: async () => {
+      endpoint.closeAllConnections?.();
+      tunnel.closeAllConnections?.();
+      await new Promise((r) => endpoint.close(r));
+      await new Promise((r) => tunnel.close(r));
+    },
+  };
+}
+
+describe("every refresh is connect-only, whatever the call site", () => {
+  it("a refresh without explicit options inside a core scope is sent once", async () => {
+    const t = await startDroppingTokenEndpoint();
+    try {
+      const credentials = {
+        providerSpecificData: {
+          connectionProxyEnabled: true,
+          connectionProxyUrl: t.proxyUrl,
+          strictProxy: false,
+        },
+      };
+      // video/embeddings/image 401 path shape: refresh called with no proxy options
+      await runCoreInProxyScope({ credentials }, () =>
+        refreshWithRetry(
+          () =>
+            runWithProxyOptions(refreshProxyOptions(null), () =>
+              proxyAwareFetch(t.tokenUrl, { method: "POST", body: "grant_type=refresh_token" }),
+            ),
+          3,
+          null,
+        ),
+      );
+      expect(t.hits()).toBe(1);
+      expect(direct).toEqual([]);
+    } finally {
+      await t.close();
+    }
+  });
+
+  it("refreshProxyOptions(null) is null outside any scope", () => {
+    expect(refreshProxyOptions(null)).toBeNull();
+  });
+
+  it("refreshWithRetry stops after a proxy-unavailable error", async () => {
+    let calls = 0;
+    const out = await refreshWithRetry(
+      async () => {
+        calls++;
+        throw Object.assign(new Error("Upstream proxy unavailable"), { code: "PROXY_UNAVAILABLE" });
+      },
+      3,
+      null,
+    );
+    expect(out).toBeNull();
+    expect(calls).toBe(1);
+  });
+});
+
+describe("client-supplied image URLs go through the SSRF guard", () => {
+  it("cloudflare-ai refuses internal image and mask URLs without fetching them", async () => {
+    let hits = 0;
+    const internal = http.createServer((_req, res) => {
+      hits++;
+      res.end("secret");
+    });
+    await new Promise((r) => internal.listen(0, "127.0.0.1", r));
+    const url = `http://127.0.0.1:${internal.address().port}/admin.png`;
+    try {
+      for (const body of [
+        { prompt: "x", image: url },
+        { prompt: "x", mask: url },
+      ]) {
+        await expect(
+          runWithProxyOptions(strictProxy(), () =>
+            cloudflareAi.buildBody("@cf/test/json-model", body),
+          ),
+        ).rejects.toThrow(/rejected/);
+      }
+      expect(hits).toBe(0);
+      expect(connects).toEqual([]);
+    } finally {
+      await new Promise((r) => internal.close(r));
+    }
+  });
+
+  it("huggingface image-to-image refuses an internal source image", async () => {
+    await expect(
+      huggingface.buildBody("black-forest-labs/FLUX.1-Kontext-dev", {
+        prompt: "x",
+        image: "http://169.254.169.254/latest/meta-data",
+      }),
+    ).rejects.toThrow(/rejected/);
+    expect(connects).toEqual([]);
+    expect(direct).toEqual([]);
+  });
+});

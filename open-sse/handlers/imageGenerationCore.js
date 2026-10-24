@@ -4,7 +4,7 @@ import { refreshWithRetry } from "../services/tokenRefresh.js";
 import { getExecutor } from "../executors/index.js";
 import { getImageAdapter } from "./imageProviders/index.js";
 import { urlToBase64 } from "./imageProviders/_base.js";
-import { runCoreInProxyScope } from "../utils/proxyScope.js";
+import { runCoreInProxyScope, refreshCredentialsWithProxy, proxyOptionsFromCredentials } from "../utils/proxyScope.js";
 
 function serializeRequestBody(requestBody) {
   if (typeof FormData !== "undefined" && requestBody instanceof FormData) return requestBody;
@@ -136,7 +136,7 @@ async function handleImageGenerationCoreInScope({
       providerResponse.status === HTTP_STATUS.FORBIDDEN)
   ) {
     const newCredentials = await refreshWithRetry(
-      () => executor.refreshCredentials(credentials, log),
+      () => refreshCredentialsWithProxy(executor, credentials, log, proxyOptionsFromCredentials(credentials)),
       3,
       log
     );
