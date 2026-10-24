@@ -89,9 +89,12 @@ export function proxyOptionsFromCredentials(credentials) {
  * revokes the whole token family.
  */
 export function refreshProxyOptions(proxyOptions, onProxyUnavailable = null) {
-  if (!proxyOptions) return null;
+  // No explicit options: refresh through the active scope (e.g. a handler
+  // core's), but still connect-only, so no call site can replay a refresh.
+  const base = proxyOptions || getScopedProxyOptions();
+  if (!base) return null;
   return {
-    ...proxyOptions,
+    ...base,
     tlsImpersonation: null,
     directFallback: "connect-only",
     ...(onProxyUnavailable ? { onProxyUnavailable } : {}),

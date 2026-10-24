@@ -21,7 +21,7 @@ import {
   refreshNousToken,
   classifyOAuthRefreshError,
 } from "./tokenRefresh/providers.js";
-import { runWithProxyOptions, refreshProxyOptions } from "../utils/proxyScope.js";
+import { runWithProxyOptions, refreshProxyOptions, PROXY_UNAVAILABLE } from "../utils/proxyScope.js";
 
 // Re-export all provider refresh functions (preserves public API for all consumers)
 export {
@@ -281,6 +281,10 @@ export async function refreshWithRetry(refreshFn, maxRetries = 3, log = null) {
       if (result) return result;
     } catch (error) {
       log?.warn?.("TOKEN_REFRESH", `Attempt ${attempt + 1}/${maxRetries} failed: ${error.message}`);
+      // The connection's proxy failed. The refresh may already have reached the
+      // provider (its rotated token spent), and retrying through a dead proxy
+      // can't help: stop instead of sending it again.
+      if (error?.code === PROXY_UNAVAILABLE) return null;
     }
   }
 

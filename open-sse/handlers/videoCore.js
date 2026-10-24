@@ -3,7 +3,7 @@ import { HTTP_STATUS } from "../config/runtimeConfig.js";
 import { refreshTokenByProvider } from "../services/tokenRefresh.js";
 import { PROVIDER_MEDIA } from "../providers/index.js";
 import { getVideoAdapter } from "./videoProviders/index.js";
-import { runCoreInProxyScope } from "../utils/proxyScope.js";
+import { runCoreInProxyScope, proxyOptionsFromCredentials } from "../utils/proxyScope.js";
 
 // Upstream fetch deadline for video job submission/polling (the job itself is
 // async upstream — this only bounds the HTTP round-trip, not video rendering).
@@ -160,7 +160,7 @@ async function handleVideoProxyCoreInScope({
   ) {
     let refreshed = null;
     try {
-      refreshed = await refreshTokenByProvider(provider, credentials, log);
+      refreshed = await refreshTokenByProvider(provider, credentials, log, proxyOptionsFromCredentials(credentials));
     } catch (error) {
       log?.warn?.("TOKEN", `${provider} | video refresh error: ${sanitizeSecrets(error.message, credentials)}`);
     }

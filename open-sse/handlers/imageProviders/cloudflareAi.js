@@ -1,4 +1,4 @@
-import { nowSec, urlToBase64 } from "./_base.js";
+import { nowSec, clientImageUrlToBase64 } from "./_base.js";
 import { PROVIDER_MEDIA } from "../../providers/index.js";
 
 const BASE_URL = PROVIDER_MEDIA["cloudflare-ai"]?.imageConfig?.baseUrl;
@@ -43,7 +43,7 @@ async function resolveImageInput(value) {
   const trimmed = value.trim();
   if (!trimmed) return null;
   if (/^https?:\/\//i.test(trimmed)) {
-    const b64 = await urlToBase64(trimmed);
+    const b64 = await clientImageUrlToBase64(trimmed);
     return { bytes: base64ToBytes(b64), b64 };
   }
   const match = /^data:image\/[^;]+;base64,(.+)$/i.exec(trimmed);
