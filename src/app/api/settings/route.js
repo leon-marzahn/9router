@@ -83,6 +83,19 @@ async function checkSignInChange(body) {
   return null;
 }
 
+// The custom system prompt goes into every chat request, so it is bounded and typed.
+const CUSTOM_PROMPT_MAX = 8000;
+function validateCustomPromptPatch(body) {
+  if (Object.prototype.hasOwnProperty.call(body, "customPromptEnabled") && typeof body.customPromptEnabled !== "boolean") {
+    return "customPromptEnabled must be true or false";
+  }
+  if (Object.prototype.hasOwnProperty.call(body, "customPrompt")) {
+    if (typeof body.customPrompt !== "string") return "customPrompt must be text";
+    if (body.customPrompt.length > CUSTOM_PROMPT_MAX) return `customPrompt must be at most ${CUSTOM_PROMPT_MAX} characters`;
+  }
+  return null;
+}
+
 export async function PATCH(request) {
   try {
     const body = await request.json();
@@ -94,6 +107,9 @@ export async function PATCH(request) {
         return NextResponse.json({ error: error.message }, { status: 400 });
       }
     }
+
+    const customPromptError = validateCustomPromptPatch(body);
+    if (customPromptError) return NextResponse.json({ error: customPromptError }, { status: 400 });
 
     const cv = validateCustomerViewPatch(body);
     if (cv.error) return NextResponse.json({ error: cv.error }, { status: 400 });

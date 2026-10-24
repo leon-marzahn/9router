@@ -23,15 +23,9 @@ import {
   type Status,
 } from "@/ui";
 import { ComboDetail } from "./ComboDetail";
-import { useCombos, type Combo, type CombosApi, type Strategy } from "./useCombos";
+import { STRATEGY_LABEL, useCombos, type Combo, type CombosApi } from "./useCombos";
 import { VisionAdapter } from "./VisionAdapter";
 
-const STRATEGY_LABEL: Record<Strategy, string> = {
-  fallback: "In order",
-  "round-robin": "Take turns",
-  "per-chat": "Per chat",
-  fusion: "Ask all",
-};
 const VALID_NAME = /^[a-zA-Z0-9_.-]+$/;
 const VISION = "__vision";
 const PATH = "/dashboard/combos";
@@ -65,8 +59,14 @@ export function CombosWorkbench() {
 
   const all = api.combos ?? [];
   const attention = all.filter((c) => c.models.length === 0 || c.models.some((m) => down(api, m)));
+  const needle = q.trim().toLowerCase();
+  // A combo matches by its name or by any of its steps (provider/model ids).
+  const stepMatch = (c: Combo) =>
+    needle && !c.name.toLowerCase().includes(needle)
+      ? c.models.find((m) => m.toLowerCase().includes(needle))
+      : undefined;
   const shown = (scope === "attention" ? attention : all).filter(
-    (c) => !q || c.name.toLowerCase().includes(q.toLowerCase()),
+    (c) => !needle || c.name.toLowerCase().includes(needle) || !!stepMatch(c),
   );
   const current = all.find((c) => c.name === sel);
   const vision = sel === VISION;
@@ -94,7 +94,7 @@ export function CombosWorkbench() {
               <div className="min-w-0 flex-1">
                 <SearchInput
                   ref={searchRef}
-                  placeholder="Search combos"
+                  placeholder="Combos, models"
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
                   shortcut="/"
@@ -128,7 +128,10 @@ export function CombosWorkbench() {
         ) : (
           <>
             {shown.length > 0 && (
-              <ListGroup title="Combos" count={shown.length}>
+              <ListGroup
+                title={needle ? "Matches" : "Combos"}
+                count={needle ? `${shown.length} of ${all.length}` : shown.length}
+              >
                 {shown.map((c) => (
                   <ListRow
                     key={c.id}
@@ -137,9 +140,15 @@ export function CombosWorkbench() {
                     onClick={() => select(c.name === selId ? null : c.name)}
                     leading={<Icon name="layers" size={18} className="text-text-muted" />}
                     title={<span className="font-mono">{c.name}</span>}
-                    subtitle={`${STRATEGY_LABEL[api.strategyOf(c.name)]} · ${c.models.length} step${
-                      c.models.length === 1 ? "" : "s"
-                    }`}
+                    subtitle={
+                      stepMatch(c) ? (
+                        <span className="font-mono">{stepMatch(c)}</span>
+                      ) : (
+                        `${STRATEGY_LABEL[api.strategyOf(c.name)]} · ${c.models.length} step${
+                          c.models.length === 1 ? "" : "s"
+                        }`
+                      )
+                    }
                     trailing={<StatusDot status={statusOf(api, c)} />}
                     version={statusOf(api, c)}
                   />
@@ -147,17 +156,28 @@ export function CombosWorkbench() {
               </ListGroup>
             )}
             {!shown.length && (
-              <p className="px-3 py-6 text-[13px] text-text-muted">
-                {all.length
-                  ? q
-                    ? `Nothing matches “${q}”.`
-                    : "Nothing needs attention."
-                  : "No combos yet. A combo is a list of models tried in order, or in turns, under one name."}
-              </p>
+              <div className="px-3 py-6 text-[13px] text-text-muted">
+                <p className="break-words [overflow-wrap:anywhere]">
+                  {all.length
+                    ? needle
+                      ? `No combo or step matches “${q.trim()}”.`
+                      : "Nothing needs attention."
+                    : "No combos yet. A combo is a list of models tried in order, or in turns, under one name."}
+                </p>
+                {needle && (
+                  <div className="mt-2">
+                    <Button size="sm" variant="ghost" className="-ml-2" onClick={() => setQ("")}>
+                      Clear search
+                    </Button>
+                  </div>
+                )}
+              </div>
             )}
-            <ListAddRow className="mb-2" onClick={() => setNaming({ mode: "new" })}>
-              Add combo
-            </ListAddRow>
+            {!needle && (
+              <ListAddRow className="mb-2" onClick={() => setNaming({ mode: "new" })}>
+                Add combo
+              </ListAddRow>
+            )}
             <ListGroup title="For every model">
               <ListRow
                 id={VISION}
@@ -206,7 +226,8 @@ export function CombosWorkbench() {
             </div>
             <EmptyState icon="layers">
               A combo is a list of models under one name. Apps send that name as the model; regent
-              tries the steps in order, in turns, or all at once. Pick one to see its steps.
+              tries the steps in order, in turns, by a router model&rsquo;s pick, or all at once.
+              Pick one to see its steps.
             </EmptyState>
           </div>
         )}

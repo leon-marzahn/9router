@@ -86,6 +86,13 @@ export function capabilitiesFromServiceKind(kind) {
  * otherwise mis-match. Only declare deltas vs DEFAULT.
  */
 export const MODEL_CAPABILITIES = {
+  "sensenova-6.8-flash-lite": {
+    vision: true,
+    reasoning: true,
+    thinkingFormat: "openai",
+    contextWindow: 1000000,
+    maxOutput: 131072,
+  },
   // Claude Fable 5.1, Opus 5.5/5, 4.6/4.7/4.8, and Kiro Sonnet 5 have 1M context + adaptive thinking (override generic claude pattern)
   "claude-fable-5-1": { vision: true, pdf: true, reasoning: true, search: true, thinkingFormat: "claude-adaptive", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 128000 },
   // Claude Opus 5.5 — experimental preview on Kiro (rateMultiplier: 2.0, 1M context) (#4410)
@@ -139,7 +146,9 @@ export const MODEL_CAPABILITIES = {
   "glm-5.3-flash":     { vision: true, videoInput: true, pdf: true, reasoning: true, thinkingFormat: "zai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 131072 },
   "glm-4.6v":          { vision: true, videoInput: true, reasoning: true, thinkingFormat: "zai", contextWindow: 128000, maxOutput: 32768 },
   "glm-4.5v":          { vision: true, videoInput: true, reasoning: true, thinkingFormat: "zai", contextWindow: 64000, maxOutput: 16384 },
-  // GLM-5.2 has 1M context — pattern *glm-5* only gives 200k, so override here
+  // GLM-5.2 has 1M context and maxOutput 131072. An exact entry shadows the *glm-5.2*
+  // pattern completely, so it must repeat that pattern's thinkingEffortSupported or
+  // reasoning_effort is dropped for GLM-5.2 (supported from 5.2 onward).
   "glm-5.2":           { reasoning: true, thinkingFormat: "zai", thinkingEffortSupported: true, thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 131072 },
   // OpenCode serves the same weights under this free id from its OWN inference
   // service, which validates the body strictly: the zai `thinking` object the
@@ -274,8 +283,10 @@ export const PROVIDER_CAPABILITIES = {
   },
   "codex": {
     "gpt-6-astra":               { vision: true, reasoning: true, search: true, thinkingFormat: "openai", contextWindow: 272000, maxOutput: 128000 },
-    "gpt-6.1-sol":               { vision: true, reasoning: true, search: true, thinkingFormat: "openai", contextWindow: 272000, maxOutput: 128000 },
     "gpt-6-sol":                 { vision: true, reasoning: true, search: true, thinkingFormat: "openai", contextWindow: 272000, maxOutput: 128000 },
+    // Without its own entry gpt-6.1-sol fell through to *gpt-6* (1.05M), overstating
+    // the Codex window like any unlisted sibling would.
+    "gpt-6.1-sol":               { vision: true, reasoning: true, search: true, thinkingFormat: "openai", contextWindow: 272000, maxOutput: 128000 },
     "gpt-6-luna":                { vision: true, reasoning: true, search: true, thinkingFormat: "openai", contextWindow: 272000, maxOutput: 128000 },
     "gpt-6-astra[1m]":           CODEX_EXTENDED_CAPS,
     "gpt-6-sol[1m]":             CODEX_EXTENDED_CAPS,

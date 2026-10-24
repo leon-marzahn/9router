@@ -266,6 +266,12 @@ const Option = memo(function Option({
       <div className="min-w-0 flex-1">
         <div className="truncate text-[13px] text-text">{model.name}</div>
         {detail && <div className="truncate font-mono text-[11px] text-text-subtle">{detail}</div>}
+        {model.note && (
+          <div className="flex items-start gap-1 text-[11px] leading-snug text-warning-text">
+            <Icon name="warning" size={12} className="mt-px shrink-0" />
+            <span className="min-w-0">{model.note}</span>
+          </div>
+        )}
       </div>
       {selected && <Icon name="check" size={16} className="shrink-0 text-accent-text" />}
     </div>

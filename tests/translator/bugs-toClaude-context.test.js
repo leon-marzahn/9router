@@ -17,6 +17,8 @@ describe("OpenAI → Claude context mapping", () => {
     expect(JSON.stringify(out.system), "Claude Code prompt injected").not.toContain("Claude Code");
   });
 
+  // Fixed by the 0.5.109 sync: reasoning_content now becomes a leading thinking block
+  // (prepareClaudeRequest supplies the signature).
   it("assistant reasoning_content becomes a thinking block", () => {
     const out = T({
       messages: [

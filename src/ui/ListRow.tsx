@@ -61,7 +61,7 @@ export function ListGroup({
   children,
 }: {
   title: string;
-  count?: number;
+  count?: number | string;
   tone?: "danger";
   children: ReactNode;
 }) {

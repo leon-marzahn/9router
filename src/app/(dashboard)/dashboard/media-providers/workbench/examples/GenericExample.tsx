@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Icon, Input, Segmented, Select } from "@/ui";
+import { Icon, Input, Segmented, Select, Switch } from "@/ui";
 import {
   MEDIA_PROVIDER_KINDS,
   getProviderAlias,
@@ -89,7 +89,7 @@ export function GenericExample({
   const [question, setQuestion] = useState(DEFAULT_QUESTION);
   const [refImage, setRefImage] = useState("");
   const [maskImage, setMaskImage] = useState("");
-  const [extra, setExtra] = useState<Record<string, string | number>>(() =>
+  const [extra, setExtra] = useState<Record<string, string | number | boolean>>(() =>
     Object.fromEntries((ex?.extraFields || []).map((f) => [f.key, f.default ?? ""])),
   );
   const [output, setOutput] = useState<"json" | "binary">("json");
@@ -130,9 +130,13 @@ export function GenericExample({
     (f) =>
       models.length === 0 || (Array.isArray(modelObj?.params) && modelObj.params.includes(f.key)),
   );
+  // Only the fields shown for this model go out, so the request (and the curl below)
+  // never carries options the model doesn't declare (e.g. SenseNova has no quality).
+  const shown = new Set(fields.map((f) => f.key));
   const extraBody = Object.fromEntries(
     Object.entries(extra).filter(
-      ([, v]) => v !== "" && v != null && !(typeof v === "number" && Number.isNaN(v)),
+      ([k, v]) =>
+        shown.has(k) && v !== "" && v != null && !(typeof v === "number" && Number.isNaN(v)),
     ),
   );
   const body: Record<string, unknown> = {
@@ -330,7 +334,13 @@ export function GenericExample({
       )}
       {fields.map((f) => (
         <Row key={f.key} label={f.label}>
-          {f.type === "select" ? (
+          {f.type === "boolean" ? (
+            <Switch
+              label={f.label}
+              checked={extra[f.key] === true}
+              onChange={(v) => setExtra((s) => ({ ...s, [f.key]: v }))}
+            />
+          ) : f.type === "select" ? (
             <Select
               value={String(extra[f.key] ?? "")}
               onChange={(e) => setExtra((s) => ({ ...s, [f.key]: e.target.value }))}
@@ -344,7 +354,7 @@ export function GenericExample({
           ) : (
             <Input
               type={f.type}
-              value={extra[f.key] ?? ""}
+              value={String(extra[f.key] ?? "")}
               min={f.min}
               max={f.max}
               placeholder={f.placeholder}

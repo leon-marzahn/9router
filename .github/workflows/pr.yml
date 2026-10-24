@@ -38,6 +38,18 @@ jobs:
       - name: Install
         run: bun install --frozen-lockfile
 
+      # Codex speech-to-text converts audio with ffmpeg; its tests run the real binary
+      # and fail without it. The runner image's distro build, limited to the major series
+      # the conversion flags were checked against (6-8); anything else fails here, loudly,
+      # instead of silently changing what is tested.
+      - name: Install ffmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends ffmpeg
+          version="$(ffmpeg -hide_banner -version | head -1)"
+          echo "$version"
+          echo "$version" | grep -Eq '^ffmpeg version [6-8]\.' || { echo "::error::unexpected ffmpeg series: $version"; exit 1; }
+
       - name: Typecheck
         run: bun run typecheck
 

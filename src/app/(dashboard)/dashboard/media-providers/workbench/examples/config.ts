@@ -4,8 +4,8 @@
 export interface ExtraField {
   key: string;
   label: string;
-  type: "select" | "number" | "text";
-  default: string | number;
+  type: "select" | "number" | "text" | "boolean";
+  default: string | number | boolean;
   options?: string[];
   min?: number;
   max?: number;
@@ -115,6 +115,9 @@ export const KIND_EXAMPLE_CONFIG: Record<string, KindExample> = {
         default: "png",
         options: ["png", "jpeg", "webp"],
       },
+      // SenseNova U1.5 (only shown for models that list them in params)
+      { key: "watermark", label: "Watermark", type: "boolean", default: true },
+      { key: "prompt_extend", label: "Prompt extend", type: "boolean", default: true },
     ],
   },
   imageToText: {
