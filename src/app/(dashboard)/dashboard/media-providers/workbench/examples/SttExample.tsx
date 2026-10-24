@@ -18,7 +18,15 @@ import {
   useExampleEnv,
 } from "./shared";
 
-type Model = { id: string; name?: string; params?: string[]; providerAlias?: string };
+type Model = {
+  id: string;
+  name?: string;
+  params?: string[];
+  /** Formats the model can return; omitted = every OpenAI transcription format. */
+  responseFormats?: string[];
+  providerAlias?: string;
+};
+const ALL_FORMATS = ["json", "text", "srt", "verbose_json", "vtt"];
 
 export function SttExample({ providerId }: { providerId: string }) {
   const alias = getProviderAlias(providerId) as string;
@@ -30,7 +38,9 @@ export function SttExample({ providerId }: { providerId: string }) {
   const env = useExampleEnv();
 
   const [model, setModel] = useState(builtin[0]?.id ?? "");
-  const allowed = models.find((m) => m.id === model)?.params ?? [];
+  const selected = models.find((m) => m.id === model);
+  const allowed = selected?.params ?? [];
+  const formats = selected?.responseFormats?.length ? selected.responseFormats : ALL_FORMATS;
   const has = (p: string) => allowed.includes(p);
   const [file, setFile] = useState<File | null>(null);
   const [language, setLanguage] = useState("");
@@ -73,7 +83,7 @@ export function SttExample({ providerId }: { providerId: string }) {
   const fields = (): [string, string][] =>
     [
       has("language") && language && ["language", language],
-      has("response_format") && ["response_format", format],
+      has("response_format") && ["response_format", formats.includes(format) ? format : formats[0]],
       has("temperature") && temperature && ["temperature", temperature],
       has("prompt") && prompt && ["prompt", prompt],
       has("timestamps_granularity") && granularity && ["timestamps_granularity", granularity],
@@ -196,8 +206,11 @@ export function SttExample({ providerId }: { providerId: string }) {
       )}
       {has("response_format") && (
         <Row label="Format">
-          <Select value={format} onChange={(e) => setFormat(e.target.value)}>
-            {["json", "text", "srt", "verbose_json", "vtt"].map((f) => (
+          <Select
+            value={formats.includes(format) ? format : formats[0]}
+            onChange={(e) => setFormat(e.target.value)}
+          >
+            {formats.map((f) => (
               <option key={f} value={f}>
                 {f}
               </option>

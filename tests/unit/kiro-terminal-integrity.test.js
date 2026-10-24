@@ -735,6 +735,9 @@ describe("Kiro terminal integrity recovery", () => {
     expect(body).not.toContain("must stay private");
   });
 
+  // A 401/403 falls through to the next Kiro surface (16cb40fd / 35b950be), so every
+  // retry surface must fail for the error to be surfaced; one mocked 401 left the
+  // remaining surfaces with an undefined response and the test timed out.
   it("surfaces retry HTTP failures as SSE after heartbeat commits headers", async () => {
     // 401 walks every Kiro endpoint before giving up (KIRO_ENDPOINT_FALLBACK_STATUSES,
     // 16cb40fd), so the retry must fail on all fallback surfaces.

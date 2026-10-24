@@ -5,6 +5,7 @@ import {
   type InputHTMLAttributes,
   type ReactNode,
   type SelectHTMLAttributes,
+  type TextareaHTMLAttributes,
 } from "react";
 import { cn } from "./cn";
 import { Icon } from "./Icon";
@@ -46,6 +47,25 @@ export const Input = forwardRef<
 >(function Input({ className, mono, ...rest }, ref) {
   return (
     <input ref={ref} className={cn(inputClass, mono && "font-mono text-xs", className)} {...rest} />
+  );
+});
+
+/** Multi-line text styled like Input (16px on mobile so iOS doesn't zoom). */
+export const Textarea = forwardRef<
+  HTMLTextAreaElement,
+  TextareaHTMLAttributes<HTMLTextAreaElement> & { mono?: boolean }
+>(function Textarea({ className, mono, ...rest }, ref) {
+  return (
+    <textarea
+      ref={ref}
+      className={cn(
+        inputClass,
+        "h-auto min-h-24 resize-y py-2 leading-relaxed max-md:h-auto max-md:text-base",
+        mono && "font-mono text-xs",
+        className,
+      )}
+      {...rest}
+    />
   );
 });
 

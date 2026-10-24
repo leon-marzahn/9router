@@ -10,7 +10,8 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from "react";
-import { Button, CodeBlock, CopyButton, Icon, Input, Segmented, Switch, Tag } from "@/ui";
+import { Button, CodeBlock, CopyButton, Icon, Input, Segmented, Switch, Tag, Textarea } from "@/ui";
+import { cn } from "@/ui/cn";
 import { ConfirmDialog } from "@/ui";
 import { getCurrentLocale, onLocaleChange } from "@/i18n/runtime";
 import { Note, SettingRow, SettingRowSkeleton, SettingsSection } from "@/ui";
@@ -215,6 +216,93 @@ export function TokenSaver() {
           </>
         )}
       </SettingsSection>
+
+      <SettingsSection id="custom-prompt" icon="edit_note" title="Your own instruction">
+        {!s ? (
+          <SettingRowSkeleton />
+        ) : (
+          <CustomPrompt
+            enabled={!!value("customPromptEnabled")}
+            onEnabled={(v) => set({ customPromptEnabled: v })}
+            saved={typeof s.customPrompt === "string" ? s.customPrompt : ""}
+            onSave={(text) => set({ customPrompt: text })}
+          />
+        )}
+      </SettingsSection>
+    </div>
+  );
+}
+
+const CUSTOM_PROMPT_MAX = 8000;
+
+function CustomPrompt({
+  enabled,
+  onEnabled,
+  saved,
+  onSave,
+}: {
+  enabled: boolean;
+  onEnabled: (v: boolean) => void;
+  saved: string;
+  onSave: (text: string) => Promise<void>;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const text = draft ?? saved;
+  const dirty = draft !== null && draft !== saved;
+  const tooLong = text.length > CUSTOM_PROMPT_MAX;
+  const save = async () => {
+    setSaving(true);
+    await onSave(text);
+    setSaving(false);
+  };
+  return (
+    <div>
+      <SettingRow
+        title="Custom system prompt"
+        hint="Adds your text to the system prompt of every chat request, for every API key, alongside the savers above. House style, a language, a coding convention. Logs record only its length."
+      >
+        <Switch label="Custom system prompt" checked={enabled} onChange={onEnabled} />
+      </SettingRow>
+      {enabled && (
+        <div className="-mt-1 space-y-2 pb-4">
+          <Textarea
+            aria-label="Custom system prompt text"
+            rows={5}
+            value={text}
+            placeholder="Answer in British English. Prefer small, focused functions."
+            onChange={(e) => setDraft(e.target.value)}
+          />
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span
+              className={cn(
+                "text-[12px] tabular-nums",
+                tooLong ? "text-danger-text" : "text-text-muted",
+              )}
+            >
+              {text.trim()
+                ? `${text.length.toLocaleString()} / ${CUSTOM_PROMPT_MAX.toLocaleString()} characters`
+                : "Empty: nothing is added until you write something."}
+            </span>
+            <span className="flex gap-1">
+              {dirty && (
+                <Button size="sm" variant="ghost" onClick={() => setDraft(null)}>
+                  Discard
+                </Button>
+              )}
+              <Button
+                size="sm"
+                icon="save"
+                loading={saving}
+                disabled={!dirty || tooLong}
+                onClick={() => void save()}
+              >
+                Save
+              </Button>
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

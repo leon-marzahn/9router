@@ -461,7 +461,11 @@ function CreateKey({
         </>
       }
     >
-      <Field label="Name" hint="Where it's used, so you can tell keys apart." error={error}>
+      <Field
+        label="Name"
+        hint="Where it's used, so you can tell keys apart. Store the key securely; you can view or copy it later from the key list."
+        error={error}
+      >
         <Input
           value={name}
           placeholder="Claude Code on my laptop"

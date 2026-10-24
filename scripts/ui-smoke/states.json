@@ -59,6 +59,16 @@
     "selector": "[role=dialog]"
   },
   {
+    "name": "combos-smart-router-model",
+    "route": "/dashboard/combos",
+    "steps": [
+      { "click": "text=demo-smart" },
+      { "waitFor": "text=Router model" },
+      { "click": "[data-model-picker]" }
+    ],
+    "selector": "[role=dialog]"
+  },
+  {
     "name": "pipelines-new",
     "route": "/dashboard/request-pipelines",
     "steps": [
