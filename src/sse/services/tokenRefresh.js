@@ -27,6 +27,8 @@ import {
   refreshProviderCredentials as _refreshProviderCredentials,
   shouldRefreshCredentials as _shouldRefreshCredentials,
 } from "open-sse/services/oauthCredentialManager.js";
+import { runWithProxyOptions, proxyOptionsFromConfig, refreshProxyOptions, RESOLVED_PROXY_KEYS } from "open-sse/utils/proxyScope.js";
+import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
 
 export const TOKEN_EXPIRY_BUFFER_MS = BUFFER_MS;
 
@@ -125,7 +127,7 @@ function needsProjectId(provider) {
  * @param {string} connectionId
  * @param {string} accessToken
  */
-function _refreshProjectId(provider, connectionId, accessToken) {
+function _refreshProjectId(provider, connectionId, accessToken, proxyOptions = null) {
   if (!needsProjectId(provider) || !connectionId || !accessToken) return;
 
   // Invalidate the stale cached entry so getProjectIdForConnection does a real fetch
@@ -135,7 +137,7 @@ function _refreshProjectId(provider, connectionId, accessToken) {
   // Eagerly fetching projectId across multiple accounts simultaneously triggers Google Cloud anti-abuse / rate limits.
   // Runtime handlers (e.g. chat handler) will lazily call getProjectIdForConnection() on demand.
   if (process.env.EAGER_PROJECT_ID_REFRESH === "true") {
-    getProjectIdForConnection(connectionId, accessToken, provider)
+    runWithProxyOptions(proxyOptions, () => getProjectIdForConnection(connectionId, accessToken, provider))
       .then((projectId) => {
         if (!projectId) return;
         updateProviderCredentials(connectionId, { projectId }).catch((err) => {
@@ -199,6 +201,20 @@ export async function updateProviderCredentials(connectionId, newCredentials) {
     }
     if (newCredentials.projectId)            updates.projectId = newCredentials.projectId;
 
+    // Request-path credentials carry the *resolved* proxy (a pool's URL,
+    // strictProxy, relay URL) in providerSpecificData. Never store those: merge
+    // onto the stored settings so the connection's own legacy proxy fields
+    // stay as configured and a pool's URL never lands in them.
+    if (updates.providerSpecificData) {
+      const incoming = { ...updates.providerSpecificData };
+      for (const key of RESOLVED_PROXY_KEYS) delete incoming[key];
+      let stored = {};
+      try {
+        stored = (await getProviderConnectionById(connectionId))?.providerSpecificData || {};
+      } catch { /* keep the incoming fields only */ }
+      updates.providerSpecificData = { ...stored, ...incoming };
+    }
+
     const result = await updateProviderConnection(connectionId, updates);
     log.info("TOKEN_REFRESH", "Credentials updated in localDb", {
       connectionId,
@@ -253,6 +269,14 @@ export async function checkAndRefreshToken(provider, credentials, options = {}) 
 
   const force = options?.force === true;
 
+  // The refresh leaves through the connection's proxy, with the same strict
+  // semantics as its upstream calls. Resolved only when a refresh is due.
+  // Background refresh passes raw DB rows, so resolve from the pool/legacy
+  // fields rather than trusting fields a caller may not have filled.
+  let proxyOptionsPromise = null;
+  const getProxyOptions = () =>
+    (proxyOptionsPromise ||= resolveConnectionProxyConfig(creds.providerSpecificData || {}).then(proxyOptionsFromConfig));
+
   // ── 1. Regular access-token expiry ────────────────────────────────────────
   if (force || _shouldRefreshCredentials(provider, creds)) {
     const expiresAt = creds.expiresAt ? new Date(creds.expiresAt).getTime() : null;
@@ -266,7 +290,8 @@ export async function checkAndRefreshToken(provider, credentials, options = {}) 
       lastRefreshAt: creds.lastRefreshAt || null,
     });
 
-    const newCreds = await _refreshProviderCredentials(provider, creds, log);
+    const proxyOptions = await getProxyOptions();
+    const newCreds = await _refreshProviderCredentials(provider, creds, log, proxyOptions);
     if (newCreds?.accessToken || newCreds?.apiKey || newCreds?.copilotToken) {
       const mergedCreds = {
         ...newCreds,
@@ -288,7 +313,7 @@ export async function checkAndRefreshToken(provider, credentials, options = {}) 
       };
 
       // Non-blocking: refresh projectId with the new access token
-      _refreshProjectId(provider, creds.connectionId, creds.accessToken);
+      _refreshProjectId(provider, creds.connectionId, creds.accessToken, proxyOptions);
     }
   }
 
@@ -307,7 +332,8 @@ export async function checkAndRefreshToken(provider, credentials, options = {}) 
         expiresIn: copilotToken ? Math.round(remaining / 1000) : "missing",
       });
 
-      const copilotTokenResult = await refreshCopilotToken(creds.accessToken);
+      const copilotProxyOptions = await getProxyOptions();
+      const copilotTokenResult = await runWithProxyOptions(refreshProxyOptions(copilotProxyOptions), () => refreshCopilotToken(creds.accessToken));
       if (copilotTokenResult) {
         const updatedSpecific = {
           ...creds.providerSpecificData,

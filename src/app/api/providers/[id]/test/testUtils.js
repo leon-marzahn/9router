@@ -3,6 +3,7 @@ import { getProviderConnectionById, updateProviderConnection } from "@/lib/local
 // Returned by the test switch when a provider has no connection test.
 export const UNSUPPORTED_TEST_ERROR = "Provider test not supported";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
+import { runWithProxyOptions, proxyOptionsFromConfig } from "open-sse/utils/proxyScope.js";
 import { testProxyUrl } from "@/lib/network/proxyTest";
 import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider, AI_PROVIDERS } from "@/shared/constants/providers";
 import { getDefaultModel } from "open-sse/config/providerModels.js";
@@ -944,10 +945,13 @@ export async function testSingleConnection(id) {
   const start = Date.now();
   let result;
 
+  // Everything the test sends (probe, token refresh) uses the connection's
+  // proxy with the same strict semantics as its upstream calls.
+  const proxyOptions = proxyOptionsFromConfig(effectiveProxy);
   if (connection.authType === "apikey" || connection.authType === "cookie") {
-    result = await testApiKeyConnection(connection, effectiveProxy);
+    result = await runWithProxyOptions(proxyOptions, () => testApiKeyConnection(connection, effectiveProxy));
   } else {
-    result = await testOAuthConnection(connection, effectiveProxy);
+    result = await runWithProxyOptions(proxyOptions, () => testOAuthConnection(connection, effectiveProxy));
   }
 
   const latencyMs = Date.now() - start;

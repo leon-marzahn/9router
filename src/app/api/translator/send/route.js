@@ -1,6 +1,8 @@
 import { translatorDisabledResponse } from "@/lib/translatorDebug.js";
 import { getProviderConnections, updateProviderConnection } from "@/lib/localDb.js";
 import { getExecutor } from "open-sse/index.js";
+import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
+import { proxyOptionsFromConfig, refreshCredentialsWithProxy } from "open-sse/utils/proxyScope.js";
 
 async function persistRefreshedCredentials(connection, newCredentials) {
   const updateData = {};
@@ -65,15 +67,18 @@ export async function POST(request) {
     const executor = getExecutor(provider);
     const stream = body.stream !== false;
 
-    let { response } = await executor.execute({ model, body, stream, credentials });
+    // Same proxy as the connection's /v1 traffic, for the call and the refresh.
+    const proxyOptions = proxyOptionsFromConfig(await resolveConnectionProxyConfig(connection.providerSpecificData || {}));
+
+    let { response } = await executor.execute({ model, body, stream, credentials, proxyOptions });
 
     // Auto-refresh token on 401/403 and retry (same as chatCore.js)
     if (response.status === 401 || response.status === 403) {
-      const newCredentials = await executor.refreshCredentials(credentials, console);
+      const newCredentials = await refreshCredentialsWithProxy(executor, credentials, console, proxyOptions);
       if (newCredentials?.accessToken || newCredentials?.copilotToken) {
         Object.assign(credentials, newCredentials);
         await persistRefreshedCredentials(connection, newCredentials);
-        ({ response } = await executor.execute({ model, body, stream, credentials }));
+        ({ response } = await executor.execute({ model, body, stream, credentials, proxyOptions }));
       }
     }
 

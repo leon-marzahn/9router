@@ -169,7 +169,11 @@ export function assertPublicUrl(rawUrl) {
 // domain that merely *resolves* to a private/loopback/metadata address (wildcard-DNS
 // services like nip.io/sslip.io, or an attacker-controlled domain with an A record
 // pointed at 127.0.0.1) is rejected too, not just IPs typed directly into the URL.
-export async function assertPublicUrlResolved(rawUrl) {
+//
+// failClosed: reject a hostname that does not resolve locally. fetchPublic uses
+// it because its request may go through a proxy that resolves names itself: a
+// name only the proxy knows (split-horizon DNS) would otherwise skip the check.
+export async function assertPublicUrlResolved(rawUrl, { failClosed = false } = {}) {
   const parsed = new URL(rawUrl);
   const host = normalizeHost(parsed.hostname);
   if (isBlockedHost(host)) throw new Error("Blocked URL: internal host");
@@ -183,6 +187,7 @@ export async function assertPublicUrlResolved(rawUrl) {
   try {
     addresses = await dns.promises.lookup(host, { all: true, verbatim: true });
   } catch {
+    if (failClosed) throw new Error("Blocked URL: hostname does not resolve");
     // Resolution failure isn't an SSRF signal by itself — let the subsequent
     // fetch() fail with its own (clearer) network error.
     return;
@@ -200,7 +205,7 @@ export async function assertPublicUrlResolved(rawUrl) {
 // maxRedirects hops (fetch's own default following behavior has no bound
 // relevant here since we never let it auto-follow).
 export async function fetchPublic(url, init = {}, { maxRedirects = 5 } = {}) {
-  await assertPublicUrlResolved(url);
+  await assertPublicUrlResolved(url, { failClosed: true });
   let currentUrl = url;
   for (let hop = 0; ; hop++) {
     const res = await fetch(currentUrl, { ...init, redirect: "manual" });
@@ -209,7 +214,7 @@ export async function fetchPublic(url, init = {}, { maxRedirects = 5 } = {}) {
     if (!location) return res;
     if (hop >= maxRedirects) throw new Error("Blocked URL: too many redirects");
     const nextUrl = new URL(location, currentUrl).toString();
-    await assertPublicUrlResolved(nextUrl);
+    await assertPublicUrlResolved(nextUrl, { failClosed: true });
     currentUrl = nextUrl;
   }
 }

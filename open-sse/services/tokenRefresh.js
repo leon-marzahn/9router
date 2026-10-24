@@ -21,6 +21,7 @@ import {
   refreshNousToken,
   classifyOAuthRefreshError,
 } from "./tokenRefresh/providers.js";
+import { runWithProxyOptions, refreshProxyOptions } from "../utils/proxyScope.js";
 
 // Re-export all provider refresh functions (preserves public API for all consumers)
 export {
@@ -168,12 +169,14 @@ const REFRESH_HANDLERS = {
   "vertex-partner": vertexRefreshHandler
 };
 
-export async function getAccessToken(provider, credentials, log) {
+// proxyOptions: the connection's proxy (proxyAwareFetch shape). Every request
+// the refresh makes goes through it, the same way the upstream calls do.
+export async function getAccessToken(provider, credentials, log, proxyOptions = null) {
   if (!credentials || !credentials.refreshToken || typeof credentials.refreshToken !== "string") {
     log?.warn?.("TOKEN_REFRESH", `No valid refresh token available for provider: ${provider}`);
     return null;
   }
-  return _getAccessTokenInternal(provider, credentials, log);
+  return runWithProxyOptions(refreshProxyOptions(proxyOptions), () => _getAccessTokenInternal(provider, credentials, log));
 }
 
 async function _getAccessTokenInternal(provider, credentials, log) {
@@ -188,10 +191,12 @@ async function _getAccessTokenInternal(provider, credentials, log) {
   return handler(credentials, log);
 }
 
-export async function refreshTokenByProvider(provider, credentials, log) {
+export async function refreshTokenByProvider(provider, credentials, log, proxyOptions = null) {
   if (!credentials.refreshToken) return null;
   const handler = REFRESH_HANDLERS[provider];
-  return handler ? handler(credentials, log) : refreshAccessToken(provider, credentials.refreshToken, credentials, log);
+  return runWithProxyOptions(refreshProxyOptions(proxyOptions), () => (handler
+    ? handler(credentials, log)
+    : refreshAccessToken(provider, credentials.refreshToken, credentials, log)));
 }
 
 export function formatProviderCredentials(provider, credentials, log) {
