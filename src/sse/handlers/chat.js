@@ -28,6 +28,7 @@ import { detectFormatByEndpoint } from "open-sse/translator/formats.js";
 import * as log from "../utils/logger.js";
 import { updateProviderCredentials, checkAndRefreshToken } from "../services/tokenRefresh.js";
 import { getProjectIdForConnection } from "open-sse/services/projectId.js";
+import { runWithProxyOptions, proxyOptionsFromCredentials } from "open-sse/utils/proxyScope.js";
 import { stripModelContextMarker } from "open-sse/utils/modelMarkers.js";
 import { pickRegentHeaders } from "open-sse/handlers/chatCore/requestDetail.js";
 import { PIPELINE_HEADER, LEGACY_PIPELINE_HEADER, hasKeyAttachments, selectPipelines } from "@/lib/request-pipelines/config.js";
@@ -340,7 +341,8 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
 
     // Ensure real project ID is available for providers that need it (P0 fix: cold miss)
     if ((provider === "antigravity" || provider === "gemini-cli") && !refreshedCredentials.projectId) {
-      const pid = await getProjectIdForConnection(credentials.connectionId, refreshedCredentials.accessToken, provider);
+      const pid = await runWithProxyOptions(proxyOptionsFromCredentials(refreshedCredentials), () =>
+        getProjectIdForConnection(credentials.connectionId, refreshedCredentials.accessToken, provider));
       if (pid) {
         refreshedCredentials.projectId = pid;
         // Persist to DB in background so subsequent requests have it immediately

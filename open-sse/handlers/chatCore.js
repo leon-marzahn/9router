@@ -38,6 +38,7 @@ import { resolveSessionId, clientIpFromHeaders } from "../utils/sessionManager.j
 import { normalizeTlsImpersonation } from "../config/tlsImpersonation.js";
 import { knownSecrets, redactValues, maskString } from "../utils/maskSecrets.cjs";
 import { requestStreamUsage, clientRequestedStreamUsage, isStreamUsageRejection, rememberStreamUsageRejected } from "../translator/concerns/streamUsage.js";
+import { refreshCredentialsWithProxy } from "../utils/proxyScope.js";
 
 /**
  * Core chat handler - shared between SSE and Worker
@@ -486,7 +487,8 @@ export async function handleChatCore({ traceAttempt = null, body, modelInfo, cre
       // refreshWithRetry's 2nd/3rd attempt reuses the already-consumed RT →
       // invalid_grant → auth_failed retryable=false.
       const newCredentials = await refreshWithRetry(async () => {
-        const result = await executor.refreshCredentials(credentials, log);
+        // Same proxy as the upstream call (TLS impersonation stays on upstream calls only).
+        const result = await refreshCredentialsWithProxy(executor, credentials, log, proxyOptions);
         if (result?.refreshToken && result.refreshToken !== credentials.refreshToken) {
           if (result.accessToken) credentials.accessToken = result.accessToken;
           credentials.refreshToken = result.refreshToken;

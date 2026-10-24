@@ -1,5 +1,6 @@
 // Web Fetch handler — dispatches to firecrawl, jina-reader, tavily, exa, ollama, tinyfish
 // Returns normalized shape across all providers
+import { runCoreInProxyScope } from "../../utils/proxyScope.js";
 
 const DEFAULT_TIMEOUT_MS = 15000;
 const DEFAULT_FORMAT = "markdown";
@@ -90,7 +91,13 @@ async function readJsonOrText(res) {
  * @param {Function} [params.log]
  * @returns {Promise<FetchResult>}
  */
-export async function handleFetchCore({ url, format, maxCharacters, provider, providerConfig, credentials, log }) {
+// Every fetch this handler makes (upstream call, token refresh on 401) goes
+// through the connection's proxy, like chat requests do. Callbacks run outside it.
+export async function handleFetchCore(args) {
+  return runCoreInProxyScope(args, handleFetchCoreInScope);
+}
+
+async function handleFetchCoreInScope({ url, format, maxCharacters, provider, providerConfig, credentials, log }) {
   if (!url || typeof url !== "string") {
     return { success: false, status: 400, error: "url is required" };
   }

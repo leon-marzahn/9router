@@ -66,7 +66,7 @@ it("uses canonical NO_PROXY and strict unresolved-pool semantics on the direct a
   const directFetch = vi.fn(async () => new Response("direct"));
   expect(await (await proxyAwareFetch("https://chatgpt.com/test", { directFetch, strictTls: true })).text()).toBe("direct");
   expect(directFetch).toHaveBeenCalledTimes(1);
-  await expect(proxyAwareFetch("https://chatgpt.com/test", { directFetch, strictTls: true }, { strictProxy: true, proxyPoolId: "inactive" })).rejects.toThrow("none resolved");
+  await expect(proxyAwareFetch("https://chatgpt.com/test", { directFetch, strictTls: true }, { strictProxy: true, proxyPoolId: "inactive" })).rejects.toMatchObject({ code: "PROXY_UNAVAILABLE" });
   expect(directFetch).toHaveBeenCalledTimes(1);
 });
 it("rejects unsupported fields/formats and oversized uploads before transport", async () => {
@@ -82,4 +82,10 @@ it("bounds streaming reads and cancels aborts while waiting for body chunks", as
   await expect(readBounded(stream, 4, controller.signal)).rejects.toMatchObject({ status: 413 });
   const hanging = new ReadableStream(); const pending = readBounded(hanging, 10, controller.signal); controller.abort();
   await expect(pending).rejects.toBeDefined();
+});
+it("reports a dead account proxy as a connection-local failure, not an account failure", async () => {
+  // Strict proxy on a port nothing listens on: refused before anything is sent.
+  const result = await transcribeCodex({ formData: form(), credentials, proxyOptions: { connectionProxyEnabled: true, connectionProxyUrl: "http://127.0.0.1:1", strictProxy: true } });
+  expect(result.status).toBe(503);
+  expect(result.local).toBe("connection");
 });

@@ -4,6 +4,7 @@ import { transcribeGeminiLive } from "./geminiLiveStt.js";
 import { transcribeCodex } from "./codexStt.js";
 import { PROVIDER_MODELS, PROVIDER_ID_TO_ALIAS } from "../config/providerModels.js";
 import { HTTP_STATUS } from "../config/runtimeConfig.js";
+import { runCoreInProxyScope } from "../utils/proxyScope.js";
 
 // Build auth headers from sttConfig + token
 function buildAuthHeaders(cfg, token) {
@@ -271,7 +272,13 @@ function resolveModelTransport(provider, model) {
  * it in the app layer; built-ins fall back to the registry entry marker).
  * @returns {Promise<{success, response, status?, error?}>}
  */
-export async function handleSttCore({ provider, model, formData, credentials, sttConfig, transport, signal, proxyOptions }) {
+// Every fetch this handler makes (upstream call, token refresh on 401) goes
+// through the connection's proxy, like chat requests do. Callbacks run outside it.
+export async function handleSttCore(args) {
+  return runCoreInProxyScope(args, handleSttCoreInScope);
+}
+
+async function handleSttCoreInScope({ provider, model, formData, credentials, sttConfig, transport, signal, proxyOptions }) {
   const file = formData.get("file");
   if (!file) return createErrorResult(HTTP_STATUS.BAD_REQUEST, "Missing required field: file");
 

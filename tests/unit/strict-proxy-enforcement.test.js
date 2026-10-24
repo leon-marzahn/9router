@@ -58,13 +58,13 @@ describe("strictProxy refuses a direct connection (#4333)", () => {
   it("throws when a pool is assigned but no proxy url resolved", async () => {
     await expect(
       proxyAwareFetch("https://api.example.com/v1/chat", {}, { proxyPoolId: "p1", strictProxy: true }),
-    ).rejects.toThrow(/strictProxy/);
+    ).rejects.toThrow(/Upstream proxy unavailable/);
   });
 
   it("throws when the pool is enabled but carries an empty url", async () => {
     await expect(
       proxyAwareFetch("https://api.example.com/v1/chat", {}, { enabled: true, url: "", strictProxy: true }),
-    ).rejects.toThrow(/strictProxy/);
+    ).rejects.toThrow(/Upstream proxy unavailable/);
   });
 
   it("does not block a caller that sets strictProxy with no proxy configured", async () => {
@@ -73,7 +73,7 @@ describe("strictProxy refuses a direct connection (#4333)", () => {
     // 403. With nothing configured it must still reach the network.
     await expect(
       proxyAwareFetch("https://nonexistent.invalid/v1/chat", {}, { strictProxy: true }),
-    ).rejects.not.toThrow(/strictProxy/);
+    ).rejects.not.toThrow(/Upstream proxy unavailable/);
   });
 
   it("does not block a request when strictProxy is off", async () => {
@@ -82,6 +82,6 @@ describe("strictProxy refuses a direct connection (#4333)", () => {
     // is NOT the strictProxy guard.
     await expect(
       proxyAwareFetch("https://nonexistent.invalid/v1/chat", {}, { strictProxy: false }),
-    ).rejects.not.toThrow(/strictProxy/);
+    ).rejects.not.toThrow(/Upstream proxy unavailable/);
   });
 });

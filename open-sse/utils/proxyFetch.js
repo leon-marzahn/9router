@@ -2,6 +2,7 @@ import { Readable } from "stream";
 import { MEMORY_CONFIG } from "../config/runtimeConfig.js";
 import { maskString } from "./maskSecrets.cjs";
 import { wreqFetch } from "./tlsImpersonation.js";
+import { getScopedProxyOptions, PROXY_UNAVAILABLE } from "./proxyScope.js";
 
 const originalFetch = globalThis.fetch;
 const proxyDispatchers = new Map();
@@ -337,7 +338,62 @@ async function createBypassRequest(parsedUrl, realIP, options) {
   });
 }
 
+// Errors that happen before any byte of the request reached the target: the
+// proxy refused the TCP connection, its hostname did not resolve, connecting
+// timed out, or it refused the CONNECT tunnel.
+const CONNECT_STAGE_CODES = new Set([
+  "ECONNREFUSED", "ENOTFOUND", "EAI_AGAIN", "EHOSTUNREACH", "ENETUNREACH", "UND_ERR_CONNECT_TIMEOUT",
+]);
+const TUNNEL_REFUSED = /Proxy response \(\d+\) !== 200 when HTTP Tunneling/;
+
+export function isProxyConnectStageError(err) {
+  for (let e = err, depth = 0; e && depth < 6; e = e.cause, depth++) {
+    if (CONNECT_STAGE_CODES.has(e.code)) return true;
+    if (TUNNEL_REFUSED.test(String(e.message || ""))) return true;
+  }
+  return false;
+}
+
+// A request refused because of the connection's proxy. The message is generic
+// (it reaches API clients); the details stay in the server log.
+function proxyUnavailable(detail, proxyOptions, cause = null) {
+  console.warn(`[ProxyFetch] ${detail}`);
+  // Keep the transport's own short reason ("fetch failed", "response lost"),
+  // minus anything that looks like a URL or address.
+  const reason = cause?.message
+    ? String(cause.message)
+      .replace(/[a-z][a-z0-9+.-]*:\/\/\S+/gi, "[redacted]")
+      .replace(/\S*@\S+/g, "[redacted]")
+      .replace(/\b\d{1,3}(?:\.\d{1,3}){3}(?::\d+)?\b/g, "[redacted]")
+      .slice(0, 120)
+    : "";
+  const err = new Error(reason ? `Upstream proxy unavailable: ${reason}` : "Upstream proxy unavailable");
+  err.code = PROXY_UNAVAILABLE;
+  try { proxyOptions?.onProxyUnavailable?.(err); } catch { /* observer only */ }
+  return err;
+}
+
+// Throws instead of letting the caller fall back to a direct connection when
+// the proxy is strict, or when the request may already have been sent and must
+// not be replayed (directFallback: "connect-only", used by token refresh).
+function refuseDirectFallback(proxyError, options, proxyOptions) {
+  if (options?.signal?.aborted) throw proxyError;
+  if (proxyOptions?.strictProxy === true) {
+    throw proxyUnavailable(`Proxy required but failed (strictProxy=true): ${proxyError.message}`, proxyOptions, proxyError);
+  }
+  if (proxyOptions?.directFallback === "connect-only" && !isProxyConnectStageError(proxyError)) {
+    throw proxyUnavailable(`Proxy failed after the request may have been sent; not replaying it directly: ${proxyError.message}`, proxyOptions, proxyError);
+  }
+}
+
 export async function proxyAwareFetch(url, options = {}, proxyOptions = null) {
+  // A caller that brings its own dispatcher (the SSRF guard's IP-pinned agent
+  // for client image URLs) chose the transport: never swap it for a scope,
+  // connection or global (HTTPS_PROXY) proxy, which would resolve the name
+  // itself and skip the IP check the pin enforces.
+  if (options?.dispatcher) return originalFetch(url, options);
+  // No explicit options: use the connection scope, if any (proxyScope.js).
+  if (!proxyOptions) proxyOptions = getScopedProxyOptions();
   const targetUrl = typeof url === "string" ? url : url.toString();
 
   // Vercel relay: forward request via relay headers
@@ -368,9 +424,7 @@ export async function proxyAwareFetch(url, options = {}, proxyOptions = null) {
       try {
         return await fetchWithTlsFallback(url, options, proxyUrl, impersonation);
       } catch (proxyError) {
-        if (proxyOptions?.strictProxy === true) {
-          throw new Error(`[ProxyFetch] Proxy required but failed (strictProxy=true): ${proxyError.message}`);
-        }
+        refuseDirectFallback(proxyError, options, proxyOptions);
         console.warn(`[ProxyFetch] Proxy failed, falling back to direct bypass: ${proxyError.message}`);
       }
     }
@@ -388,10 +442,9 @@ export async function proxyAwareFetch(url, options = {}, proxyOptions = null) {
     try {
       return await fetchWithTlsFallback(url, options, proxyUrl, impersonation);
     } catch (proxyError) {
-      // If strictProxy is enabled, fail hard instead of falling back to direct
-      if (proxyOptions?.strictProxy === true) {
-        throw new Error(`[ProxyFetch] Proxy required but failed (strictProxy=true): ${proxyError.message}`);
-      }
+      // strictProxy: fail hard instead of falling back to direct (and refresh
+      // requests only fall back when nothing can have been sent).
+      refuseDirectFallback(proxyError, options, proxyOptions);
       console.warn(`[ProxyFetch] Proxy failed, falling back to direct: ${proxyError.message}`);
       return fetchWithTlsFallback(url, options, null, impersonation);
     }
@@ -412,7 +465,7 @@ export async function proxyAwareFetch(url, options = {}, proxyOptions = null) {
     || proxyOptions?.connectionProxyEnabled === true
     || !!normalizeString(proxyOptions?.url ?? proxyOptions?.connectionProxyUrl);
   if (proxyOptions?.strictProxy === true && proxyIntended) {
-    throw new Error("[ProxyFetch] Proxy required but none resolved (strictProxy=true)");
+    throw proxyUnavailable("Proxy required but none resolved (strictProxy=true)", proxyOptions);
   }
 
   // got-scraping disabled — use native fetch directly
